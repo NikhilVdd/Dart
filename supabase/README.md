@@ -93,6 +93,12 @@ cd supabase/tests/pglite && npm install && npm test
 This applies every migration and the seed to an in-memory Postgres 17 (PGlite), using a small stand-in
 for Supabase's `auth` schema and roles. It then checks RLS, the lifecycle RPCs and matching while acting as each demo user.
 
+## Manual testing with test accounts
+
+`supabase/dev/accounts.mjs` mints sign-in codes for any email (no email is sent), creates a building
+group to test with, and lists and deletes users. See [`docs/manual-testing.md`](../docs/manual-testing.md)
+for the full two-account test plan.
+
 ## Adding a migration
 
 ```sh

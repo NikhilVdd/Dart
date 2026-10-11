@@ -86,6 +86,15 @@ struct SignInView: View {
                         Button("Use a different email") { codeSent = false; code = "" }
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
+                    } else {
+                        // For test accounts whose code was minted with supabase/dev/accounts.mjs.
+                        Button("I already have a code") {
+                            email = email.trimmingCharacters(in: .whitespaces).lowercased()
+                            codeSent = true
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .disabled(!email.contains("@"))
                     }
                 }
                 .padding(GrabTheme.pageInset)

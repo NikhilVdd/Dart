@@ -1,0 +1,95 @@
+# Manual testing with two accounts
+
+Grab needs two people: one who asks and one who is already moving. This walks through every live
+feature with two test accounts on two simulators, against the hosted Supabase project.
+
+## Setup (once)
+
+1. **Supabase CLI logged in and linked**: `npx supabase login` and `npx supabase link` (already done on this machine).
+2. **A building group to test with:**
+   ```sh
+   node supabase/dev/accounts.mjs building
+   ```
+3. **Two simulators.** In Xcode, open `GrabApp/Grab.xcodeproj`, pick a simulator (e.g. *iPhone 16*), and Run (⌘R).
+   Then switch the destination to a second one (e.g. *iPhone 16 Plus*) and Run again. The first simulator
+   keeps the app installed; relaunch it from its home screen. Each simulator has its own keychain, so each
+   stays signed in as a different person.
+
+## Sign in as two people
+
+Resend only delivers to your own address until a domain is verified, so mint codes instead:
+
+```sh
+node supabase/dev/accounts.mjs code alex@berkeley.edu "Alex Requester"
+node supabase/dev/accounts.mjs code sam@berkeley.edu "Sam Runner"
+```
+
+On each simulator, go to **Profile → Sign in with campus email**, enter the email, tap
+**I already have a code**, and type the printed code. Don't tap *Email me a code* for test addresses:
+Resend can't deliver to them, and requesting a new email invalidates the minted code. If a code is
+rejected, run the `code` command again for a fresh one.
+
+Use `@berkeley.edu` addresses so both accounts are linked to UC Berkeley. Other domains sign in fine but
+see no campus feed.
+
+## Test plan
+
+Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
+
+### Profile and groups
+- [ ] A and B: Profile shows the right name, initials, campus *UC Berkeley*, and **Signed in**
+- [ ] A: Profile → **Edit name** → change it; the header updates
+- [ ] A and B: Groups → join **The Durant**. Profile now shows Building = The Durant
+- [ ] A: Groups → **+** → *New friend group* "Test crew". Open it and note the invite code
+- [ ] B: Groups → **+** → *Join with invite code*. "Test crew" appears
+- [ ] A sends a message; it appears on B **without pulling to refresh** (realtime). B replies; A sees it
+- [ ] A adds "Lemons" to the shopping list; B checks it off; both see the strike-through
+
+### The core loop: a request rides on a trip already happening
+- [ ] A: Home → **What do you need?** → *Request something*. "Blender under $50", pickup **Any store**,
+      deliver to **Unit 2 · Cunningham Hall**, within 1 hr, reward $8, budget $50, visible to everyone on campus → **Post request**
+- [ ] A: the result says no trip fits yet (B hasn't announced one)
+- [ ] B: Home → Earn. The blender request is in the feed
+- [ ] B: Home → **What do you need?** → *Announce a store run*. Store **Target**, heading back to **Unit 2**,
+      everyone on campus, fee $6, max detour 8 min → **Announce run**
+- [ ] B: the result lists the blender at **+5 min**. Tap **Accept**
+- [ ] A: Home → the active request card flips to **Accepted** live; Activity → Requesting shows "Accepted by Sam"
+- [ ] B: Activity → Helping → open it → **Mark picking up**, then **Mark on the way**. A sees each step live
+- [ ] A: open the request → **Confirm I received it**. The timeline shows all five steps
+- [ ] B: Profile → Earnings shows **$8**, 1 completed
+
+### Building run
+- [ ] B: announce a run from **Target** to **The Durant · Lobby**, visible to *The Durant*, fee $5
+- [ ] A: Home → Request shows "Sam is going to Target" → open it → **Ask Sam to grab something** → "Paper towels", budget 9
+- [ ] B: open the run → the paper towels appear under **Requests that fit this trip** → **Accept**
+- [ ] B: **I'm in the store** → **Heading back** → **Finish run**
+
+### Friend run
+- [ ] B: announce a run to Trader Joe's visible to **Test crew** (the fee is hidden: friend runs are free)
+- [ ] A: open it from the group → **Add to the shopping list** → "Basil". It shows in Test crew's list
+
+### Edge cases
+- [ ] A: post a request, then **Cancel request** while it's open. It moves to Cancelled in Activity
+- [ ] B: accept a new request, then **Release to someone else**. A sees it back to *Waiting for someone*
+- [ ] A: open your own open request. There is no Accept button (and the server refuses it anyway)
+- [ ] A: post a request "needed within 15 min". After 15 min it disappears from B's Earn feed
+- [ ] Turn on airplane mode on one simulator, perform an action, and check the error alert is readable
+- [ ] Profile → **Sign out**. The app returns to sample data with the sign-in banner on Home
+
+## Cleanup
+
+```sh
+node supabase/dev/accounts.mjs list
+node supabase/dev/accounts.mjs delete alex@berkeley.edu
+node supabase/dev/accounts.mjs delete sam@berkeley.edu
+```
+
+Deleting a user removes their profile, requests, runs, messages' authorship, and memberships.
+Groups they created stay; remove leftovers in the dashboard's Table Editor if needed.
+
+## Where to look when something fails
+
+- **Dashboard → Logs → API**: the failing request and its error
+- **Dashboard → Logs → Postgres**: errors raised by the lifecycle functions (e.g. "run is full")
+- **Dashboard → Logs → Auth**: sign-in and code problems
+- **Xcode console**: decoding errors from the app
