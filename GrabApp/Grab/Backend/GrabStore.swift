@@ -89,6 +89,27 @@ final class GrabStore: ObservableObject {
     var buildingName: String? { profile?.homePlace?.name }
     var stores: [PlaceRow] { places.filter(\.isStore) }
 
+    /// Where place searches are centered: your campus, else UC Berkeley.
+    var campusCenter: (lat: Double, lng: Double) {
+        profile?.campus.map { ($0.lat, $0.lng) } ?? (37.8719, -122.2585)
+    }
+
+    /// Adds a place from a map search result and makes it available to the forms immediately.
+    func createPlace(_ place: NewPlace) async -> PlaceRow? {
+        guard let backend else { return nil }
+        do {
+            let row = try await backend.createPlace(place)
+            if !places.contains(where: { $0.id == row.id }) {
+                places.append(row)
+                places.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
+            return row
+        } catch {
+            report(error)
+            return nil
+        }
+    }
+
     private var runFeedMine: [GrabItem] {
         myRuns.map { item(from: $0) }
     }

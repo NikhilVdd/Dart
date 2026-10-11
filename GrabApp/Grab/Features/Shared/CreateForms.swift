@@ -52,21 +52,15 @@ struct RequestFormView: View {
                 TextField("Details for the helper", text: $details, axis: .vertical).lineLimit(2...5)
             }
             Section {
-                Picker("Pick up from", selection: $pickupID) {
-                    Text("Any store — let Grab decide").tag(UUID?.none)
-                    ForEach(store.places) { place in Text(place.label).tag(Optional(place.id)) }
-                }
-                Picker("Deliver to", selection: $destinationID) {
-                    Text("Choose a place").tag(UUID?.none)
-                    ForEach(store.places.filter { !$0.isStore }) { place in Text(place.label).tag(Optional(place.id)) }
-                }
+                PlaceField(title: "Pick up from", selection: $pickupID, filter: .any, allowsAnyStore: true)
+                PlaceField(title: "Deliver to", selection: $destinationID, filter: .destinations)
                 Picker("Needed within", selection: $minutes) {
                     ForEach([15, 30, 60, 120, 240], id: \.self) { Text($0 < 60 ? "\($0) min" : "\($0 / 60) hr").tag($0) }
                 }
             } header: {
                 Text("Where and when")
             } footer: {
-                Text("“Any store” lets someone already shopping nearby pick it up.")
+                Text("“Any store” lets someone already shopping nearby pick it up. Search to add a place that isn’t listed.")
             }
             Section {
                 Stepper("Helper reward: $\(reward)", value: $reward, in: 0...50)
@@ -162,14 +156,8 @@ struct RunFormView: View {
     private var form: some View {
         Form {
             Section("Where are you going?") {
-                Picker("Store", selection: $storeID) {
-                    Text("Choose a store").tag(UUID?.none)
-                    ForEach(store.stores) { place in Text(place.label).tag(Optional(place.id)) }
-                }
-                Picker("Heading back to", selection: $destinationID) {
-                    Text("Choose a place").tag(UUID?.none)
-                    ForEach(store.places.filter { !$0.isStore }) { place in Text(place.label).tag(Optional(place.id)) }
-                }
+                PlaceField(title: "Store", selection: $storeID, filter: .stores)
+                PlaceField(title: "Heading back to", selection: $destinationID, filter: .destinations)
                 TextField("Note (optional)", text: $note)
             }
             Section {

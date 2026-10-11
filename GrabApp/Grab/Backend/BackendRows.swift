@@ -23,7 +23,7 @@ struct ProfileRecord: Decodable, Hashable {
     let campus: CampusRow?
     let homePlace: PlaceRow?
 
-    static let select = "id, display_name, initials, campus_id, home_place_id, campus:campuses(id, name), home_place:places!home_place_id(*)"
+    static let select = "id, display_name, initials, campus_id, home_place_id, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
 
     enum CodingKeys: String, CodingKey {
         case id, initials, campus
@@ -37,6 +37,8 @@ struct ProfileRecord: Decodable, Hashable {
 struct CampusRow: Decodable, Hashable {
     let id: UUID
     let name: String
+    let lat: Double
+    let lng: Double
 }
 
 struct PlaceRow: Decodable, Hashable, Identifiable {
@@ -230,6 +232,25 @@ struct RequestMatch: Decodable, Hashable {
 }
 
 // MARK: - Inserts
+
+/// Parameters for `create_place`. `kind` is a `place_kind` value.
+struct NewPlace: Encodable {
+    var name: String
+    var kind: String
+    var lat: Double
+    var lng: Double
+    var detail: String?
+    var address: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name = "p_name"
+        case kind = "p_kind"
+        case lat = "p_lat"
+        case lng = "p_lng"
+        case detail = "p_detail"
+        case address = "p_address"
+    }
+}
 
 struct NewRequest: Encodable {
     var groupID: UUID?

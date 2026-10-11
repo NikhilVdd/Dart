@@ -115,6 +115,11 @@ final class GrabBackend {
         return try await client.from("requests").select(RequestRow.select).in("id", values: ids).execute().value
     }
 
+    /// Adds a place, or returns the existing one with the same name within 150 m.
+    func createPlace(_ place: NewPlace) async throws -> PlaceRow {
+        try await client.rpc("create_place", params: place).single().execute().value
+    }
+
     // MARK: Matching
 
     func matchRuns(forRequest id: UUID) async throws -> [RunMatch] {

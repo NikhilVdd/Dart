@@ -44,6 +44,8 @@ Updated: 2026-10-11
 - [x] Requester confirms delivery (helpers stop at "delivered"; auto-complete after 24 h)
 - [x] Expiry of overdue requests and finished runs via pg_cron (every minute)
 - [x] In-app account deletion (App Store requirement)
+- [x] Place search with MapKit: users add stores and buildings from Apple Maps (`create_place`, de-duplicated)
+- [x] Launch places aligned to Apple Maps coordinates
 - [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)
 - [ ] Wrap `auth.uid()` as `(select auth.uid())` in RLS policies (Supabase performance advisor)
 - [ ] Custom SMTP for sign-in emails before inviting real users

@@ -166,5 +166,26 @@ check('group ownership passed to the longest-standing member', sunday.length ===
 check('completed deliveries survive with helper cleared', (await as(null, `select count(*)::int n from requests where id = $1 and status = 'completed' and helper_id is null`, [q2[0].id]))[0].n === 1);
 check('her messages remain with author cleared', (await as(null, `select count(*)::int n from messages where sender_id is null`))[0].n >= 2);
 
+
+// --- adding places -----------------------------------------------------------------------------
+const np = await as('nikhil', `select id, name, kind, campus_id, created_by from create_place('Walgreens', 'store', 37.8679, -122.2590, 'Telegraph Avenue', '2310 Telegraph Ave')`);
+check('signed-in user adds a place on their campus', np[0].kind === 'store' && np[0].created_by === U.nikhil && !!np[0].campus_id);
+const dup = await as('jordan', `select id from create_place('walgreens', 'store', 37.8680, -122.2591)`);
+check('same name within 150 m returns the existing place', dup[0].id === np[0].id);
+const twin = await as('jordan', `select id from create_place('Walgreens', 'store', 37.8790, -122.2690)`);
+check('same name far away is a different place', twin[0].id !== np[0].id);
+await rejects('places far from campus are refused', 'nikhil', `select create_place('Times Square', 'other', 40.7580, -73.9855)`);
+await rejects('blank names are refused', 'nikhil', `select create_place('  ', 'store', 37.87, -122.26)`);
+await rejects('anon cannot add places', 'anon', `select create_place('X', 'store', 37.87, -122.26)`);
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000aa', 'pat@gmail.com', '{}')`);
+U.pat = '00000000-0000-0000-0000-0000000000aa';
+await rejects('users without a campus cannot add places', 'pat', `select create_place('Corner store', 'store', 37.87, -122.26)`);
+await rejects('clients cannot insert places directly', 'nikhil', `insert into places (campus_id, name, kind, lat, lng) values ('c0000000-0000-0000-0000-000000000001', 'Sneaky', 'store', 37.87, -122.26)`);
+await as(null, `insert into places (campus_id, name, kind, lat, lng, created_by) select 'c0000000-0000-0000-0000-000000000001', 'Bulk ' || g, 'other', 37.87, -122.26, '${U.jordan}' from generate_series(1, 25) g`);
+await rejects('25 new places per user per day', 'jordan', `select create_place('One too many', 'other', 37.871, -122.261)`);
+const cvs = await as('nikhil', `select id from create_place('CVS Pharmacy', 'store', 37.86750, -122.26800)`);
+check('"CVS Pharmacy" from Apple Maps matches the seeded "CVS"', cvs[0].id === 'a0000000-0000-0000-0000-000000000003');
+check('new places are visible to everyone signed in', (await as('devon', `select 1 from places where name = 'Walgreens'`)).length === 2);
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

@@ -59,6 +59,14 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 - [ ] A: open the request → **Confirm I received it**. The timeline shows all six steps
 - [ ] B: Profile → Earnings shows **$8**, 1 completed
 
+### Places (Apple Maps search)
+- [ ] A: New request → **Pick up from** → the sheet lists *Any store* and the places already on Grab
+- [ ] Type "Berkeley Bowl" → *Add from Apple Maps* shows nearby results (nothing 15+ km away) → tap one →
+      it asks what kind of place it is, with *Store* first → choose it. The form now shows it as the pickup
+- [ ] B: start a new run → **Store** → search "Berkeley Bowl". It now appears under *On Grab*, not as a new result
+- [ ] Search "CVS" in a store picker. The Shattuck CVS appears once, under *On Grab*
+- [ ] **Deliver to** → search an apartment address (e.g. "2600 Channing Way") → add as *Residence or apartment*
+
 ### Building run
 - [ ] B: announce a run from **Target** to **The Durant · Lobby**, visible to *The Durant*, fee $5
 - [ ] A: Home → Request shows "Sam is going to Target" → open it → **Ask Sam to grab something** → "Paper towels", budget 9

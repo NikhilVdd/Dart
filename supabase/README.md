@@ -6,7 +6,7 @@ Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no s
 
 | Table | What it is |
 | --- | --- |
-| `campuses`, `places` | Where things happen. Places have lat/lng and a kind (`store`, `residence`, `library`, …). |
+| `campuses`, `places` | Where things happen. Places have lat/lng and a kind (`store`, `residence`, `library`, …). Users add places from Apple Maps search via `create_place()`. |
 | `profiles` | One per auth user: display name, initials, campus (from email domain), home building. |
 | `groups`, `group_members` | Free **friend groups** and paid **building communities**. Join by invite code; campus buildings are discoverable. |
 | `runs` | **Supply:** a trip that is already happening ("Devon is in Target, heading back to Unit 2"). Has an audience (friends / building / campus), a per-request fee, a max detour and a capacity. |
@@ -46,6 +46,18 @@ open ─accept─▶ accepted ─▶ picking_up ─▶ on_the_way ─▶ deliver
   from *on the way* or *delivered*. Unconfirmed deliveries auto-complete after 24 hours.
 - Clients can't write `status` directly (no column privilege). They call `accept_request`,
   `advance_request`, `release_request`, `cancel_request`, or `request_from_run`.
+
+### Adding places
+
+`create_place(name, kind, lat, lng, detail, address)` is called by the app's place picker after an
+Apple Maps (MapKit) search:
+
+- Requires a campus (campus email). The point must be within 15 km of that campus.
+- **De-duplicates:** a place within 150 m whose name matches, contains or is contained in the new name
+  is returned instead. So Apple's "CVS Pharmacy" resolves to the seeded "CVS".
+- Each user can add up to 25 places a day. `created_by` records who added each one.
+
+The ten launch places are aligned to Apple Maps coordinates (migration 8).
 
 ### Housekeeping and account deletion
 
