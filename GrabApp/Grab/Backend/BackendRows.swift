@@ -87,6 +87,8 @@ struct RunRow: Decodable, Hashable {
     let runnerID: UUID
     let groupID: UUID?
     let audience: String
+    let storePlaceID: UUID?
+    let destinationPlaceID: UUID?
     let storeLabel: String
     let destinationLabel: String
     let note: String?
@@ -103,6 +105,8 @@ struct RunRow: Decodable, Hashable {
         case id, audience, note, status, capacity, runner
         case runnerID = "runner_id"
         case groupID = "group_id"
+        case storePlaceID = "store_place_id"
+        case destinationPlaceID = "destination_place_id"
         case storeLabel = "store_label"
         case destinationLabel = "destination_label"
         case closesAt = "closes_at"
@@ -118,6 +122,8 @@ struct RequestRow: Decodable, Hashable {
     let runID: UUID?
     let title: String
     let details: String
+    let pickupPlaceID: UUID?
+    let destinationPlaceID: UUID?
     let pickupLabel: String
     let destinationLabel: String
     let deliverBy: Date
@@ -139,6 +145,8 @@ struct RequestRow: Decodable, Hashable {
         case requesterID = "requester_id"
         case groupID = "group_id"
         case runID = "run_id"
+        case pickupPlaceID = "pickup_place_id"
+        case destinationPlaceID = "destination_place_id"
         case pickupLabel = "pickup_label"
         case destinationLabel = "destination_label"
         case deliverBy = "deliver_by"

@@ -55,6 +55,12 @@ struct Person: Identifiable, Hashable, Codable {
     let initials: String
 }
 
+/// A latitude/longitude pair. MapKit conversions live with the map views.
+struct GeoPoint: Hashable, Codable {
+    let lat: Double
+    let lng: Double
+}
+
 /// Links a displayed item to its backend row. Absent on preview fixtures.
 struct BackendRef: Hashable, Codable {
     enum Source: String, Codable { case request, run }
@@ -94,6 +100,12 @@ struct GrabItem: Identifiable, Hashable, Codable {
     let status: GrabStatus
     let detail: String
     var backend: BackendRef? = nil
+    /// Nil when unknown, e.g. an "any store" request has no pickup point.
+    var pickupLocation: GeoPoint? = nil
+    var destinationLocation: GeoPoint? = nil
+
+    /// Where to pin the item on a map: the pickup, else the drop-off.
+    var mapLocation: GeoPoint? { pickupLocation ?? destinationLocation }
 
     var kindLabel: String {
         switch kind {
@@ -170,7 +182,9 @@ enum PreviewData {
         effort: "12–18 min",
         kind: .campusRequest,
         status: .waiting,
-        detail: "Jordan left a labeled charger at the front desk. Show the preview request name when you arrive."
+        detail: "Jordan left a labeled charger at the front desk. Show the preview request name when you arrive.",
+        pickupLocation: GeoPoint(lat: 37.87252, lng: -122.26077),
+        destinationLocation: GeoPoint(lat: 37.86693, lng: -122.26093)
     )
 
     static let shampoo = GrabItem(
@@ -186,7 +200,9 @@ enum PreviewData {
         effort: "8–12 min added",
         kind: .campusRequest,
         status: .accepted,
-        detail: "A flexible product request. The merchandise budget is separate from the helper reward."
+        detail: "A flexible product request. The merchandise budget is separate from the helper reward.",
+        pickupLocation: GeoPoint(lat: 37.86962, lng: -122.26755),
+        destinationLocation: GeoPoint(lat: 37.86770, lng: -122.26109)
     )
 
     static let traderJoes = GrabItem(
@@ -202,7 +218,9 @@ enum PreviewData {
         effort: nil,
         kind: .friendRun,
         status: .pickingUp,
-        detail: "Maya shared this free run with friends. Items and reimbursements arrive in a later section."
+        detail: "Maya shared this free run with friends. Items and reimbursements arrive in a later section.",
+        pickupLocation: GeoPoint(lat: 37.87200, lng: -122.27322),
+        destinationLocation: GeoPoint(lat: 37.86766, lng: -122.25866)
     )
 
     static let buildingRun = GrabItem(
@@ -218,7 +236,9 @@ enum PreviewData {
         effort: "10 min added",
         kind: .buildingRun,
         status: .onTheWay,
-        detail: "A paid building run approved by the shopper. Building broadcasts are never automatic in this preview."
+        detail: "A paid building run approved by the shopper. Building broadcasts are never automatic in this preview.",
+        pickupLocation: GeoPoint(lat: 37.86962, lng: -122.26755),
+        destinationLocation: GeoPoint(lat: 37.86766, lng: -122.25866)
     )
 
     static let friendMessages = [

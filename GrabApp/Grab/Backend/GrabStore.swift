@@ -482,7 +482,9 @@ final class GrabStore: ObservableObject {
             kind: kind,
             status: GrabStatus(runStatus: run.status),
             detail: [run.note, "Takes requests that add up to \(run.maxAddedMinutes) min to the trip."].compactMap { $0 }.joined(separator: " "),
-            backend: BackendRef(source: .run, id: run.id, groupID: run.groupID, role: isMine ? .owner : .viewer, rawStatus: run.status)
+            backend: BackendRef(source: .run, id: run.id, groupID: run.groupID, role: isMine ? .owner : .viewer, rawStatus: run.status),
+            pickupLocation: location(of: run.storePlaceID),
+            destinationLocation: location(of: run.destinationPlaceID)
         )
     }
 
@@ -509,7 +511,9 @@ final class GrabStore: ObservableObject {
             kind: .campusRequest,
             status: GrabStatus(requestStatus: request.status),
             detail: detail.isEmpty ? "No extra details." : detail,
-            backend: BackendRef(source: .request, id: request.id, groupID: request.groupID, role: role, rawStatus: request.status)
+            backend: BackendRef(source: .request, id: request.id, groupID: request.groupID, role: role, rawStatus: request.status),
+            pickupLocation: location(of: request.pickupPlaceID),
+            destinationLocation: location(of: request.destinationPlaceID)
         )
     }
 
@@ -529,6 +533,11 @@ final class GrabStore: ObservableObject {
         }
         return ActivityRecord(id: request.id, item: item(from: request, me: me), mode: isRequester ? .requesting : .helping,
                               currentStatus: status, lastUpdate: update)
+    }
+
+    private func location(of placeID: UUID?) -> GeoPoint? {
+        guard let placeID, let place = places.first(where: { $0.id == placeID }) else { return nil }
+        return GeoPoint(lat: place.lat, lng: place.lng)
     }
 
     private func message(from row: MessageRow, me: UUID) -> Message {

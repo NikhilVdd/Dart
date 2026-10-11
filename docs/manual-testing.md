@@ -67,6 +67,17 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 - [ ] Search "CVS" in a store picker. The Shattuck CVS appears once, under *On Grab*
 - [ ] **Deliver to** → search an apartment address (e.g. "2600 Channing Way") → add as *Residence or apartment*
 
+### Maps
+- [ ] Home (Request and Earn): a map card above the feed shows a pin per item. Requests are gold packages; runs
+      are blue (storefront, friends or building icons). It fits all pins
+- [ ] Tap a pin: that item's detail sheet opens. Tap the expand button: a full-screen map opens; tapping a pin
+      there closes it and opens the item
+- [ ] Detail sheet: the route map shows pickup (blue) and drop-off (gold) with the walking route drawn and
+      "N min walk · distance" below. Moffitt → Ida Sproul should read about 11 min
+- [ ] An *Any store* request shows only the drop-off pin, with "Pickup from any nearby store"
+- [ ] Airplane mode: the route falls back to a dashed straight line with an "as the crow flies" distance
+- [ ] Signed out (preview data): the map card and route maps still work on the sample items
+
 ### Building run
 - [ ] B: announce a run from **Target** to **The Durant · Lobby**, visible to *The Durant*, fee $5
 - [ ] A: Home → Request shows "Sam is going to Target" → open it → **Ask Sam to grab something** → "Paper towels", budget 9

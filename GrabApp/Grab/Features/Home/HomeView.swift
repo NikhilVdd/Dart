@@ -23,6 +23,7 @@ struct HomeView: View {
                         title: state.homeMode == .request ? "Nearby & for you" : "Earn nearby",
                         subtitle: state.homeMode == .request ? "Store runs and current requests" : "Paid opportunities with clear effort"
                     )
+                    FeedMapCard(items: feed) { selectedItem = $0 }
                     if store.isLive && feed.isEmpty {
                         ContentStateCard(state: store.isLoading ? .loading : .empty)
                     }

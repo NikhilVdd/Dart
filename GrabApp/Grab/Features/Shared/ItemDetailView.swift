@@ -31,6 +31,8 @@ struct ItemDetailView: View {
                     .padding(.horizontal, 16)
                     .grabGlass()
 
+                    RouteMapCard(item: item)
+
                     if item.reward != nil || item.merchandiseBudget != nil {
                         HStack(spacing: 12) {
                             if let reward = item.reward {
