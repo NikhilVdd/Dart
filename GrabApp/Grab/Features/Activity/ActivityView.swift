@@ -128,6 +128,7 @@ private struct ActivityTimelineView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .presentationDragIndicator(.visible)
+        .macSheetSize()
     }
 }
 

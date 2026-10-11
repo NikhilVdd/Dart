@@ -80,6 +80,7 @@ struct ItemDetailView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .macSheetSize()
     }
 
     private var futureActionTitle: String {

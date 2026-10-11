@@ -45,6 +45,7 @@ struct CreateMenuView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .macSheetSize()
     }
 }
 

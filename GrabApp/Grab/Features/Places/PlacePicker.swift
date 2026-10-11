@@ -74,7 +74,6 @@ struct PlaceSearchView: View {
     @State private var query = ""
     @State private var results: [MKMapItem] = []
     @State private var searchingMaps = false
-    @State private var pending: MKMapItem?
     @State private var adding = false
 
     private var existing: [PlaceRow] {
@@ -129,16 +128,32 @@ struct PlaceSearchView: View {
                             Text("No other matches nearby.").foregroundStyle(.secondary)
                         }
                         ForEach(newResults, id: \.self) { item in
-                            Button { pending = item } label: {
+                            // A menu carries its own item, so the choice can't lose track of which
+                            // place it belongs to, and it shows every kind on both iOS and macOS.
+                            Menu {
+                                Section("Add \(item.name ?? "this place") as") {
+                                    ForEach(kinds(for: item), id: \.0) { kind, label in
+                                        Button(label) { Task { await add(item, kind: kind) } }
+                                    }
+                                }
+                            } label: {
                                 row(icon: "plus.circle.fill", title: item.name ?? "Unnamed place",
                                     subtitle: Self.address(for: item.placemark), selected: false)
                             }
+                            .menuIndicator(.hidden)
+                            .buttonStyle(.plain)
                             .disabled(adding)
                         }
                     } header: {
                         Text("Add from Apple Maps")
                     } footer: {
-                        Text("Places you add are shared with everyone on your campus.")
+                        if adding {
+                            Text("Adding…")
+                        } else if let error = store.lastError {
+                            Text(error).foregroundStyle(.red)
+                        } else {
+                            Text("Places you add are shared with everyone on your campus.")
+                        }
                     }
                 }
             }
@@ -148,21 +163,14 @@ struct PlaceSearchView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
-            .confirmationDialog("What is \(pending?.name ?? "this place")?",
-                                isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
-                                titleVisibility: .visible) {
-                ForEach(orderedKinds, id: \.0) { kind, label in
-                    Button(label) { Task { await add(pending, kind: kind) } }
-                }
-                Button("Cancel", role: .cancel) { pending = nil }
-            }
+            .macSheetSize(minHeight: 540)
         }
         .presentationDragIndicator(.visible)
     }
 
     /// The inferred kind first, then the rest of the kinds this picker allows.
-    private var orderedKinds: [(String, String)] {
-        let guess = pending.map(Self.inferredKind) ?? "other"
+    private func kinds(for item: MKMapItem) -> [(String, String)] {
+        let guess = Self.inferredKind(item)
         return filter.kinds.filter { $0.0 == guess } + filter.kinds.filter { $0.0 != guess }
     }
 
@@ -215,9 +223,7 @@ struct PlaceSearchView: View {
         }
     }
 
-    private func add(_ item: MKMapItem?, kind: String) async {
-        guard let item else { return }
-        pending = nil
+    private func add(_ item: MKMapItem, kind: String) async {
         adding = true
         defer { adding = false }
         let placemark = item.placemark

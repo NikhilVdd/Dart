@@ -124,6 +124,10 @@ for Supabase's `auth` schema and roles. It then checks RLS, the lifecycle RPCs a
 group to test with, and lists and deletes users. See [`docs/manual-testing.md`](../docs/manual-testing.md)
 for the full two-account test plan.
 
+`supabase/dev/demo.mjs setup` builds a live demo scene (background people, runs, requests, chat, history)
+and prints sign-in codes for two presenter accounts. `reset` removes it. See [`docs/demo.md`](../docs/demo.md)
+for the recording script.
+
 ## Adding a migration
 
 ```sh

@@ -267,3 +267,16 @@ struct ContentStateCard: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+extension View {
+    /// macOS sizes sheets to their content, and lists, scroll views and maps have none, so sheets
+    /// collapse. Give them a phone-like minimum there; no effect on iOS.
+    @ViewBuilder
+    func macSheetSize(minWidth: CGFloat = 440, minHeight: CGFloat = 620) -> some View {
+        #if os(macOS)
+        frame(minWidth: minWidth, idealWidth: minWidth + 40, minHeight: minHeight, idealHeight: minHeight + 80)
+        #else
+        self
+        #endif
+    }
+}

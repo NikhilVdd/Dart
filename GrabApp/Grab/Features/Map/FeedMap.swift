@@ -56,6 +56,7 @@ struct FeedMapCard: View {
                         onSelect(item)
                     }
                     .ignoresSafeArea(edges: .bottom)
+                    .macSheetSize(minWidth: 560, minHeight: 560)
                     .navigationTitle("Nearby")
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) { Button("Done") { expanded = false } }

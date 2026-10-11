@@ -105,6 +105,7 @@ struct SignInView: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .macSheetSize(minHeight: 520)
         .onChange(of: store.isLive) { _, live in if live { dismiss() } }
     }
 
