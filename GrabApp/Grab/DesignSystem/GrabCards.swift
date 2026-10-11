@@ -43,7 +43,7 @@ struct GrabItemCard: View {
         .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens preview details")
+        .accessibilityHint("Opens details")
     }
 
     private var symbol: String {
@@ -51,6 +51,7 @@ struct GrabItemCard: View {
         case .campusRequest: "shippingbox.fill"
         case .friendRun: "person.2.fill"
         case .buildingRun: "building.2.fill"
+        case .campusRun: "storefront.fill"
         }
     }
 }

@@ -2,20 +2,24 @@ import SwiftUI
 
 struct ActivityView: View {
     @EnvironmentObject private var state: AppState
+    @EnvironmentObject private var store: GrabStore
     @State private var selectedRecord: ActivityRecord?
 
-    private var records: [ActivityRecord] {
-        PreviewData.activities.filter { $0.mode == state.activityMode }
-    }
+    private var records: [ActivityRecord] { store.activities(for: state.activityMode) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    PreviewPill()
+                    if !store.isLive { PreviewPill() }
                     Text("Activity").font(.largeTitle.bold())
                     SlidingSegmentedControl(selection: $state.activityMode)
-                    SectionHeading(title: state.activityMode == .requesting ? "Your requests" : "Your helping activity", subtitle: "Preview records across each delivery stage")
+                    SectionHeading(title: state.activityMode == .requesting ? "Your requests" : "Your helping activity",
+                                   subtitle: store.isLive ? "Every delivery stage, updated live" : "Preview records across each delivery stage")
+                    if store.isLive && records.isEmpty {
+                        EmptyStateCard(title: "Nothing yet",
+                                       message: state.activityMode == .requesting ? "Requests you post will show up here." : "Requests you accept will show up here.")
+                    }
                     ForEach(records) { record in
                         Button { selectedRecord = record } label: {
                             ActivityCard(record: record)
@@ -28,6 +32,7 @@ struct ActivityView: View {
                 .padding(.bottom, 116)
             }
             .background(GrabBackdrop())
+            .refreshable { await store.refresh() }
             .sheet(item: $selectedRecord) { ActivityTimelineView(record: $0) }
         }
     }
@@ -66,16 +71,19 @@ private struct ActivityCard: View {
 
 private struct ActivityTimelineView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: GrabStore
+    @State private var showDetail = false
     let record: ActivityRecord
 
-    private let stages = GrabStatus.allCases
+    private let stages = GrabStatus.timeline
     private var currentIndex: Int { stages.firstIndex(of: record.currentStatus) ?? 0 }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    PreviewPill(text: "STATUS PREVIEW")
+                    if !store.isLive { PreviewPill(text: "STATUS PREVIEW") }
+                    if record.currentStatus == .cancelled { StatusChip(status: .cancelled) }
                     Text(record.item.title).font(.largeTitle.bold())
                     Text(record.item.subtitle).font(.title3).foregroundStyle(.secondary)
 
@@ -92,7 +100,7 @@ private struct ActivityTimelineView: View {
                     .grabGlass()
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Available preview information").font(.headline)
+                        Text(store.isLive ? "Details" : "Available preview information").font(.headline)
                         Label(record.lastUpdate, systemImage: "clock")
                         Label(record.item.pickup, systemImage: "mappin.and.ellipse")
                         Label(record.item.destination, systemImage: "location.fill")
@@ -102,13 +110,21 @@ private struct ActivityTimelineView: View {
                     .padding(18)
                     .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 20))
 
-                    Text("Statuses are local preview data. No real delivery or payment is represented.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                    if store.isLive, record.item.backend != nil {
+                        Button { showDetail = true } label: {
+                            PrimaryButtonLabel(title: "Open request", icon: "arrow.right.circle.fill")
+                        }
+                        .buttonStyle(PressableStyle())
+                    } else {
+                        Text("Statuses are local preview data. No real delivery or payment is represented.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
                 .padding(GrabTheme.pageInset)
             }
             .background(GrabBackdrop())
             .navigationTitle("Timeline")
+            .sheet(isPresented: $showDetail) { ItemDetailView(item: record.item) }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .presentationDragIndicator(.visible)

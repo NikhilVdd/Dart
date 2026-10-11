@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CreateMenuView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: GrabStore
     @State private var destination: CreateDestination?
 
     enum CreateDestination: String, Identifiable {
@@ -13,9 +14,9 @@ struct CreateMenuView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 22) {
-                PreviewPill()
+                if !store.isLive { PreviewPill() }
                 Text("What would you like to create?").font(.largeTitle.bold())
-                Text("Choose a flow to preview. Full forms arrive in Section 2 and later.")
+                Text(store.isLive ? "Ask for something, or let people know you’re already going." : "Choose a flow to preview. Sign in to post for real.")
                     .foregroundStyle(.secondary)
 
                 CreateOption(icon: "shippingbox.fill", title: "Request something", subtitle: "Ask someone nearby to bring an item or complete an errand") {
@@ -32,7 +33,14 @@ struct CreateMenuView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } }
             }
             .navigationDestination(item: $destination) { destination in
-                CreateIntroView(destination: destination)
+                if store.isLive {
+                    switch destination {
+                    case .request: RequestFormView { dismiss() }
+                    case .run: RunFormView { dismiss() }
+                    }
+                } else {
+                    CreateIntroView(destination: destination)
+                }
             }
         }
         .presentationDetents([.medium, .large])
@@ -94,17 +102,17 @@ private struct CreateIntroView: View {
                     PrimaryButtonLabel(title: "Continue preview", icon: "arrow.right")
                 }
                 .buttonStyle(PressableStyle())
-                Text("Section 1 stops here intentionally. No request or broadcast will be created.")
+                Text("Preview mode: no request or broadcast will be created. Sign in from Profile to post.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
             .padding(GrabTheme.pageInset)
         }
         .background(GrabBackdrop())
         .navigationTitle("How it works")
-        .alert("Form arrives next", isPresented: $showUpcoming) {
+        .alert("Sign in to post", isPresented: $showUpcoming) {
             Button("Done", role: .cancel) { }
         } message: {
-            Text(destination == .request ? "Campus request creation is planned for Section 2." : "Friend and building run creation is planned for Sections 3 and 4.")
+            Text("Posting requests and runs needs a signed-in account on a build connected to the Grab backend.")
         }
     }
 

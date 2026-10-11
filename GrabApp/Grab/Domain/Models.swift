@@ -25,6 +25,10 @@ enum GrabStatus: String, Codable, CaseIterable {
     case pickingUp = "Picking up"
     case onTheWay = "On the way"
     case completed = "Completed"
+    case cancelled = "Cancelled"
+
+    /// The delivery stages shown on a timeline; cancelled is a terminal state, not a stage.
+    static let timeline: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .completed]
 
     var icon: String {
         switch self {
@@ -33,6 +37,7 @@ enum GrabStatus: String, Codable, CaseIterable {
         case .pickingUp: "bag"
         case .onTheWay: "figure.walk"
         case .completed: "checkmark.circle.fill"
+        case .cancelled: "xmark.circle"
         }
     }
 }
@@ -43,11 +48,29 @@ struct Person: Identifiable, Hashable, Codable {
     let initials: String
 }
 
+/// Links a displayed item to its backend row. Absent on preview fixtures.
+struct BackendRef: Hashable, Codable {
+    enum Source: String, Codable { case request, run }
+    enum Role: String, Codable {
+        case owner   // you posted the request or are running the trip
+        case helper  // you accepted the request
+        case viewer
+    }
+
+    let source: Source
+    let id: UUID
+    var groupID: UUID? = nil
+    var role: Role = .viewer
+    /// The database status (`run_status` / `request_status`), finer-grained than GrabStatus.
+    var rawStatus: String? = nil
+}
+
 struct GrabItem: Identifiable, Hashable, Codable {
     enum Kind: String, Codable {
         case campusRequest
         case friendRun
         case buildingRun
+        case campusRun
     }
 
     let id: UUID
@@ -63,12 +86,14 @@ struct GrabItem: Identifiable, Hashable, Codable {
     let kind: Kind
     let status: GrabStatus
     let detail: String
+    var backend: BackendRef? = nil
 
     var kindLabel: String {
         switch kind {
         case .campusRequest: "Campus request"
         case .friendRun: "Free friend run"
         case .buildingRun: "Paid building run"
+        case .campusRun: "Campus store run"
         }
     }
 }
@@ -86,8 +111,22 @@ struct GrabGroup: Identifiable, Hashable, Codable {
     let memberInitials: [String]
     let latestMessage: String
     let conversation: [Message]
-    let run: GrabItem
-    let shoppingList: [String]
+    let run: GrabItem?
+    let shoppingList: [ShoppingItem]
+    var inviteCode: String? = nil
+    var isMember = true
+}
+
+struct ShoppingItem: Identifiable, Hashable, Codable {
+    let id: UUID
+    let body: String
+    var quantity = 1
+    var isPicked = false
+    var addedBy: String? = nil
+
+    static func sample(_ body: String) -> ShoppingItem {
+        ShoppingItem(id: UUID(), body: body)
+    }
 }
 
 struct Message: Identifiable, Hashable, Codable {
@@ -181,9 +220,9 @@ enum PreviewData {
     ]
 
     static let groups = [
-        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!, name: "Sunday Dinner", kind: .friends, memberCount: 6, memberInitials: ["MC", "NV", "JL"], latestMessage: "Maya started a Trader Joe’s run", conversation: friendMessages, run: traderJoes, shoppingList: ["Sparkling water", "Pasta", "Basil"]),
-        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!, name: "Design Studio", kind: .friends, memberCount: 9, memberInitials: ["DP", "AK", "NV"], latestMessage: "Anyone going near the art store?", conversation: [Message(id: UUID(), sender: "Devon", body: "Anyone going near the art store tonight?", time: "4:18 PM", isCurrentUser: false)], run: traderJoes, shoppingList: ["Tracing paper", "Black markers"]),
-        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Target run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Target run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"])
+        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!, name: "Sunday Dinner", kind: .friends, memberCount: 6, memberInitials: ["MC", "NV", "JL"], latestMessage: "Maya started a Trader Joe’s run", conversation: friendMessages, run: traderJoes, shoppingList: ["Sparkling water", "Pasta", "Basil"].map(ShoppingItem.sample)),
+        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!, name: "Design Studio", kind: .friends, memberCount: 9, memberInitials: ["DP", "AK", "NV"], latestMessage: "Anyone going near the art store?", conversation: [Message(id: UUID(), sender: "Devon", body: "Anyone going near the art store tonight?", time: "4:18 PM", isCurrentUser: false)], run: traderJoes, shoppingList: ["Tracing paper", "Black markers"].map(ShoppingItem.sample)),
+        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Target run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Target run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"].map(ShoppingItem.sample))
     ]
 
     static let activities = [

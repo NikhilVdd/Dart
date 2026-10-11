@@ -8,7 +8,8 @@ preserved and the restart is easy to identify.
 
 - macOS with full Xcode 15.4 or newer
 - An iPhone simulator running iOS 17 or newer
-- No credentials, backend, package install, or third-party dependency
+- Swift Package Manager resolves one dependency, `supabase-swift`, automatically on first open
+- A Supabase project is optional: without one the app runs on built-in preview data
 
 The minimum deployment target is iOS 17.0. The interface uses supported
 SwiftUI `Material` glass surfaces and provides an opaque fallback when Reduce
@@ -35,6 +36,36 @@ xcodebuild \
 If that device name is unavailable, replace it with an installed simulator
 from `xcrun simctl list devices available`.
 
+## Connecting the backend
+
+The backend lives in `/supabase` (schema, security, matching engine, seed). See
+`supabase/README.md` for setup. To point the app at it, fill in
+`Grab/Resources/Supabase.plist`:
+
+```xml
+<key>SUPABASE_URL</key>      <string>https://<project-ref>.supabase.co</string>
+<key>SUPABASE_ANON_KEY</key> <string><anon or publishable key></string>
+```
+
+For local development you can also set `SUPABASE_URL` and `SUPABASE_ANON_KEY` as environment
+variables in the scheme (Edit Scheme → Run → Arguments). They take precedence over the plist.
+
+The app has three modes:
+
+| Mode | When | What you see |
+| --- | --- | --- |
+| Preview | Placeholders in `Supabase.plist` | The Section 1 sample data; actions explain what they would do |
+| Signed out | Backend configured, no session | Sample data plus a "Sign in with your campus email" prompt |
+| Live | Signed in with a 6-digit email code | Real requests, runs, groups, chat, shopping lists and earnings, refreshed in realtime |
+
+What works when live:
+
+- **Request**: post a request (specific pickup or *any store*), then see which trips already underway can carry it.
+- **Earn**: open requests nearest your building. Accept one, optionally onto one of your runs. Advance it through picking up → on the way → delivered.
+- **Runs**: announce a store run to friends, your building or campus. See the requests that fit within your max detour, then accept them.
+- **Groups**: create a group or join by invite code, join your building, chat, and edit the shared list.
+- **Activity**: timelines for everything you requested or helped with. Requesters confirm receipt.
+
 ## What to try
 
 - Switch among Home, Groups, Activity, and Profile using the floating tab bar.
@@ -55,14 +86,17 @@ fabricate acceptance, payment, purchasing, delivery, chat, or notifications.
 ## Project structure
 
 - `Grab/App`: app entry point, shared observable state, and four-tab shell
+- `Grab/Backend`: Supabase config, wire types, typed API wrapper, and `GrabStore` (live data
+  mapped onto the view models, preview fallback, realtime refresh)
+- `Grab/Features/Account`: email-code sign-in
 - `Grab/Domain`: local models and deterministic preview fixtures
 - `Grab/DesignSystem`: adaptive tokens, glass, controls, cards, chips, avatars
 - `Grab/Features`: Home, Groups, Activity, Profile, shared flows, and gallery
 - `Grab/Resources`: asset catalog
 
 The shared state persists appearance and ordinary navigation choices with
-`UserDefaults`. Domain models are transport-neutral so local fixtures can be
-replaced by service-backed data in later sections.
+`UserDefaults`. Views read from `GrabStore`, which serves either the preview
+fixtures or live Supabase data through the same domain models.
 
 ## Current verification
 

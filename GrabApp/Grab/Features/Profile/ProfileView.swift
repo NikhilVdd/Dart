@@ -2,14 +2,19 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject private var state: AppState
+    @EnvironmentObject private var store: GrabStore
     @State private var confirmReset = false
+    @State private var showSignIn = false
+    @State private var editingName = false
+    @State private var nameDraft = ""
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    PreviewPill()
+                    if !store.isLive { PreviewPill() }
                     profileHeader
+                    accountCard
                     infoCard
                     appearanceCard
                     earningsCard
@@ -35,6 +40,13 @@ struct ProfileView: View {
                 .padding(.bottom, 116)
             }
             .background(GrabBackdrop())
+            .refreshable { await store.refresh() }
+            .sheet(isPresented: $showSignIn) { SignInView() }
+            .alert("Display name", isPresented: $editingName) {
+                TextField("Name", text: $nameDraft)
+                Button("Save") { Task { await store.updateDisplayName(nameDraft.trimmingCharacters(in: .whitespaces)) } }
+                Button("Cancel", role: .cancel) { }
+            }
             .confirmationDialog("Reset all demo preferences?", isPresented: $confirmReset, titleVisibility: .visible) {
                 Button("Reset demo", role: .destructive) { state.resetDemo() }
                 Button("Cancel", role: .cancel) { }
@@ -46,22 +58,23 @@ struct ProfileView: View {
 
     private var profileHeader: some View {
         HStack(spacing: 16) {
-            Text("NV")
+            Text(store.profile?.initials ?? "NV")
                 .font(.title.bold()).foregroundStyle(.white)
                 .frame(width: 72, height: 72)
                 .background(GrabTheme.blue.gradient, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text(state.profileName).font(.largeTitle.bold())
-                Text("Preview profile").font(.subheadline).foregroundStyle(.secondary)
+                Text(store.profile?.displayName ?? state.profileName).font(.largeTitle.bold())
+                    .minimumScaleFactor(0.7).lineLimit(1)
+                Text(store.isLive ? "Signed in" : "Preview profile").font(.subheadline).foregroundStyle(.secondary)
             }
         }
     }
 
     private var infoCard: some View {
         VStack(spacing: 0) {
-            ProfileRow(icon: "graduationcap.fill", title: "Campus", value: state.campus)
+            ProfileRow(icon: "graduationcap.fill", title: "Campus", value: store.isLive ? (store.campusName ?? "Not linked") : state.campus)
             Divider().padding(.leading, 48)
-            ProfileRow(icon: "building.2.fill", title: "Building", value: state.building)
+            ProfileRow(icon: "building.2.fill", title: "Building", value: store.isLive ? (store.buildingName ?? "Join one in Groups") : state.building)
         }
         .padding(.horizontal, 16)
         .grabGlass()
@@ -82,12 +95,13 @@ struct ProfileView: View {
     private var earningsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Sample earnings", systemImage: "sparkles").font(.headline)
+                Label(store.isLive ? "Earnings" : "Sample earnings", systemImage: "sparkles").font(.headline)
                 Spacer()
-                PreviewPill(text: "SAMPLE")
+                if !store.isLive { PreviewPill(text: "SAMPLE") }
             }
-            Text("$46").font(.system(size: 36, weight: .bold, design: .rounded)).foregroundStyle(GrabTheme.gold)
-            Text("Illustrative local data only — not available funds or a payment balance.")
+            Text("$\(store.earnings.map { GrabStore.dollars($0.earnedCents) } ?? 46)")
+                .font(.system(size: 36, weight: .bold, design: .rounded)).foregroundStyle(GrabTheme.gold)
+            Text(earningsCaption)
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .padding(18)
@@ -95,10 +109,45 @@ struct ProfileView: View {
         .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius).stroke(GrabTheme.gold.opacity(0.2)))
     }
 
+    private var earningsCaption: String {
+        guard store.isLive, let earnings = store.earnings else {
+            return "Illustrative local data only — not available funds or a payment balance."
+        }
+        return "\(earnings.completedCount) completed · \(earnings.activeCount) in progress. Rewards are tracked, not yet paid out — payments arrive in a later section."
+    }
+
+    private var aboutText: String {
+        switch store.phase {
+        case .live: "Connected to the Grab backend. Requests, runs, chat, and shopping lists are live. Payments and background location are not part of this build."
+        case .signedOut: "Connected to the Grab backend. Sign in to replace the sample data with your campus’s live requests, runs, and groups."
+        case .preview: "This is a development-only product preview. Sample tasks, people, messages, rewards, notifications, and earnings are not real. Add Supabase settings to connect a backend."
+        }
+    }
+
+    @ViewBuilder private var accountCard: some View {
+        if store.isLive {
+            HStack(spacing: 12) {
+                Button { nameDraft = store.profile?.displayName ?? ""; editingName = true } label: {
+                    Label("Edit name", systemImage: "pencil").frame(maxWidth: .infinity).padding(.vertical, 12)
+                }
+                .buttonStyle(.bordered)
+                Button(role: .destructive) { Task { await store.signOut() } } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right").frame(maxWidth: .infinity).padding(.vertical, 12)
+                }
+                .buttonStyle(.bordered)
+            }
+        } else if store.isConfigured {
+            Button { showSignIn = true } label: {
+                PrimaryButtonLabel(title: "Sign in with campus email", icon: "person.crop.circle.badge.plus")
+            }
+            .buttonStyle(PressableStyle())
+        }
+    }
+
     private var previewExplanation: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("About this build").font(.headline)
-            Text("This is Section 1: a development-only product preview. Sample tasks, people, messages, rewards, notifications, and earnings are not real. Accounts, transactions, and background location are intentionally unavailable.")
+            Text(aboutText)
                 .font(.subheadline).foregroundStyle(.secondary)
         }
         .padding(18)

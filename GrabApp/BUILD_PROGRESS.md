@@ -30,12 +30,26 @@ Updated: 2026-10-11
 - [ ] Simulator interaction and small-screen checks
 - [ ] VoiceOver and largest Dynamic Type hands-on audit
 
+## Backend foundation (Supabase), pulled forward from Section 5
+
+- [x] Schema: campuses, places, profiles, friend/building groups, runs, requests, status events, chat, shopping lists
+- [x] Row level security on every table; status changes only via lifecycle RPCs
+- [x] Matching engine: detour-based fit between requests and trips already happening
+- [x] Email-code (OTP) auth; campus linked from email domain
+- [x] Realtime for requests, runs, chat and lists
+- [x] Berkeley reference data migration and demo seed mirroring the preview fixtures
+- [x] Database test suite (PGlite, no Docker): RLS, lifecycle, matching
+- [x] iOS: `supabase-swift` package, `GrabStore`, sign-in, live Home/Groups/Activity/Profile, create forms
+- [x] macOS SwiftUI type check of the full app with the Supabase package
+- [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)
+- [ ] Custom SMTP for sign-in emails before inviting real users
+
 ## Later build order
 
 2. Campus request creation, acceptance, and fulfillment using local data.
 3. Friend groups, chat, shopping lists, and manual store runs.
 4. Paid building runs using local data.
-5. Real accounts, backend data, location detection, and notifications.
+5. Location detection and push notifications (accounts and backend data are done).
 6. Payments, final testing, and iPhone release preparation.
 
 Section 1 intentionally stops before any action can accept a request, create a

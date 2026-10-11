@@ -20,6 +20,14 @@
 		A0000000000000000000000C = {isa = PBXBuildFile; fileRef = B0000000000000000000000C; };
 		A0000000000000000000000D = {isa = PBXBuildFile; fileRef = B0000000000000000000000D; };
 		A0000000000000000000000E = {isa = PBXBuildFile; fileRef = B0000000000000000000000E; };
+		A0000000000000000000000F = {isa = PBXBuildFile; fileRef = B00000000000000000000010; };
+		A00000000000000000000010 = {isa = PBXBuildFile; fileRef = B00000000000000000000011; };
+		A00000000000000000000011 = {isa = PBXBuildFile; fileRef = B00000000000000000000012; };
+		A00000000000000000000012 = {isa = PBXBuildFile; fileRef = B00000000000000000000013; };
+		A00000000000000000000013 = {isa = PBXBuildFile; fileRef = B00000000000000000000014; };
+		A00000000000000000000014 = {isa = PBXBuildFile; fileRef = B00000000000000000000015; };
+		A00000000000000000000015 = {isa = PBXBuildFile; fileRef = B00000000000000000000016; };
+		A00000000000000000000016 = {isa = PBXBuildFile; productRef = 900000000000000000000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,33 +46,48 @@
 		B0000000000000000000000D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Gallery/ComponentGalleryView.swift; sourceTree = "<group>"; };
 		B0000000000000000000000E = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		B0000000000000000000000F = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/SupabaseConfig.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/BackendRows.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/GrabBackend.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/GrabStore.swift; sourceTree = "<group>"; };
+		B00000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Account/SignInView.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Shared/CreateForms.swift; sourceTree = "<group>"; };
+		B00000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Resources/Supabase.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		C00000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000016); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		D00000000000000000000001 = {isa = PBXGroup; children = (D00000000000000000000002, D00000000000000000000003); sourceTree = "<group>"; };
-		D00000000000000000000002 = {isa = PBXGroup; children = (B00000000000000000000001, B00000000000000000000002, B00000000000000000000003, B00000000000000000000004, B00000000000000000000005, B00000000000000000000006, B00000000000000000000007, B00000000000000000000008, B00000000000000000000009, B0000000000000000000000A, B0000000000000000000000B, B0000000000000000000000C, B0000000000000000000000D, B0000000000000000000000E); path = Grab; sourceTree = "<group>"; };
+		D00000000000000000000002 = {isa = PBXGroup; children = (B00000000000000000000001, B00000000000000000000002, B00000000000000000000003, B00000000000000000000004, B00000000000000000000005, B00000000000000000000006, B00000000000000000000007, B00000000000000000000008, B00000000000000000000009, B0000000000000000000000A, B0000000000000000000000B, B0000000000000000000000C, B0000000000000000000000D, B0000000000000000000000E, B00000000000000000000010, B00000000000000000000011, B00000000000000000000012, B00000000000000000000013, B00000000000000000000014, B00000000000000000000015, B00000000000000000000016); path = Grab; sourceTree = "<group>"; };
 		D00000000000000000000003 = {isa = PBXGroup; children = (B0000000000000000000000F); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E00000000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000002; buildPhases = (C00000000000000000000003, C00000000000000000000001, C00000000000000000000002); buildRules = (); dependencies = (); name = Grab; productName = Grab; productReference = B0000000000000000000000F; productType = "com.apple.product-type.application"; };
+		E00000000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000002; buildPhases = (C00000000000000000000003, C00000000000000000000001, C00000000000000000000002); buildRules = (); dependencies = (); name = Grab; packageProductDependencies = (900000000000000000000001); productName = Grab; productReference = B0000000000000000000000F; productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		E00000000000000000000002 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {E00000000000000000000001 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = F00000000000000000000001; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = D00000000000000000000001; productRefGroup = D00000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (E00000000000000000000001); };
+		E00000000000000000000002 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {E00000000000000000000001 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = F00000000000000000000001; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = D00000000000000000000001; packageReferences = (910000000000000000000001); productRefGroup = D00000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (E00000000000000000000001); };
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C00000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A0000000000000000000000E, A00000000000000000000015); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		C00000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004, A00000000000000000000005, A00000000000000000000006, A00000000000000000000007, A00000000000000000000008, A00000000000000000000009, A0000000000000000000000A, A0000000000000000000000B, A0000000000000000000000C, A0000000000000000000000D); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004, A00000000000000000000005, A00000000000000000000006, A00000000000000000000007, A00000000000000000000008, A00000000000000000000009, A0000000000000000000000A, A0000000000000000000000B, A0000000000000000000000C, A0000000000000000000000D, A0000000000000000000000F, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012, A00000000000000000000013, A00000000000000000000014); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		910000000000000000000001 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/supabase/supabase-swift.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 2.55.0; }; };
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		900000000000000000000001 = {isa = XCSwiftPackageProductDependency; package = 910000000000000000000001; productName = Supabase; };
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F10000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };

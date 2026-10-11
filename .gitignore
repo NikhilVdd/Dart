@@ -1,0 +1,7 @@
+# Local tool logs
+.server_logs/
+
+# Xcode
+xcuserdata/
+DerivedData/
+.DS_Store

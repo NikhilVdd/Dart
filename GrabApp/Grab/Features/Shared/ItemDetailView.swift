@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: GrabStore
     let item: GrabItem
     @State private var showUpcoming = false
 
@@ -41,18 +42,22 @@ struct ItemDetailView: View {
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Preview only").font(.headline)
-                        Text("Accepting, purchasing, list editing, and delivery completion arrive in a later development section. No payment or delivery is happening here.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    .padding(18)
-                    .background(GrabTheme.paleBlue.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    if store.isLive, item.backend != nil {
+                        LiveItemActions(item: item) { dismiss() }
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Preview only").font(.headline)
+                            Text("Accepting, purchasing, list editing, and delivery completion need a signed-in account. No payment or delivery is happening here.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .padding(18)
+                        .background(GrabTheme.paleBlue.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-                    Button { showUpcoming = true } label: {
-                        PrimaryButtonLabel(title: futureActionTitle, icon: "arrow.right.circle.fill")
+                        Button { showUpcoming = true } label: {
+                            PrimaryButtonLabel(title: futureActionTitle, icon: "arrow.right.circle.fill")
+                        }
+                        .buttonStyle(PressableStyle())
                     }
-                    .buttonStyle(PressableStyle())
                 }
                 .padding(GrabTheme.pageInset)
             }
@@ -63,10 +68,12 @@ struct ItemDetailView: View {
                     Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
             }
-            .alert("Coming in a later section", isPresented: $showUpcoming) {
+            .alert("Sign in to continue", isPresented: $showUpcoming) {
                 Button("Got it", role: .cancel) { }
             } message: {
-                Text("This action is shown to preview the product flow. It does not accept a task, spend money, or change a delivery.")
+                Text(store.isConfigured
+                     ? "Sign in from Profile to accept requests, join runs, and track deliveries."
+                     : "This build has no backend configured, so actions are shown for preview only.")
             }
         }
         .presentationDetents([.large])
@@ -78,6 +85,7 @@ struct ItemDetailView: View {
         case .campusRequest: "Preview accept flow"
         case .friendRun: "Preview add item flow"
         case .buildingRun: "Preview building request"
+        case .campusRun: "Preview store-run request"
         }
     }
 }
@@ -114,5 +122,148 @@ private struct MoneyCard: View {
         .padding(18)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.06)))
+    }
+}
+
+/// Actions for a live request or run, chosen by your role and the item's status.
+private struct LiveItemActions: View {
+    @EnvironmentObject private var store: GrabStore
+    let item: GrabItem
+    let onDone: () -> Void
+
+    @State private var working = false
+    @State private var chooseRun = false
+    @State private var askRunner = false
+    @State private var askTitle = ""
+    @State private var askBudget = ""
+    @State private var matches: [(RequestMatch, GrabItem)] = []
+
+    private var ref: BackendRef { item.backend! }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            switch (ref.source, ref.role) {
+            case (.request, .viewer):
+                if item.status == .waiting {
+                    primary("Accept request", icon: "hand.raised.fill") {
+                        if store.myActiveRuns.isEmpty { await finish(store.accept(item)) } else { chooseRun = true }
+                    }
+                }
+            case (.request, .helper):
+                if let next = item.status.nextHelperStep {
+                    primary(next == .completed ? "Mark delivered" : "Mark \(next.rawValue.lowercased())", icon: next.icon) {
+                        await finish(store.advance(item, to: next))
+                    }
+                }
+                if [.accepted, .pickingUp].contains(item.status) {
+                    secondary("Release to someone else", role: .destructive) { await finish(store.release(item)) }
+                }
+            case (.request, .owner):
+                if item.status == .onTheWay {
+                    primary("Confirm I received it", icon: "checkmark.circle.fill") { await finish(store.advance(item, to: .completed)) }
+                }
+                if [.waiting, .accepted].contains(item.status) {
+                    secondary("Cancel request", role: .destructive) { await finish(store.cancel(item)) }
+                }
+            case (.run, .owner):
+                runOwnerActions
+            case (.run, _):
+                primary(item.kind == .friendRun ? "Add to the shopping list" : "Ask \(item.person.name.split(separator: " ").first ?? "them") to grab something",
+                        icon: item.kind == .friendRun ? "cart.badge.plus" : "bag.badge.plus") {
+                    askRunner = true
+                }
+            }
+        }
+        .disabled(working)
+        .confirmationDialog("Take this on one of your runs?", isPresented: $chooseRun, titleVisibility: .visible) {
+            ForEach(store.myActiveRuns) { run in
+                Button("Add to \(run.title)") { Task { await finish(store.accept(item, onRun: run.backend?.id)) } }
+            }
+            Button("Make a dedicated trip") { Task { await finish(store.accept(item)) } }
+            Button("Cancel", role: .cancel) { }
+        }
+        .alert(item.kind == .friendRun ? "Add to the list" : "What should they grab?", isPresented: $askRunner) {
+            TextField("Item", text: $askTitle)
+            if item.kind != .friendRun {
+                TextField("Item budget in dollars (optional)", text: $askBudget)
+            }
+            Button("Send") { Task { await sendAsk() } }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(item.kind == .friendRun
+                 ? "Friends’ runs are free. Settle up for the item itself directly."
+                 : "The $\(item.reward ?? 0) run fee goes to the shopper; the item budget is separate.")
+        }
+        .task { if ref.source == .run, ref.role == .owner { matches = await store.matches(forRun: ref.id) } }
+    }
+
+    @ViewBuilder private var runOwnerActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Requests that fit this trip", subtitle: "Smallest detour first")
+            if matches.isEmpty {
+                Text("Nothing fits right now. New requests appear here as people post them.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            ForEach(matches, id: \.0.requestID) { match, request in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(request.title).font(.headline)
+                        Text(match.detourMinutes.map { "+\($0) min · \(request.destination)" } ?? request.destination)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("$\(GrabStore.dollars(match.rewardCents))").font(.headline).foregroundStyle(GrabTheme.gold)
+                    Button("Accept") { Task { await finish(store.accept(request, onRun: ref.id)) } }
+                        .buttonStyle(.borderedProminent)
+                }
+                .padding(14)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+        switch ref.rawStatus {
+        case "open":
+            primary("I’m in the store", icon: "bag.fill") { await finish(store.setRunStatus(item, "shopping")) }
+        case "shopping":
+            primary("Heading back", icon: "figure.walk") { await finish(store.setRunStatus(item, "returning")) }
+        case "returning":
+            primary("Finish run", icon: "checkmark.circle.fill") { await finish(store.setRunStatus(item, "completed")) }
+        default:
+            EmptyView()
+        }
+        secondary("Cancel run", role: .destructive) { await finish(store.setRunStatus(item, "cancelled")) }
+    }
+
+    private func primary(_ title: String, icon: String, action: @escaping () async -> Void) -> some View {
+        Button { Task { working = true; await action(); working = false } } label: {
+            PrimaryButtonLabel(title: title, icon: icon)
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private func secondary(_ title: String, role: ButtonRole? = nil, action: @escaping () async -> Void) -> some View {
+        Button(role: role) { Task { working = true; await action(); working = false } } label: {
+            Text(title).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func finish(_ ok: Bool) async {
+        if ok { onDone() }
+    }
+
+    private func sendAsk() async {
+        let title = askTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        working = true
+        defer { working = false }
+        let ok: Bool
+        if item.kind == .friendRun, let groupID = ref.groupID {
+            ok = await store.addListItem(title, groupID: groupID, runID: ref.id)
+        } else {
+            ok = await store.requestFromRun(item, title: title, budgetDollars: Int(askBudget.filter(\.isNumber)))
+        }
+        askTitle = ""
+        askBudget = ""
+        await finish(ok)
     }
 }
