@@ -35,14 +35,27 @@ travel times later without changing the API.
 ### Request lifecycle (enforced server-side)
 
 ```
-open ──accept_request──▶ accepted ──▶ picking_up ──▶ on_the_way ──▶ completed
-  │                         │            │                ▲
-  └──cancel_request─────────┴──▶ cancelled                │ requester may confirm receipt
-             release_request (helper) ──▶ back to open
+open ─accept─▶ accepted ─▶ picking_up ─▶ on_the_way ─▶ delivered ─▶ completed
+ │ │              │            │             └───────────┴── requester confirms receipt
+ │ │              └────────────┴─ release (helper) ──▶ back to open
+ │ └─ cancel (requester, while open or accepted) ──▶ cancelled
+ └─ deadline passes with nobody on it ──▶ expired
 ```
 
-Clients can't write `status` directly (no column privilege). They call `accept_request`,
-`advance_request`, `release_request`, `cancel_request`, or `request_from_run`.
+- Helpers can move a request as far as **delivered**. Only the requester marks it **completed**,
+  from *on the way* or *delivered*. Unconfirmed deliveries auto-complete after 24 hours.
+- Clients can't write `status` directly (no column privilege). They call `accept_request`,
+  `advance_request`, `release_request`, `cancel_request`, or `request_from_run`.
+
+### Housekeeping and account deletion
+
+- `expire_stale()` runs every minute via **pg_cron** (job `grab-expire-stale`). It expires overdue open
+  requests, auto-completes deliveries unconfirmed for 24 hours, and closes runs an hour after their cutoff
+  once nothing is in flight (three hours at most). Clients can't call it.
+- `delete_my_account()` (the App Store requires in-app deletion) hands back deliveries you were making,
+  completes ones you already delivered, passes your groups to the longest-standing member, deletes
+  friend groups where you were the last member, then deletes your auth user. Your profile, requests,
+  runs and memberships cascade; messages and list items stay with the author cleared.
 
 ### Security
 

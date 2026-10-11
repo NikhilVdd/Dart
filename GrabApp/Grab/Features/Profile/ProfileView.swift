@@ -6,6 +6,7 @@ struct ProfileView: View {
     @State private var confirmReset = false
     @State private var showSignIn = false
     @State private var editingName = false
+    @State private var confirmDelete = false
     @State private var nameDraft = ""
 
     var body: some View {
@@ -46,6 +47,12 @@ struct ProfileView: View {
                 TextField("Name", text: $nameDraft)
                 Button("Save") { Task { await store.updateDisplayName(nameDraft.trimmingCharacters(in: .whitespaces)) } }
                 Button("Cancel", role: .cancel) { }
+            }
+            .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete account", role: .destructive) { Task { _ = await store.deleteAccount() } }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This permanently deletes your profile, requests, runs and group memberships. Deliveries you’re making go back to open. This can’t be undone.")
             }
             .confirmationDialog("Reset all demo preferences?", isPresented: $confirmReset, titleVisibility: .visible) {
                 Button("Reset demo", role: .destructive) { state.resetDemo() }
@@ -136,6 +143,11 @@ struct ProfileView: View {
                 }
                 .buttonStyle(.bordered)
             }
+            Button(role: .destructive) { confirmDelete = true } label: {
+                Text("Delete account").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.red)
         } else if store.isConfigured {
             Button { showSignIn = true } label: {
                 PrimaryButtonLabel(title: "Sign in with campus email", icon: "person.crop.circle.badge.plus")

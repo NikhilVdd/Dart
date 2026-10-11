@@ -124,6 +124,7 @@ update public.requests set status = 'accepted', helper_id = '00000000-0000-0000-
 where id = '10000000-0000-0000-0000-000000000005';
 update public.requests set status = 'picking_up' where id = '10000000-0000-0000-0000-000000000005';
 update public.requests set status = 'on_the_way' where id = '10000000-0000-0000-0000-000000000005';
+update public.requests set status = 'delivered', delivered_at = now() - interval '1 day' where id = '10000000-0000-0000-0000-000000000005';
 update public.requests set status = 'completed', completed_at = now() - interval '1 day' where id = '10000000-0000-0000-0000-000000000005';
 
 -- ---------------------------------------------------------------------------

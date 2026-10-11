@@ -83,7 +83,7 @@ private struct ActivityTimelineView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     if !store.isLive { PreviewPill(text: "STATUS PREVIEW") }
-                    if record.currentStatus == .cancelled { StatusChip(status: .cancelled) }
+                    if [.cancelled, .expired].contains(record.currentStatus) { StatusChip(status: record.currentStatus) }
                     Text(record.item.title).font(.largeTitle.bold())
                     Text(record.item.subtitle).font(.title3).foregroundStyle(.secondary)
 

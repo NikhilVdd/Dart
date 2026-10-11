@@ -54,8 +54,9 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
       everyone on campus, fee $6, max detour 8 min → **Announce run**
 - [ ] B: the result lists the blender at **+5 min**. Tap **Accept**
 - [ ] A: Home → the active request card flips to **Accepted** live; Activity → Requesting shows "Accepted by Sam"
-- [ ] B: Activity → Helping → open it → **Mark picking up**, then **Mark on the way**. A sees each step live
-- [ ] A: open the request → **Confirm I received it**. The timeline shows all five steps
+- [ ] B: Activity → Helping → open it → **Mark picking up**, **Mark on the way**, then **Mark delivered**.
+      A sees each step live. B has no "complete" button: B sees "Waiting for Alex to confirm"
+- [ ] A: open the request → **Confirm I received it**. The timeline shows all six steps
 - [ ] B: Profile → Earnings shows **$8**, 1 completed
 
 ### Building run
@@ -72,9 +73,13 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 - [ ] A: post a request, then **Cancel request** while it's open. It moves to Cancelled in Activity
 - [ ] B: accept a new request, then **Release to someone else**. A sees it back to *Waiting for someone*
 - [ ] A: open your own open request. There is no Accept button (and the server refuses it anyway)
-- [ ] A: post a request "needed within 15 min". After 15 min it disappears from B's Earn feed
+- [ ] A: post a request "needed within 15 min". Within a minute of the deadline it disappears from B's
+      Earn feed and shows **Expired** in A's Activity (pg_cron runs every minute)
 - [ ] Turn on airplane mode on one simulator, perform an action, and check the error alert is readable
 - [ ] Profile → **Sign out**. The app returns to sample data with the sign-in banner on Home
+- [ ] Mint a code for a third account (e.g. `jamie@berkeley.edu`), sign in, join Test crew, accept one of
+      A's requests, then Profile → **Delete account** → confirm. The app signs out; A's request is back to
+      *Waiting for someone*; `accounts.mjs list` no longer shows jamie
 
 ## Cleanup
 

@@ -30,6 +30,12 @@ final class GrabBackend {
         try await client.auth.signOut()
     }
 
+    func deleteAccount() async throws {
+        try await client.rpc("delete_my_account").execute()
+        // The server session is gone with the user; just drop the local one.
+        try await client.auth.signOut(scope: .local)
+    }
+
     // MARK: Reads
 
     func profile(id: UUID) async throws -> ProfileRecord {

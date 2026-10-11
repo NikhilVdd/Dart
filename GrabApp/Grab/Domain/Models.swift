@@ -24,11 +24,16 @@ enum GrabStatus: String, Codable, CaseIterable {
     case accepted = "Accepted"
     case pickingUp = "Picking up"
     case onTheWay = "On the way"
+    case delivered = "Delivered"
     case completed = "Completed"
     case cancelled = "Cancelled"
+    case expired = "Expired"
 
-    /// The delivery stages shown on a timeline; cancelled is a terminal state, not a stage.
-    static let timeline: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .completed]
+    /// The delivery stages shown on a timeline; cancelled and expired are end states, not stages.
+    static let timeline: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .delivered, .completed]
+
+    /// Still in progress: shown in feeds and the active card.
+    static let active: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .delivered]
 
     var icon: String {
         switch self {
@@ -36,8 +41,10 @@ enum GrabStatus: String, Codable, CaseIterable {
         case .accepted: "person.crop.circle.badge.checkmark"
         case .pickingUp: "bag"
         case .onTheWay: "figure.walk"
+        case .delivered: "shippingbox.fill"
         case .completed: "checkmark.circle.fill"
         case .cancelled: "xmark.circle"
+        case .expired: "clock.badge.xmark"
         }
     }
 }

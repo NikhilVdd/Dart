@@ -77,6 +77,7 @@ await rejects('requester cannot advance to picking_up', 'jordan', `select advanc
 await as('devon', `select advance_request('10000000-0000-0000-0000-000000000003', 'picking_up')`);
 await rejects('no moving backwards', 'devon', `select advance_request('10000000-0000-0000-0000-000000000003', 'accepted')`);
 await as('devon', `select advance_request('10000000-0000-0000-0000-000000000003', 'on_the_way')`);
+await rejects('helper cannot mark completed (requester confirms)', 'devon', `select advance_request('10000000-0000-0000-0000-000000000003', 'completed')`);
 const done = await as('jordan', `select status from advance_request('10000000-0000-0000-0000-000000000003', 'completed')`);
 check('requester confirms receipt', done[0].status === 'completed');
 const ev = (await as('jordan', `select status from request_events where request_id='10000000-0000-0000-0000-000000000003' order by id`)).map(r => r.status);
@@ -123,5 +124,47 @@ check('campus run insert returns row with runner + campus defaulted', nr[0].runn
 check('campus run visible to others on campus', (await as('maya', `select 1 from runs where store_label='CVS'`)).length === 1);
 await rejects('anon cannot call lifecycle RPCs', 'anon', `select accept_request('10000000-0000-0000-0000-000000000001')`);
 await rejects('anon cannot call matching RPCs', 'anon', `select * from open_requests_nearby()`);
+
+// --- delivered -> confirmation, expiry, housekeeping ---------------------------------------
+const q2 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, reward_cents) values ('Snacks', 'Any store', 'Unit 2', now() + interval '1 hour', 500) returning id`);
+await as('maya', `select accept_request($1)`, [q2[0].id]);
+await as('maya', `select advance_request($1, 'delivered')`, [q2[0].id]);
+const dl = await as('jordan', `select status, delivered_at is not null as stamped from requests where id = $1`, [q2[0].id]);
+check('helper can mark delivered (skipping steps forward)', dl[0].status === 'delivered' && dl[0].stamped);
+check('delivered counts as active in earnings', (await as('maya', 'select active_count from my_earnings()'))[0].active_count >= 1);
+const conf = await as('jordan', `select status from advance_request($1, 'completed')`, [q2[0].id]);
+check('requester confirms a delivered request', conf[0].status === 'completed');
+
+const q3 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Old ask', 'Any store', 'Unit 2', now() + interval '1 hour') returning id`);
+const q4 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, reward_cents) values ('Unconfirmed', 'Any store', 'Unit 2', now() + interval '1 hour', 300) returning id`);
+await as('nikhil', `select accept_request($1)`, [q4[0].id]);
+await as('nikhil', `select advance_request($1, 'delivered')`, [q4[0].id]);
+await as(null, `update requests set deliver_by = now() - interval '1 minute' where id = $1`, [q3[0].id]);
+await as(null, `update requests set delivered_at = now() - interval '25 hours' where id = $1`, [q4[0].id]);
+await as(null, `update runs set closes_at = now() - interval '4 hours' where id = '30000000-0000-0000-0000-000000000001'`);
+await rejects('clients cannot run housekeeping', 'nikhil', `select expire_stale()`);
+const hk = (await as(null, `select expire_stale() r`))[0].r;
+check('expire_stale reports work done', hk.expired_requests >= 1 && hk.auto_completed === 1 && hk.closed_runs >= 1, JSON.stringify(hk));
+const states = await as(null, `select title, status from requests where id in ($1, $2) order by title`, [q3[0].id, q4[0].id]);
+check('overdue open request expired; old delivery auto-completed', states[0].status === 'expired' && states[1].status === 'completed', JSON.stringify(states));
+check('stale run closed', (await as(null, `select status from runs where id = '30000000-0000-0000-0000-000000000001'`))[0].status === 'completed');
+check('expired requests leave the Earn feed', (await as('nikhil', `select 1 from open_requests_nearby() where id = $1`, [q3[0].id])).length === 0);
+const ev3 = (await as('jordan', `select status from request_events where request_id = $1 order by id`, [q3[0].id])).map(r => r.status);
+check('expiry is on the timeline', JSON.stringify(ev3) === '["open","expired"]', JSON.stringify(ev3));
+
+// --- account deletion --------------------------------------------------------------------------
+const q5 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Mid-delivery', 'Any store', 'Unit 2', now() + interval '1 hour') returning id`);
+await as('maya', `select accept_request($1)`, [q5[0].id]);
+await as('maya', `select advance_request($1, 'picking_up')`, [q5[0].id]);
+await rejects('anon cannot delete accounts', 'anon', `select delete_my_account()`);
+await as('maya', `select delete_my_account()`);
+check('deleted user is gone from auth and profiles', (await as(null, `select (select count(*) from auth.users where id = '${U.maya}')::int + (select count(*) from profiles where id = '${U.maya}')::int n`))[0].n === 0);
+const handed = await as('jordan', `select status, helper_id from requests where id = $1`, [q5[0].id]);
+check('in-flight delivery handed back to open', handed[0].status === 'open' && handed[0].helper_id === null, JSON.stringify(handed));
+const sunday = await as(null, `select user_id, role from group_members where group_id = '20000000-0000-0000-0000-000000000001' and role = 'owner'`);
+check('group ownership passed to the longest-standing member', sunday.length === 1 && sunday[0].user_id !== U.maya, JSON.stringify(sunday));
+check('completed deliveries survive with helper cleared', (await as(null, `select count(*)::int n from requests where id = $1 and status = 'completed' and helper_id is null`, [q2[0].id]))[0].n === 1);
+check('her messages remain with author cleared', (await as(null, `select count(*)::int n from messages where sender_id is null`))[0].n >= 2);
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

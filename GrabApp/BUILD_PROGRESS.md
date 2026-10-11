@@ -41,7 +41,11 @@ Updated: 2026-10-11
 - [x] Database test suite (PGlite, no Docker): RLS, lifecycle, matching
 - [x] iOS: `supabase-swift` package, `GrabStore`, sign-in, live Home/Groups/Activity/Profile, create forms
 - [x] macOS SwiftUI type check of the full app with the Supabase package
+- [x] Requester confirms delivery (helpers stop at "delivered"; auto-complete after 24 h)
+- [x] Expiry of overdue requests and finished runs via pg_cron (every minute)
+- [x] In-app account deletion (App Store requirement)
 - [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)
+- [ ] Wrap `auth.uid()` as `(select auth.uid())` in RLS policies (Supabase performance advisor)
 - [ ] Custom SMTP for sign-in emails before inviting real users
 
 ## Later build order

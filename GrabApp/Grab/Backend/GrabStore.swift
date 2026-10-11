@@ -53,14 +53,14 @@ final class GrabStore: ObservableObject {
                 : [PreviewData.charger, PreviewData.shampoo, PreviewData.buildingRun]
         }
         switch mode {
-        case .request: return runFeed + myRequestItems.filter { [.waiting, .accepted, .pickingUp, .onTheWay].contains($0.status) }
+        case .request: return runFeed + myRequestItems.filter { GrabStatus.active.contains($0.status) }
         case .earn: return earnItems
         }
     }
 
     func activeItem(for mode: HomeMode) -> GrabItem? {
         guard isLive else { return mode == .request ? PreviewData.shampoo : PreviewData.buildingRun }
-        let active: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay]
+        let active = GrabStatus.active
         switch mode {
         case .request:
             return myRequestItems.first { active.contains($0.status) }
@@ -105,6 +105,11 @@ final class GrabStore: ObservableObject {
 
     func signOut() async {
         _ = await perform { try await $0.signOut() }
+    }
+
+    /// Permanently deletes the account and its data, then returns to the signed-out state.
+    func deleteAccount() async -> Bool {
+        await perform { try await $0.deleteAccount() }
     }
 
     func updateDisplayName(_ name: String) async {
@@ -496,8 +501,10 @@ final class GrabStore: ObservableObject {
         case .accepted: isRequester ? "Accepted by \(helperName)" : "You accepted \(Self.relative(request.acceptedAt ?? request.createdAt))"
         case .pickingUp: isRequester ? "\(helperName.capitalized) is picking it up" : "Picking up at \(request.pickupLabel)"
         case .onTheWay: isRequester ? "\(helperName.capitalized) is on the way" : "Heading to \(request.destinationLabel)"
+        case .delivered: isRequester ? "Delivered · confirm you got it" : "Delivered · waiting for confirmation"
         case .completed: "Completed \(Self.relative(request.completedAt ?? request.createdAt))"
         case .cancelled: "Cancelled"
+        case .expired: "Expired · nobody took it in time"
         }
         return ActivityRecord(id: request.id, item: item(from: request, me: me), mode: isRequester ? .requesting : .helping,
                               currentStatus: status, lastUpdate: update)
@@ -533,8 +540,10 @@ extension GrabStatus {
         case "accepted": self = .accepted
         case "picking_up": self = .pickingUp
         case "on_the_way": self = .onTheWay
+        case "delivered": self = .delivered
         case "completed": self = .completed
         case "cancelled": self = .cancelled
+        case "expired": self = .expired
         default: self = .waiting
         }
     }
@@ -555,17 +564,19 @@ extension GrabStatus {
         case .accepted: "accepted"
         case .pickingUp: "picking_up"
         case .onTheWay: "on_the_way"
+        case .delivered: "delivered"
         case .completed: "completed"
         case .cancelled: "cancelled"
+        case .expired: "expired"
         }
     }
 
-    /// The next step the helper can move a request to.
+    /// The next step the helper can move a request to. Completion is the requester's to confirm.
     var nextHelperStep: GrabStatus? {
         switch self {
         case .accepted: .pickingUp
         case .pickingUp: .onTheWay
-        case .onTheWay: .completed
+        case .onTheWay: .delivered
         default: nil
         }
     }

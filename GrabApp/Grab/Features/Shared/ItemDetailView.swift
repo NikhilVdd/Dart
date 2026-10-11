@@ -151,15 +151,19 @@ private struct LiveItemActions: View {
                 }
             case (.request, .helper):
                 if let next = item.status.nextHelperStep {
-                    primary(next == .completed ? "Mark delivered" : "Mark \(next.rawValue.lowercased())", icon: next.icon) {
+                    primary("Mark \(next.rawValue.lowercased())", icon: next.icon) {
                         await finish(store.advance(item, to: next))
                     }
                 }
                 if [.accepted, .pickingUp].contains(item.status) {
                     secondary("Release to someone else", role: .destructive) { await finish(store.release(item)) }
                 }
+                if item.status == .delivered {
+                    Text("Waiting for \(item.person.name.split(separator: " ").first ?? "the requester") to confirm. It completes automatically after 24 hours.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
             case (.request, .owner):
-                if item.status == .onTheWay {
+                if [.onTheWay, .delivered].contains(item.status) {
                     primary("Confirm I received it", icon: "checkmark.circle.fill") { await finish(store.advance(item, to: .completed)) }
                 }
                 if [.waiting, .accepted].contains(item.status) {
