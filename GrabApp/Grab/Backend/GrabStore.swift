@@ -83,6 +83,15 @@ final class GrabStore: ObservableObject {
         }
     }
 
+    /// The closest open request you could take, after re-centering the Earn feed on a fresh location.
+    /// The server returns open requests nearest-first and leaves out your own.
+    func findNearbyTask() async -> GrabItem? {
+        guard isLive else { return feed(for: .earn).first }
+        _ = await location.freshFix()
+        await refresh()
+        return earnItems.first
+    }
+
     /// The latest version of an item, so open screens follow realtime changes.
     func latest(_ item: GrabItem) -> GrabItem {
         guard isLive else { return item }

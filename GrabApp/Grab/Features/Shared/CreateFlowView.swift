@@ -1,38 +1,20 @@
 import SwiftUI
 
-struct CreateMenuView: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var store: GrabStore
-    @State private var destination: CreateDestination?
-
-    enum CreateDestination: String, Identifiable {
+/// Requests are created from Request mode and store runs from Earn mode, each straight into its form.
+struct CreateSheet: View {
+    enum Destination: String, Identifiable {
         case request
         case run
         var id: String { rawValue }
     }
 
+    let destination: Destination
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: GrabStore
+
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 22) {
-                if !store.isLive { PreviewPill() }
-                Text("What would you like to create?").font(.largeTitle.bold())
-                Text(store.isLive ? "Ask for something, or let people know you’re already going." : "Choose a flow to preview. Sign in to post for real.")
-                    .foregroundStyle(.secondary)
-
-                CreateOption(icon: "shippingbox.fill", title: "Request something", subtitle: "Ask someone nearby to bring an item or complete an errand") {
-                    destination = .request
-                }
-                CreateOption(icon: "storefront.fill", title: "Announce a store run", subtitle: "Let friends or approved neighbors know you’re already going") {
-                    destination = .run
-                }
-                Spacer()
-            }
-            .padding(GrabTheme.pageInset)
-            .background(GrabBackdrop())
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } }
-            }
-            .navigationDestination(item: $destination) { destination in
+            Group {
                 if store.isLive {
                     switch destination {
                     case .request: RequestFormView { dismiss() }
@@ -42,43 +24,18 @@ struct CreateMenuView: View {
                     CreateIntroView(destination: destination)
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .macSheetSize()
     }
 }
 
-private struct CreateOption: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
-                    .background(GrabTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 16))
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title).font(.headline).foregroundStyle(.primary)
-                    Text(subtitle).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-            }
-            .padding(18)
-            .grabGlass()
-        }
-        .buttonStyle(PressableStyle())
-    }
-}
-
 private struct CreateIntroView: View {
-    let destination: CreateMenuView.CreateDestination
+    let destination: CreateSheet.Destination
     @State private var showUpcoming = false
 
     var body: some View {

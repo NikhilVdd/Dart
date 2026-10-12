@@ -8,6 +8,7 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private(set) var current: GeoPoint?
     var onUpdate: ((GeoPoint) -> Void)?
+    private var waiters: [CheckedContinuation<GeoPoint?, Never>] = []
 
     override init() {
         super.init()
@@ -24,10 +25,36 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    /// A fresh fix, or the last known one if none arrives within `timeout` (or access is denied).
+    func freshFix(timeout: TimeInterval = 5) async -> GeoPoint? {
+        switch manager.authorizationStatus {
+        case .denied, .restricted: return current
+        default: break
+        }
+        return await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+            refresh()
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                self?.resolveWaiters(with: self?.current)
+            }
+        }
+    }
+
+    private func resolveWaiters(with point: GeoPoint?) {
+        let pending = waiters
+        waiters = []
+        pending.forEach { $0.resume(returning: point) }
+    }
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
-            if status != .notDetermined, status != .denied, status != .restricted { self.manager.requestLocation() }
+            switch status {
+            case .notDetermined: break
+            case .denied, .restricted: self.resolveWaiters(with: self.current)
+            default: self.manager.requestLocation()
+            }
         }
     }
 
@@ -37,10 +64,13 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         Task { @MainActor in
             self.current = point
             self.onUpdate?(point)
+            self.resolveWaiters(with: point)
         }
     }
 
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in self.resolveWaiters(with: self.current) }
+    }
 }
 
 extension GeoPoint {

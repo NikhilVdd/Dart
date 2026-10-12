@@ -5,8 +5,10 @@ struct HomeView: View {
     @EnvironmentObject private var store: GrabStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedItem: GrabItem?
-    @State private var showCreate = false
+    @State private var creating: CreateSheet.Destination?
     @State private var appeared = false
+    @State private var findingTask = false
+    @State private var noTaskNearby = false
 
     private var feed: [GrabItem] { store.feed(for: state.homeMode) }
 
@@ -18,6 +20,7 @@ struct HomeView: View {
                     if store.phase == .signedOut { SignInBanner() }
                     SlidingSegmentedControl(selection: $state.homeMode)
                     primaryAction
+                    if state.homeMode == .earn { announceRunAction }
                     if let active = store.activeItem(for: state.homeMode) { activeCard(active) }
                     SectionHeading(
                         title: state.homeMode == .request ? "Nearby & for you" : "Earn nearby",
@@ -43,7 +46,12 @@ struct HomeView: View {
             .refreshable { await store.refresh() }
             .onAppear { appeared = true }
             .sheet(item: $selectedItem) { ItemDetailView(item: $0) }
-            .sheet(isPresented: $showCreate) { CreateMenuView() }
+            .sheet(item: $creating) { CreateSheet(destination: $0) }
+            .alert("No tasks nearby right now", isPresented: $noTaskNearby) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("There are no open requests within 5 km. We'll notify you when one comes in.")
+            }
         }
     }
 
@@ -62,15 +70,33 @@ struct HomeView: View {
 
     private var primaryAction: some View {
         Button {
-            if state.homeMode == .request { showCreate = true }
-            else if let first = feed.first { selectedItem = first }
+            if state.homeMode == .request { creating = .request }
+            else { findNearbyTask() }
         } label: {
             PrimaryButtonLabel(
-                title: state.homeMode == .request ? "What do you need?" : "Find a nearby task",
+                title: state.homeMode == .request ? "What do you need?" : (findingTask ? "Finding a task…" : "Find a nearby task"),
                 icon: state.homeMode == .request ? "plus" : "location.fill"
             )
         }
         .buttonStyle(PressableStyle())
+        .disabled(findingTask)
+    }
+
+    private var announceRunAction: some View {
+        Button { creating = .run } label: {
+            SecondaryButtonLabel(title: "Announce a store run", icon: "storefront.fill")
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityHint("Let friends or approved neighbors know you’re already going")
+    }
+
+    private func findNearbyTask() {
+        findingTask = true
+        Task {
+            let task = await store.findNearbyTask()
+            findingTask = false
+            if let task { selectedItem = task } else { noTaskNearby = true }
+        }
     }
 
     private var greeting: String {
