@@ -7,7 +7,7 @@ Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no s
 | Table | What it is |
 | --- | --- |
 | `campuses`, `places` | Where things happen. Places have lat/lng and a kind (`store`, `residence`, `library`, …). Users add places from Apple Maps search via `create_place()`. |
-| `profiles` | One per auth user: display name, initials, campus (from email domain), home building. |
+| `profiles` | One per auth user: display name, initials, assigned campus, home building. |
 | `groups`, `group_members` | Free **friend groups** and paid **building communities**. Join by invite code; campus buildings are discoverable. |
 | `runs` | **Supply:** a trip that is already happening ("Devon is in Target, heading back to Unit 2"). Has an audience (friends / building / campus), a per-request fee, a max detour and a capacity. |
 | `requests` | **Demand:** a person asking for a physical outcome. Pickup may be a specific place or *any store*. Reward and item budget are separate. |
@@ -53,7 +53,7 @@ open ─accept─▶ accepted ─▶ picking_up ─▶ on_the_way ─▶ deliver
 `create_place(name, kind, lat, lng, detail, address)` is called by the app's place picker after an
 Apple Maps (MapKit) search:
 
-- Requires a campus (campus email). The point must be within 15 km of that campus.
+- Requires an assigned campus. The point must be within 15 km of that campus.
 - **De-duplicates:** a place within 150 m whose name matches, contains or is contained in the new name
   is returned instead. So Apple's "CVS Pharmacy" resolves to the seeded "CVS".
 - Each user can add up to 25 places a day. `created_by` records who added each one.
@@ -86,7 +86,8 @@ Row level security is on for every table:
 
 - Groups, chat and lists are visible only to members.
 - Runs and requests are visible to their audience (group or campus). Once a request is accepted, only the requester, the helper and the run's runner can see it.
-- Users can edit only their own profile name and building; campus comes from the verified email domain.
+- Users can edit only their own profile name and building. A matching email domain selects a campus;
+  all other standard accounts are assigned to the first configured campus.
 - Signed-out clients can read only the campus list.
 
 ## Setup
@@ -100,14 +101,14 @@ Row level security is on for every table:
    npx supabase link --project-ref <your-project-ref>
    npx supabase db push              # add --include-seed for the demo users/data
    ```
-3. Make sign-in emails contain the 6-digit code: `npx supabase config push` uploads `config.toml`,
-   including `templates/otp.html`. **Free-tier projects can't change email templates while using
-   Supabase's built-in sender.** Configure custom SMTP first (step below), then push.
+3. The iOS app uses standard email/password accounts. For immediate sign-up without relying on email
+   delivery, turn off **Confirm email** under Authentication → Providers → Email. If confirmation stays
+   on, configure custom SMTP so new users reliably receive the confirmation message.
 4. Copy **Project URL** and the **anon / publishable key** from *Project Settings → API* into
    `GrabApp/Grab/Resources/Supabase.plist`.
 
-Supabase's built-in email sender is heavily rate-limited (a few emails per hour). Before inviting
-real users, set up custom SMTP under *Authentication → SMTP Settings*, for example Resend or Postmark.
+Supabase's built-in email sender is heavily rate-limited. If confirmation or password recovery is
+enabled, set up custom SMTP under *Authentication → SMTP Settings*, for example Resend or Postmark.
 
 ### Option B: local stack (needs Docker Desktop)
 
@@ -117,8 +118,8 @@ npx supabase db reset   # applies migrations + seed.sql
 ```
 
 Put `http://127.0.0.1:54321` and the printed anon key in `Supabase.plist`, or set the `SUPABASE_URL` and
-`SUPABASE_ANON_KEY` environment variables in the Xcode scheme. Sign in as `nikhil@berkeley.edu`. The code
-arrives in Mailpit at http://127.0.0.1:54324. Studio is at http://127.0.0.1:54323.
+`SUPABASE_ANON_KEY` environment variables in the Xcode scheme. Sign in as `nikhil@berkeley.edu` with
+password `grab-demo`. Studio is at http://127.0.0.1:54323.
 
 ## Tests (no Docker needed)
 

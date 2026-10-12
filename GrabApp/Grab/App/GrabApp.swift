@@ -11,9 +11,6 @@ struct GrabApp: App {
                 .environmentObject(state)
                 .environmentObject(store)
                 .preferredColorScheme(state.colorScheme)
-                .onOpenURL { url in
-                    Task { await store.handleAuthCallback(url) }
-                }
         }
     }
 }

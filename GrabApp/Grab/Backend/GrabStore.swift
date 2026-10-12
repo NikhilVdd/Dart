@@ -140,20 +140,27 @@ final class GrabStore: ObservableObject {
 
     // MARK: Auth
 
-    func sendCode(to email: String) async -> Bool {
-        await perform { try await $0.sendCode(to: email) }
+    enum AccountCreationResult {
+        case signedIn
+        case confirmationRequired
     }
 
-    func verify(email: String, code: String) async -> Bool {
-        await perform { try await $0.verify(email: email, code: code) }
+    func signIn(email: String, password: String) async -> Bool {
+        await perform { try await $0.signIn(email: email, password: password) }
     }
 
-    func handleAuthCallback(_ url: URL) async {
-        guard url.scheme == "grab", let backend else { return }
+    func createAccount(email: String, password: String, displayName: String) async -> AccountCreationResult? {
+        guard let backend else { return nil }
         do {
-            try await backend.completeSignIn(from: url)
+            let signedIn = try await backend.createAccount(
+                email: email,
+                password: password,
+                displayName: displayName
+            )
+            return signedIn ? .signedIn : .confirmationRequired
         } catch {
             report(error)
+            return nil
         }
     }
 

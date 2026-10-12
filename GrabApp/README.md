@@ -55,8 +55,8 @@ The app has three modes:
 | Mode | When | What you see |
 | --- | --- | --- |
 | Preview | Placeholders in `Supabase.plist` | The Section 1 sample data; actions explain what they would do |
-| Signed out | Backend configured, no session | A launch screen with campus email sign-in and an optional sample-app preview |
-| Live | Signed in with a 6-digit email code | Real requests, runs, groups, chat, shopping lists and earnings, refreshed in realtime |
+| Signed out | Backend configured, no session | Main app with sample data and an in-app sign-in/account creation prompt |
+| Live | Signed in with email and password | Real requests, runs, groups, chat, shopping lists and earnings, refreshed in realtime |
 
 What works when live:
 
@@ -66,7 +66,8 @@ What works when live:
 - **Groups**: create a group or join by invite code, join your building, chat, and edit the shared list.
 - **Activity**: timelines for everything you requested or helped with. Requesters confirm receipt.
 
-Authentication validates the email against the public campus domain list before sending a one-time code.
+Authentication uses standard email/password accounts and accepts any valid email address. The backend
+assigns accounts to the launch campus when their email does not match a configured campus domain.
 Signing out or deleting an account returns to the launch screen; an existing session enters the app directly.
 
 ## What to try
@@ -91,7 +92,7 @@ fabricate acceptance, payment, purchasing, delivery, chat, or notifications.
 - `Grab/App`: app entry point, shared observable state, and four-tab shell
 - `Grab/Backend`: Supabase config, wire types, typed API wrapper, and `GrabStore` (live data
   mapped onto the view models, preview fallback, realtime refresh)
-- `Grab/Features/Account`: email-code sign-in
+- `Grab/Features/Account`: email/password sign-in and account creation
 - `Grab/Domain`: local models and deterministic preview fixtures
 - `Grab/DesignSystem`: adaptive tokens, glass, controls, cards, chips, avatars
 - `Grab/Features`: Home, Groups, Activity, Profile, shared flows, and gallery

@@ -1,17 +1,6 @@
 import Foundation
 import Supabase
 
-enum GrabBackendError: LocalizedError {
-    case unsupportedCampus
-
-    var errorDescription: String? {
-        switch self {
-        case .unsupportedCampus:
-            "That email is not connected to a supported campus yet. For this launch, use an @berkeley.edu address."
-        }
-    }
-}
-
 /// Thin, typed wrapper over the Supabase client. Every call is subject to row level security,
 /// and request status changes go through the lifecycle functions defined in the migrations.
 final class GrabBackend {
@@ -27,33 +16,21 @@ final class GrabBackend {
 
     var currentUserID: UUID? { client.auth.currentUser?.id }
 
-    // MARK: Auth (6-digit email code)
+    // MARK: Auth (email and password)
 
-    func sendCode(to email: String) async throws {
-        let domain = email.split(separator: "@").last.map(String.init)?.lowercased() ?? ""
-        let campuses: [CampusAccessRow] = try await client.from("campuses")
-            .select("name, email_domains")
-            .execute().value
-        let isSupported = campuses.contains { campus in
-            campus.emailDomains.contains { supported in
-                domain == supported || domain.hasSuffix(".\(supported)")
-            }
-        }
-        guard isSupported else { throw GrabBackendError.unsupportedCampus }
-        try await client.auth.signInWithOTP(
+    func signIn(email: String, password: String) async throws {
+        _ = try await client.auth.signIn(email: email, password: password)
+    }
+
+    /// Returns true when Supabase creates a session immediately. When hosted email confirmation is
+    /// enabled, the account is created but the user must confirm it before the first sign-in.
+    func createAccount(email: String, password: String, displayName: String) async throws -> Bool {
+        let response = try await client.auth.signUp(
             email: email,
-            redirectTo: URL(string: "grab://auth-callback"),
-            shouldCreateUser: true
+            password: password,
+            data: ["display_name": .string(displayName)]
         )
-    }
-
-    func verify(email: String, code: String) async throws {
-        try await client.auth.verifyOTP(email: email, token: code, type: .email)
-    }
-
-    /// Completes Supabase's magic-link/PKCE flow when the email opens the app directly.
-    func completeSignIn(from url: URL) async throws {
-        _ = try await client.auth.session(from: url)
+        return response.session != nil
     }
 
     func signOut() async throws {

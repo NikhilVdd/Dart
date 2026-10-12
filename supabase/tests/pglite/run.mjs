@@ -179,7 +179,8 @@ await rejects('blank names are refused', 'nikhil', `select create_place('  ', 's
 await rejects('anon cannot add places', 'anon', `select create_place('X', 'store', 37.87, -122.26)`);
 await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000aa', 'pat@gmail.com', '{}')`);
 U.pat = '00000000-0000-0000-0000-0000000000aa';
-await rejects('users without a campus cannot add places', 'pat', `select create_place('Corner store', 'store', 37.87, -122.26)`);
+check('any email gets the default campus', (await as('pat', `select campus_id is not null as assigned from profiles where id = auth.uid()`))[0].assigned);
+check('standard account can add places', (await as('pat', `select id from create_place('Corner store', 'store', 37.87, -122.26)`)).length === 1);
 await rejects('clients cannot insert places directly', 'nikhil', `insert into places (campus_id, name, kind, lat, lng) values ('c0000000-0000-0000-0000-000000000001', 'Sneaky', 'store', 37.87, -122.26)`);
 await as(null, `insert into places (campus_id, name, kind, lat, lng, created_by) select 'c0000000-0000-0000-0000-000000000001', 'Bulk ' || g, 'other', 37.87, -122.26, '${U.jordan}' from generate_series(1, 25) g`);
 await rejects('25 new places per user per day', 'jordan', `select create_place('One too many', 'other', 37.871, -122.261)`);
@@ -196,7 +197,7 @@ const g2 = await as('devon', `select id from set_home_place($1)`, [UNIT2]);
 check('a neighbor joins the same group rather than creating another', g2[0].id === g1[0].id);
 check('…and leaves their previous building', (await as(null, `select count(*)::int n from group_members m join groups g on g.id = m.group_id where m.user_id = '${U.devon}' and g.kind = 'building'`))[0].n === 1);
 check('a non-residence home joins no group', (await as('nikhil', `select set_home_place('a0000000-0000-0000-0000-000000000004') g`))[0].g === null);
-await rejects('users without a campus cannot set a home', 'pat', `select set_home_place($1)`, [UNIT2]);
+check('standard account can set a home', (await as('pat', `select set_home_place($1) g`, [UNIT2]))[0].g !== null);
 await rejects('anon cannot set a home', 'anon', `select set_home_place($1)`, [UNIT2]);
 const viaJoin = await as('nikhil', `select join_building_group('20000000-0000-0000-0000-000000000003') g`);
 check('joining a building group makes it home', (await as('nikhil', `select home_place_id from profiles where id = auth.uid()`))[0].home_place_id === DURANT, JSON.stringify(viaJoin));

@@ -11,8 +11,8 @@ struct SignInBanner: View {
                     .font(.title2)
                     .foregroundStyle(GrabTheme.blue)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Sign in with your campus email").font(.headline).foregroundStyle(.primary)
-                    Text("You’re viewing sample data until you sign in.").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Sign in or create an account").font(.headline).foregroundStyle(.primary)
+                    Text("Use any email address to connect to live Grab data.").font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.tertiary)
@@ -25,78 +25,108 @@ struct SignInBanner: View {
     }
 }
 
-/// Passwordless sign-in: email → one-time code (6 digits per supabase/config.toml).
+/// Standard Supabase email/password authentication. Campus assignment happens in the backend,
+/// so account creation accepts any valid email address.
 struct SignInView: View {
+    private enum Mode: String, CaseIterable, Identifiable {
+        case signIn = "Sign in"
+        case createAccount = "Create account"
+
+        var id: Self { self }
+    }
+
     @EnvironmentObject private var store: GrabStore
     @Environment(\.dismiss) private var dismiss
+    @State private var mode: Mode = .signIn
+    @State private var displayName = ""
     @State private var email = ""
-    @State private var code = ""
-    @State private var codeSent = false
+    @State private var password = ""
+    @State private var passwordConfirmation = ""
     @State private var working = false
     @State private var errorMessage: String?
+    @State private var confirmationMessage: String?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Image(systemName: codeSent ? "envelope.open.fill" : "graduationcap.fill")
+                    Image(systemName: mode == .signIn ? "person.crop.circle.fill" : "person.crop.circle.badge.plus")
                         .font(.system(size: 30, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 66, height: 66)
                         .background(GrabTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 21))
-                    Text(codeSent ? "Check your email" : "Sign in to Grab").font(.largeTitle.bold())
-                    Text(codeSent
-                         ? "Enter the code we sent to \(email)."
-                         : "Use your campus email so we can connect you with your campus and building.")
-                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(mode == .signIn ? "Welcome back" : "Create your Grab account")
+                            .font(.largeTitle.bold())
+                        Text(mode == .signIn
+                             ? "Sign in to use live requests, runs, groups, and chat."
+                             : "No school email is required. Use any email address and choose a password.")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Picker("Account action", selection: $mode) {
+                        ForEach(Mode.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
 
                     VStack(spacing: 0) {
-                        if codeSent {
-                            TextField("Code", text: $code)
-                                .textContentType(.oneTimeCode)
-                                .font(.title2.monospacedDigit())
-                                .padding(16)
-                                #if os(iOS)
-                                .keyboardType(.numberPad)
-                                #endif
-                        } else {
-                            TextField("you@berkeley.edu", text: $email)
-                                .textContentType(.emailAddress)
+                        if mode == .createAccount {
+                            TextField("Your name", text: $displayName)
+                                .textContentType(.name)
                                 .autocorrectionDisabled()
                                 .padding(16)
-                                #if os(iOS)
-                                .keyboardType(.emailAddress)
-                                .textInputAutocapitalization(.never)
-                                #endif
+                            Divider().opacity(0.45)
+                        }
+
+                        TextField("Email address", text: $email)
+                            .textContentType(.emailAddress)
+                            .autocorrectionDisabled()
+                            .padding(16)
+                            #if os(iOS)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            #endif
+
+                        Divider().opacity(0.45)
+
+                        SecureField("Password", text: $password)
+                            .textContentType(mode == .signIn ? .password : .newPassword)
+                            .padding(16)
+
+                        if mode == .createAccount {
+                            Divider().opacity(0.45)
+                            SecureField("Confirm password", text: $passwordConfirmation)
+                                .textContentType(.newPassword)
+                                .padding(16)
                         }
                     }
                     .grabGlass(radius: 18)
 
+                    if mode == .createAccount {
+                        Label("Use at least 6 characters.", systemImage: "lock.shield")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Button { Task { await submit() } } label: {
                         if working {
-                            ProgressView().tint(.white).frame(maxWidth: .infinity).frame(height: 56)
+                            ProgressView()
+                                .tint(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
                                 .background(GrabTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 18))
                         } else {
-                            PrimaryButtonLabel(title: codeSent ? "Verify code" : "Email me a code", icon: "arrow.right")
+                            PrimaryButtonLabel(
+                                title: mode == .signIn ? "Sign in" : "Create account",
+                                icon: mode == .signIn ? "arrow.right" : "person.badge.plus"
+                            )
                         }
                     }
                     .buttonStyle(PressableStyle())
                     .disabled(working || !canSubmit)
-
-                    if codeSent {
-                        Button("Use a different email") { codeSent = false; code = "" }
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        // For test accounts whose code was minted with supabase/dev/accounts.mjs.
-                        Button("I already have a code") {
-                            email = email.trimmingCharacters(in: .whitespaces).lowercased()
-                            codeSent = true
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .disabled(!email.contains("@"))
-                    }
                 }
                 .padding(GrabTheme.pageInset)
             }
@@ -106,9 +136,14 @@ struct SignInView: View {
             }
         }
         .presentationDragIndicator(.visible)
-        .macSheetSize(minHeight: 520)
+        .macSheetSize(minHeight: 620)
+        .onChange(of: mode) { _, _ in
+            password = ""
+            passwordConfirmation = ""
+            errorMessage = nil
+        }
         .onChange(of: store.isLive) { _, live in if live { dismiss() } }
-        .alert("Couldn’t sign in", isPresented: Binding(
+        .alert("Couldn’t continue", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
@@ -116,27 +151,54 @@ struct SignInView: View {
         } message: {
             Text(errorMessage ?? "Please try again.")
         }
+        .alert("Account created", isPresented: Binding(
+            get: { confirmationMessage != nil },
+            set: { if !$0 { confirmationMessage = nil } }
+        )) {
+            Button("Continue", role: .cancel) { confirmationMessage = nil }
+        } message: {
+            Text(confirmationMessage ?? "")
+        }
+    }
+
+    private var normalizedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private var canSubmit: Bool {
-        codeSent ? (6...8).contains(code.filter(\.isNumber).count) : email.contains("@")
+        guard normalizedEmail.contains("@"), password.count >= 6 else { return false }
+        if mode == .createAccount {
+            return displayName.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
+                && password == passwordConfirmation
+        }
+        return true
     }
 
     private func submit() async {
         working = true
         defer { working = false }
         store.lastError = nil
-        let address = email.trimmingCharacters(in: .whitespaces).lowercased()
-        if codeSent {
-            if !(await store.verify(email: address, code: code.filter(\.isNumber))) {
-                showStoreError("That code couldn’t be verified. Request a new code and try again.")
+
+        switch mode {
+        case .signIn:
+            if !(await store.signIn(email: normalizedEmail, password: password)) {
+                showStoreError("Check your email and password, then try again.")
             }
-        } else {
-            if await store.sendCode(to: address) {
-                email = address
-                codeSent = true
-            } else {
-                showStoreError("We couldn’t send a sign-in email. Please try again shortly.")
+
+        case .createAccount:
+            guard password == passwordConfirmation else {
+                errorMessage = "The passwords don’t match."
+                return
+            }
+            let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch await store.createAccount(email: normalizedEmail, password: password, displayName: name) {
+            case .signedIn:
+                break
+            case .confirmationRequired:
+                mode = .signIn
+                confirmationMessage = "Confirm your email using the message from Grab, then return here and sign in with your password."
+            case nil:
+                showStoreError("We couldn’t create your account. Please try again.")
             }
         }
     }

@@ -41,17 +41,6 @@ struct CampusRow: Decodable, Hashable {
     let lng: Double
 }
 
-/// Public campus metadata used before authentication to reject unsupported email domains.
-struct CampusAccessRow: Decodable {
-    let name: String
-    let emailDomains: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case emailDomains = "email_domains"
-    }
-}
-
 struct PlaceRow: Decodable, Hashable, Identifiable {
     let id: UUID
     let name: String
