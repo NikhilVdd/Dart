@@ -24,13 +24,13 @@ node supabase/dev/accounts.mjs code alex@berkeley.edu "Alex Requester"
 node supabase/dev/accounts.mjs code sam@berkeley.edu "Sam Runner"
 ```
 
-On each simulator, go to **Profile → Sign in with campus email**, enter the email, tap
+On each simulator, tap **Continue with campus email** on the launch screen, enter the email, tap
 **I already have a code**, and type the printed code. Don't tap *Email me a code* for test addresses:
 Resend can't deliver to them, and requesting a new email invalidates the minted code. If a code is
 rejected, run the `code` command again for a fresh one.
 
-Use `@berkeley.edu` addresses so both accounts are linked to UC Berkeley. Other domains sign in fine but
-see no campus feed.
+Use `@berkeley.edu` addresses so both accounts are linked to UC Berkeley. Unsupported domains are
+rejected before an email is sent, rather than creating an account with no campus feed.
 
 ## Test plan
 
@@ -107,7 +107,7 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 - [ ] A: post a request "needed within 15 min". Within a minute of the deadline it disappears from B's
       Earn feed and shows **Expired** in A's Activity (pg_cron runs every minute)
 - [ ] Turn on airplane mode on one simulator, perform an action, and check the error alert is readable
-- [ ] Profile → **Sign out**. The app returns to sample data with the sign-in banner on Home
+- [ ] Profile → **Sign out**. The app returns to the launch screen
 - [ ] Mint a code for a third account (e.g. `jamie@berkeley.edu`), sign in, join Test crew, accept one of
       A's requests, then Profile → **Delete account** → confirm. The app signs out; A's request is back to
       *Waiting for someone*; `accounts.mjs list` no longer shows jamie

@@ -7,7 +7,7 @@ struct GrabApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootShellView()
+            AppEntryView()
                 .environmentObject(state)
                 .environmentObject(store)
                 .preferredColorScheme(state.colorScheme)

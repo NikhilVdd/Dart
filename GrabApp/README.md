@@ -55,7 +55,7 @@ The app has three modes:
 | Mode | When | What you see |
 | --- | --- | --- |
 | Preview | Placeholders in `Supabase.plist` | The Section 1 sample data; actions explain what they would do |
-| Signed out | Backend configured, no session | Sample data plus a "Sign in with your campus email" prompt |
+| Signed out | Backend configured, no session | A launch screen with campus email sign-in and an optional sample-app preview |
 | Live | Signed in with a 6-digit email code | Real requests, runs, groups, chat, shopping lists and earnings, refreshed in realtime |
 
 What works when live:
@@ -65,6 +65,9 @@ What works when live:
 - **Runs**: announce a store run to friends, your building or campus. See the requests that fit within your max detour, then accept them.
 - **Groups**: create a group or join by invite code, join your building, chat, and edit the shared list.
 - **Activity**: timelines for everything you requested or helped with. Requesters confirm receipt.
+
+Authentication validates the email against the public campus domain list before sending a one-time code.
+Signing out or deleting an account returns to the launch screen; an existing session enters the app directly.
 
 ## What to try
 

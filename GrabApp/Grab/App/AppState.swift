@@ -15,15 +15,54 @@ final class AppState: ObservableObject {
     @Published var selectedTab: Int { didSet { save(selectedTab, key: Key.selectedTab) } }
     @Published var resetConfirmation = false
 
+    /// Optional development-only override used to capture deterministic simulator screenshots.
+    let screenshotScenario: String?
+
     let campus = "UC Berkeley"
     let profileName = "Nikhil"
     let building = "The Durant"
 
     init(defaults: UserDefaults = .standard) {
-        self.appearance = AppearanceChoice(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
-        self.homeMode = HomeMode(rawValue: defaults.string(forKey: Key.homeMode) ?? "") ?? .request
-        self.activityMode = ActivityMode(rawValue: defaults.string(forKey: Key.activityMode) ?? "") ?? .requesting
-        self.selectedTab = defaults.object(forKey: Key.selectedTab) as? Int ?? 0
+        let scenario = ProcessInfo.processInfo.environment["GRAB_SCREENSHOT_SCENARIO"]
+        self.screenshotScenario = scenario
+
+        switch scenario {
+        case "home-request":
+            self.appearance = .light
+            self.homeMode = .request
+            self.activityMode = .requesting
+            self.selectedTab = 0
+        case "home-earn":
+            self.appearance = .light
+            self.homeMode = .earn
+            self.activityMode = .helping
+            self.selectedTab = 0
+        case "groups":
+            self.appearance = .light
+            self.homeMode = .request
+            self.activityMode = .requesting
+            self.selectedTab = 1
+        case "activity":
+            self.appearance = .light
+            self.homeMode = .request
+            self.activityMode = .helping
+            self.selectedTab = 2
+        case "profile":
+            self.appearance = .light
+            self.homeMode = .request
+            self.activityMode = .requesting
+            self.selectedTab = 3
+        case "dark-home":
+            self.appearance = .dark
+            self.homeMode = .earn
+            self.activityMode = .helping
+            self.selectedTab = 0
+        default:
+            self.appearance = AppearanceChoice(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
+            self.homeMode = HomeMode(rawValue: defaults.string(forKey: Key.homeMode) ?? "") ?? .request
+            self.activityMode = ActivityMode(rawValue: defaults.string(forKey: Key.activityMode) ?? "") ?? .requesting
+            self.selectedTab = defaults.object(forKey: Key.selectedTab) as? Int ?? 0
+        }
     }
 
     var colorScheme: ColorScheme? {

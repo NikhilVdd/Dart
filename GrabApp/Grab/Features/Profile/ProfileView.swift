@@ -40,6 +40,7 @@ struct ProfileView: View {
                         .buttonStyle(.bordered)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, GrabTheme.pageInset)
                 .padding(.top, 18)
                 .padding(.bottom, 116)
