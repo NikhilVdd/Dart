@@ -12,7 +12,7 @@ struct SignInBanner: View {
                     .foregroundStyle(GrabTheme.blue)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Sign in or create an account").font(.headline).foregroundStyle(.primary)
-                    Text("Use any email address to connect to live Grab data.").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Use any email and password to connect to live Grab data.").font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.tertiary)
