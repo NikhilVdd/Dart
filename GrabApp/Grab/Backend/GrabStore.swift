@@ -148,6 +148,15 @@ final class GrabStore: ObservableObject {
         await perform { try await $0.verify(email: email, code: code) }
     }
 
+    func handleAuthCallback(_ url: URL) async {
+        guard url.scheme == "grab", let backend else { return }
+        do {
+            try await backend.completeSignIn(from: url)
+        } catch {
+            report(error)
+        }
+    }
+
     func signOut() async {
         _ = await perform { try await $0.signOut() }
     }

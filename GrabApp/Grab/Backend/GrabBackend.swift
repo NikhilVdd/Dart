@@ -40,11 +40,20 @@ final class GrabBackend {
             }
         }
         guard isSupported else { throw GrabBackendError.unsupportedCampus }
-        try await client.auth.signInWithOTP(email: email, shouldCreateUser: true)
+        try await client.auth.signInWithOTP(
+            email: email,
+            redirectTo: URL(string: "grab://auth-callback"),
+            shouldCreateUser: true
+        )
     }
 
     func verify(email: String, code: String) async throws {
         try await client.auth.verifyOTP(email: email, token: code, type: .email)
+    }
+
+    /// Completes Supabase's magic-link/PKCE flow when the email opens the app directly.
+    func completeSignIn(from url: URL) async throws {
+        _ = try await client.auth.session(from: url)
     }
 
     func signOut() async throws {

@@ -33,6 +33,7 @@ struct SignInView: View {
     @State private var code = ""
     @State private var codeSent = false
     @State private var working = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -107,6 +108,14 @@ struct SignInView: View {
         .presentationDragIndicator(.visible)
         .macSheetSize(minHeight: 520)
         .onChange(of: store.isLive) { _, live in if live { dismiss() } }
+        .alert("Couldn’t sign in", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "Please try again.")
+        }
     }
 
     private var canSubmit: Bool {
@@ -116,12 +125,24 @@ struct SignInView: View {
     private func submit() async {
         working = true
         defer { working = false }
+        store.lastError = nil
         let address = email.trimmingCharacters(in: .whitespaces).lowercased()
         if codeSent {
-            _ = await store.verify(email: address, code: code.filter(\.isNumber))
-        } else if await store.sendCode(to: address) {
-            email = address
-            codeSent = true
+            if !(await store.verify(email: address, code: code.filter(\.isNumber))) {
+                showStoreError("That code couldn’t be verified. Request a new code and try again.")
+            }
+        } else {
+            if await store.sendCode(to: address) {
+                email = address
+                codeSent = true
+            } else {
+                showStoreError("We couldn’t send a sign-in email. Please try again shortly.")
+            }
         }
+    }
+
+    private func showStoreError(_ fallback: String) {
+        errorMessage = store.lastError ?? fallback
+        store.lastError = nil
     }
 }
