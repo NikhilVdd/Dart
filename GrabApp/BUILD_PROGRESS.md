@@ -47,6 +47,14 @@ Updated: 2026-10-11
 - [x] Place search with MapKit: users add stores and buildings from Apple Maps (`create_place`, de-duplicated)
 - [x] Launch places aligned to Apple Maps coordinates
 - [x] Maps: feed map card with tappable pins (plus a full-screen map) and a walking-route map in item details (MapKit)
+- [x] Home building from Profile or Groups; any residence gets a building group on first use (`set_home_place`)
+- [x] Leave groups (ownership passes on; last member closes the group); remove shopping-list items
+- [x] Private requester↔helper chat on each request (`request_messages`, realtime)
+- [x] Local notifications while the app is running: status changes, new chat messages, new requests nearby
+- [x] Earn feed ranked from your current location when you're near campus (when-in-use, one-shot)
+- [x] Detail sheets follow realtime changes; accept and delivery steps keep the sheet open
+- [ ] Remote push with the app closed (needs an Apple Developer APNs key and a sender, e.g. an Edge Function)
+- [ ] Card payments (Stripe Connect); rewards are tracked, not charged
 - [ ] Calibrate matching walking pace (straight-line estimate runs 10–17% fast against Apple walking routes), or replace it with the travel-time table (maps step 3)
 - [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)
 - [ ] Wrap `auth.uid()` as `(select auth.uid())` in RLS policies (Supabase performance advisor)

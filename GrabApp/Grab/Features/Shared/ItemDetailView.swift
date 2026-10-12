@@ -3,8 +3,12 @@ import SwiftUI
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: GrabStore
-    let item: GrabItem
+    let initialItem: GrabItem
     @State private var showUpcoming = false
+
+    init(item: GrabItem) { initialItem = item }
+
+    private var item: GrabItem { store.latest(initialItem) }
 
     var body: some View {
         NavigationStack {
@@ -45,6 +49,7 @@ struct ItemDetailView: View {
                     }
 
                     if store.isLive, item.backend != nil {
+                        RequestChatCard(item: item)
                         LiveItemActions(item: item) { dismiss() }
                     } else {
                         VStack(alignment: .leading, spacing: 10) {
@@ -149,13 +154,13 @@ private struct LiveItemActions: View {
             case (.request, .viewer):
                 if item.status == .waiting {
                     primary("Accept request", icon: "hand.raised.fill") {
-                        if store.myActiveRuns.isEmpty { await finish(store.accept(item)) } else { chooseRun = true }
+                        if store.myActiveRuns.isEmpty { _ = await store.accept(item) } else { chooseRun = true }
                     }
                 }
             case (.request, .helper):
                 if let next = item.status.nextHelperStep {
                     primary("Mark \(next.rawValue.lowercased())", icon: next.icon) {
-                        await finish(store.advance(item, to: next))
+                        _ = await store.advance(item, to: next)
                     }
                 }
                 if [.accepted, .pickingUp].contains(item.status) {
@@ -184,9 +189,9 @@ private struct LiveItemActions: View {
         .disabled(working)
         .confirmationDialog("Take this on one of your runs?", isPresented: $chooseRun, titleVisibility: .visible) {
             ForEach(store.myActiveRuns) { run in
-                Button("Add to \(run.title)") { Task { await finish(store.accept(item, onRun: run.backend?.id)) } }
+                Button("Add to \(run.title)") { Task { _ = await store.accept(item, onRun: run.backend?.id) } }
             }
-            Button("Make a dedicated trip") { Task { await finish(store.accept(item)) } }
+            Button("Make a dedicated trip") { Task { _ = await store.accept(item) } }
             Button("Cancel", role: .cancel) { }
         }
         .alert(item.kind == .friendRun ? "Add to the list" : "What should they grab?", isPresented: $askRunner) {
@@ -220,7 +225,11 @@ private struct LiveItemActions: View {
                     }
                     Spacer()
                     Text("$\(GrabStore.dollars(match.rewardCents))").font(.headline).foregroundStyle(GrabTheme.gold)
-                    Button("Accept") { Task { await finish(store.accept(request, onRun: ref.id)) } }
+                    Button("Accept") {
+                        Task {
+                            if await store.accept(request, onRun: ref.id) { matches = await store.matches(forRun: ref.id) }
+                        }
+                    }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding(14)

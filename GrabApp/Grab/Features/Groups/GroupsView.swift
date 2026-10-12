@@ -6,6 +6,8 @@ struct GroupsView: View {
     @State private var showCreate = false
     @State private var inviteCode = ""
     @State private var newGroupName = ""
+    @State private var choosingHome = false
+    @State private var homeID: UUID?
 
     private var friends: [GrabGroup] { store.groups.filter { $0.kind == .friends } }
     private var buildings: [GrabGroup] { store.groups.filter { $0.kind == .building } }
@@ -35,6 +37,23 @@ struct GroupsView: View {
                         NavigationLink(value: group.id) { GroupCard(group: group) }
                             .buttonStyle(PressableStyle())
                     }
+                    if store.isLive && buildings.isEmpty {
+                        Button { homeID = store.profile?.homePlaceID; choosingHome = true } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "house.fill").font(.title3).foregroundStyle(GrabTheme.blue)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Where do you live?").font(.headline).foregroundStyle(.primary)
+                                    Text("Choose your residence hall or apartment to join its building group.")
+                                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                            }
+                            .padding(18)
+                            .grabGlass()
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
                     ForEach(discoverable) { group in
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
@@ -55,6 +74,13 @@ struct GroupsView: View {
             }
             .background(GrabBackdrop())
             .refreshable { await store.refresh() }
+            .sheet(isPresented: $choosingHome) {
+                PlaceSearchView(title: "Where you live", selection: $homeID, filter: .destinations, allowsAnyStore: false)
+            }
+            .onChange(of: homeID) { _, id in
+                guard let id, id != store.profile?.homePlaceID else { return }
+                Task { _ = await store.setHome(id) }
+            }
             .navigationDestination(for: UUID.self) { id in
                 if let group = store.group(id: id) { GroupDetailView(group: group) }
             }
@@ -90,9 +116,9 @@ private struct GroupDetailView: View {
     let group: GrabGroup
     @State private var selectedItem: GrabItem?
     @State private var upcomingMessage: String?
-    @State private var draft = ""
     @State private var newListItem = ""
-    @State private var sending = false
+    @State private var confirmLeave = false
+    @Environment(\.dismiss) private var dismiss
 
     /// Re-read from the store so realtime refreshes show up while this screen is open.
     private var current: GrabGroup { store.group(id: group.id) ?? group }
@@ -120,34 +146,10 @@ private struct GroupDetailView: View {
                     if conversation.isEmpty {
                         Text("No messages yet. Say hi!").font(.subheadline).foregroundStyle(.secondary)
                     }
-                    ForEach(conversation) { message in
-                        HStack {
-                            if message.isCurrentUser { Spacer(minLength: 45) }
-                            VStack(alignment: message.isCurrentUser ? .trailing : .leading, spacing: 4) {
-                                Text(message.sender).font(.caption).foregroundStyle(.secondary)
-                                Text(message.body)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 11)
-                                    .background(message.isCurrentUser ? GrabTheme.blue : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
-                                    .foregroundStyle(message.isCurrentUser ? .white : .primary)
-                                Text(message.time).font(.caption2).foregroundStyle(.tertiary)
-                            }
-                            if !message.isCurrentUser { Spacer(minLength: 45) }
-                        }
-                    }
+                    ForEach(conversation) { ChatBubble(message: $0) }
                     if store.isLive {
-                        HStack(spacing: 10) {
-                            TextField("Message \(current.name)", text: $draft, axis: .vertical)
-                                .lineLimit(1...4)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 11)
-                                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
-                            Button { Task { await send() } } label: {
-                                Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
-                            }
-                            .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            .accessibilityLabel("Send message")
+                        ChatComposer(placeholder: "Message \(current.name)") { body in
+                            await store.sendMessage(body, to: group.id)
                         }
                     } else {
                         Button { upcomingMessage = "Sign in from Profile to send messages." } label: {
@@ -183,6 +185,13 @@ private struct GroupDetailView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            if store.isLive {
+                                Button(role: .destructive) { Task { _ = await store.delete(item) } } label: {
+                                    Label("Remove from list", systemImage: "trash")
+                                }
+                            }
+                        }
                         if index < current.shoppingList.count - 1 { Divider() }
                     }
                     if store.isLive {
@@ -197,6 +206,9 @@ private struct GroupDetailView: View {
                 }
                 .padding(.horizontal, 18)
                 .grabGlass()
+                if store.isLive && !current.shoppingList.isEmpty {
+                    Text("Touch and hold an item to remove it.").font(.caption).foregroundStyle(.secondary)
+                }
             }
             .padding(GrabTheme.pageInset)
             .padding(.bottom, 96)
@@ -205,17 +217,31 @@ private struct GroupDetailView: View {
         .task { await store.openConversation(groupID: group.id) }
         .onDisappear { store.closeConversation(groupID: group.id) }
         .sheet(item: $selectedItem) { ItemDetailView(item: $0) }
+        .toolbar {
+            if store.isLive && current.isMember {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(role: .destructive) { confirmLeave = true } label: {
+                            Label("Leave group", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                    .accessibilityLabel("Group options")
+                }
+            }
+        }
+        .confirmationDialog("Leave \(current.name)?", isPresented: $confirmLeave, titleVisibility: .visible) {
+            Button("Leave group", role: .destructive) {
+                Task { if await store.leave(current) { dismiss() } }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(current.kind == .building
+                 ? "You’ll stop seeing this building’s runs, and it will no longer be your home."
+                 : "You’ll stop seeing this group’s chat, list and runs. Rejoin any time with the invite code.")
+        }
         .alert("Sign in required", isPresented: Binding(get: { upcomingMessage != nil }, set: { if !$0 { upcomingMessage = nil } })) {
             Button("OK", role: .cancel) { upcomingMessage = nil }
         } message: { Text(upcomingMessage ?? "") }
-    }
-
-    private func send() async {
-        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return }
-        sending = true
-        defer { sending = false }
-        if await store.sendMessage(body, to: group.id) { draft = "" }
     }
 
     private func addItem() async {

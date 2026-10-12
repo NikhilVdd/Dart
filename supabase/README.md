@@ -13,6 +13,7 @@ Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no s
 | `requests` | **Demand:** a person asking for a physical outcome. Pickup may be a specific place or *any store*. Reward and item budget are separate. |
 | `request_events` | Status timeline, written by trigger. |
 | `messages`, `list_items` | Group chat and shared shopping lists. |
+| `request_messages` | Private chat between a requester and their helper, open while a delivery is in progress. |
 
 Money is integer cents. Payments are **recorded, not charged**: Stripe Connect is a later section.
 
@@ -58,6 +59,16 @@ Apple Maps (MapKit) search:
 - Each user can add up to 25 places a day. `created_by` records who added each one.
 
 The ten launch places are aligned to Apple Maps coordinates (migration 8).
+
+### Home buildings, leaving groups, request chat
+
+- `set_home_place(place_id)` sets where you live. For a residence it also puts you in that building's
+  group, creating the group the first time anyone from that building picks it, and leaves any other
+  building group. `join_building_group` now goes through it, so joining a building makes it home.
+- `leave_group(group_id)`: leaving a building clears it as your home. When a friend group's owner leaves,
+  the longest-standing member becomes owner; the last member out closes the group.
+- `request_messages` can be read by the requester and current helper only, and written while the request
+  is accepted, picking up, on the way or delivered.
 
 ### Housekeeping and account deletion
 

@@ -25,10 +25,22 @@ final class GrabStore: ObservableObject {
     @Published private var liveGroups: [GrabGroup] = []
     @Published private var liveActivities: [ActivityRecord] = []
     @Published private var conversations: [UUID: [Message]] = [:]
+    @Published private var requestChats: [UUID: [Message]] = [:]
 
     let backend: GrabBackend?
     private var myRuns: [RunRow] = []
     private var openConversations: Set<UUID> = []
+    private var openRequestChats: Set<UUID> = []
+    private let notifier = Notifier()
+    private let location = LocationProvider()
+    /// What the last refresh saw, so the next one can tell what other people changed.
+    private var seen: Seen?
+
+    private struct Seen {
+        var requestStatuses: [UUID: String]
+        var nearbyIDs: Set<UUID>
+        var messageIDs: Set<UUID>
+    }
     private var authTask: Task<Void, Never>?
     private var realtimeTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
@@ -38,6 +50,7 @@ final class GrabStore: ObservableObject {
         backend = config.map(GrabBackend.init)
         phase = backend == nil ? .preview : .signedOut
         if backend != nil { observeAuth() }
+        location.onUpdate = { [weak self] _ in self?.scheduleRefresh() }
     }
 
     var isLive: Bool { phase == .live }
@@ -68,6 +81,17 @@ final class GrabStore: ObservableObject {
             return liveActivities.first { $0.mode == .helping && active.contains($0.currentStatus) }?.item
                 ?? runFeedMine.first
         }
+    }
+
+    /// The latest version of an item, so open screens follow realtime changes.
+    func latest(_ item: GrabItem) -> GrabItem {
+        guard isLive else { return item }
+        return myRequestItems.first { $0.id == item.id }
+            ?? liveActivities.first { $0.id == item.id }?.item
+            ?? earnItems.first { $0.id == item.id }
+            ?? runFeed.first { $0.id == item.id }
+            ?? runFeedMine.first { $0.id == item.id }
+            ?? item
     }
 
     var groups: [GrabGroup] { isLive ? liveGroups : PreviewData.groups }
@@ -149,6 +173,8 @@ final class GrabStore: ObservableObject {
                     if session != nil {
                         if self.phase != .live {
                             self.phase = .live
+                            self.notifier.requestPermission()
+                            self.location.refresh()
                             await self.refresh()
                             await self.startRealtime()
                         }
@@ -183,16 +209,20 @@ final class GrabStore: ObservableObject {
             async let messageRows = backend.latestMessages()
             async let earningsRow = backend.earnings()
 
-            let profile = try await profileRow
-            let home = profile.homePlace
-            async let nearbyRows = backend.openRequestsNearby(lat: home?.lat, lng: home?.lng)
+            async let requestMessageRows = backend.latestRequestMessages()
 
-            let (places, groups, members, runs, requests, items, messages, earnings, nearby) = try await (
-                placeRows, groupRows, memberRows, runRows, requestRows, itemRows, messageRows, earningsRow, nearbyRows
+            let profile = try await profileRow
+            let origin = nearbyOrigin(profile: profile)
+            async let nearbyRows = backend.openRequestsNearby(lat: origin?.lat, lng: origin?.lng)
+
+            let (places, groups, members, runs, requests, items, messages, earnings, nearby, requestMessages) = try await (
+                placeRows, groupRows, memberRows, runRows, requestRows, itemRows, messageRows, earningsRow, nearbyRows, requestMessageRows
             )
             apply(userID: userID, profile: profile, places: places, groups: groups, members: members, runs: runs,
                   requests: requests, nearby: nearby, items: items, messages: messages, earnings: earnings)
+            notifyChanges(userID: userID, requests: requests, nearby: nearby, messages: messages, requestMessages: requestMessages)
             for groupID in openConversations { await loadConversation(groupID: groupID) }
+            for requestID in openRequestChats { await loadRequestChat(requestID: requestID) }
         } catch {
             report(error)
         }
@@ -216,7 +246,99 @@ final class GrabStore: ObservableObject {
         }
     }
 
+    /// Where the Earn feed is centered: where you are now if that's near campus, else your home.
+    private func nearbyOrigin(profile: ProfileRecord) -> GeoPoint? {
+        if let here = location.current, let campus = profile.campus,
+           here.distance(to: GeoPoint(lat: campus.lat, lng: campus.lng)) < 15_000 {
+            return here
+        }
+        return profile.homePlace.map { GeoPoint(lat: $0.lat, lng: $0.lng) }
+    }
+
+    /// The private chat between a request's requester and helper.
+    func requestChat(for requestID: UUID) -> [Message] { requestChats[requestID] ?? [] }
+
+    func openRequestChat(requestID: UUID) async {
+        openRequestChats.insert(requestID)
+        await loadRequestChat(requestID: requestID)
+    }
+
+    func closeRequestChat(requestID: UUID) {
+        openRequestChats.remove(requestID)
+    }
+
+    func sendRequestMessage(_ body: String, requestID: UUID) async -> Bool {
+        let ok = await perform { try await $0.sendRequestMessage(requestID: requestID, body: body) }
+        if ok { await loadRequestChat(requestID: requestID) }
+        return ok
+    }
+
+    private func loadRequestChat(requestID: UUID) async {
+        guard let backend, isLive, let userID else { return }
+        do {
+            requestChats[requestID] = try await backend.requestMessages(requestID: requestID).map { row in
+                let mine = row.senderID == userID
+                return Message(id: row.id,
+                               sender: mine ? "You" : (row.sender?.displayName.split(separator: " ").first.map(String.init) ?? "Someone"),
+                               body: row.body, time: Self.time(row.createdAt), isCurrentUser: mine)
+            }
+        } catch {
+            report(error)
+        }
+    }
+
+    // MARK: Notifications
+
+    private func notifyChanges(userID: UUID, requests: [RequestRow], nearby: [RequestRow], messages: [MessageRow],
+                               requestMessages: [RequestMessageRow]) {
+        let now = Seen(requestStatuses: Dictionary(requests.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a }),
+                       nearbyIDs: Set(nearby.map(\.id)),
+                       messageIDs: Set(messages.map(\.id) + requestMessages.map(\.id)))
+        defer { seen = now }
+        guard let before = seen else { return }  // first load after sign-in: nothing is "new"
+
+        for request in requests {
+            let old = before.requestStatuses[request.id]
+            guard old != request.status else { continue }
+            let mine = request.requesterID == userID
+            let helper = request.helper?.displayName.split(separator: " ").first.map(String.init) ?? "Your helper"
+            let requester = request.requester?.displayName.split(separator: " ").first.map(String.init) ?? "The requester"
+            let text: String? = switch (mine, request.status) {
+            case (true, "accepted"): "\(helper) accepted “\(request.title)”."
+            case (true, "picking_up"): "\(helper) is picking up “\(request.title)”."
+            case (true, "on_the_way"): "\(helper) is on the way with “\(request.title)”."
+            case (true, "delivered"): "“\(request.title)” was delivered. Confirm you got it."
+            case (true, "expired"): "Nobody took “\(request.title)” in time."
+            case (false, "completed") where old != nil: "\(requester) confirmed “\(request.title)”. You earned $\(Self.dollars(request.rewardCents))."
+            case (false, "cancelled") where old != nil: "\(requester) cancelled “\(request.title)”."
+            case (false, "accepted") where old == nil && request.runID != nil && !before.nearbyIDs.contains(request.id): "New request on your run: “\(request.title)”."
+            default: nil
+            }
+            if let text { notifier.post("Grab", text, id: "request-\(request.id)-\(request.status)") }
+        }
+
+        for request in nearby where !before.nearbyIDs.contains(request.id) && request.requesterID != userID {
+            notifier.post("New request nearby", "\(request.title) · $\(Self.dollars(request.rewardCents)) reward", id: "nearby-\(request.id)")
+        }
+
+        for message in messages where !before.messageIDs.contains(message.id) && message.senderID != userID
+            && !openConversations.contains(message.groupID) {
+            let group = liveGroups.first { $0.id == message.groupID }?.name ?? "Your group"
+            let sender = message.sender?.displayName.split(separator: " ").first.map(String.init) ?? "Someone"
+            notifier.post(group, "\(sender): \(message.body)", id: "message-\(message.id)")
+        }
+
+        for message in requestMessages where !before.messageIDs.contains(message.id) && message.senderID != userID
+            && !openRequestChats.contains(message.requestID) {
+            let title = requests.first { $0.id == message.requestID }?.title ?? "Your request"
+            let sender = message.sender?.displayName.split(separator: " ").first.map(String.init) ?? "Someone"
+            notifier.post(title, "\(sender): \(message.body)", id: "request-message-\(message.id)")
+        }
+    }
+
     private func clear() {
+        seen = nil
+        requestChats = [:]
         profile = nil
         places = []
         earnings = nil
@@ -337,7 +459,20 @@ final class GrabStore: ObservableObject {
     }
 
     func joinBuilding(_ group: GrabGroup) async -> Bool {
-        await mutate { _ = try await $0.joinBuilding(groupID: group.id) }
+        await mutate { try await $0.joinBuilding(groupID: group.id) }
+    }
+
+    /// Sets your home; choosing a residence also joins (or starts) that building's group.
+    func setHome(_ placeID: UUID?) async -> Bool {
+        await mutate { try await $0.setHomePlace(placeID) }
+    }
+
+    func leave(_ group: GrabGroup) async -> Bool {
+        await mutate { try await $0.leaveGroup(group.id) }
+    }
+
+    func delete(_ item: ShoppingItem) async -> Bool {
+        await mutate { try await $0.deleteListItem(item.id) }
     }
 
     private func mutate(_ work: (GrabBackend) async throws -> Void) async -> Bool {

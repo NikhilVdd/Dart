@@ -39,11 +39,17 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 ### Profile and groups
 - [ ] A and B: Profile shows the right name, initials, campus *UC Berkeley*, and **Signed in**
 - [ ] A: Profile → **Edit name** → change it; the header updates
-- [ ] A and B: Groups → join **The Durant**. Profile now shows Building = The Durant
+- [ ] A and B: Groups → join **The Durant**. Profile now shows Home = The Durant
+- [ ] A: Profile → **Home** → pick *Unit 2*. Groups now shows a **Unit 2** building group instead of The Durant
+      (created on the spot). Pick The Durant again to switch back
+- [ ] A user with no building sees **Where do you live?** under *Your building* in Groups; choosing a residence joins it
 - [ ] A: Groups → **+** → *New friend group* "Test crew". Open it and note the invite code
 - [ ] B: Groups → **+** → *Join with invite code*. "Test crew" appears
 - [ ] A sends a message; it appears on B **without pulling to refresh** (realtime). B replies; A sees it
 - [ ] A adds "Lemons" to the shopping list; B checks it off; both see the strike-through
+- [ ] A: touch and hold (right-click on Mac) "Lemons" → **Remove from list**. It disappears for B too
+- [ ] B: open Test crew → **⋯** → **Leave group**. It disappears from B's Groups; A sees 1 member. B rejoins with the code
+- [ ] With B not looking at Test crew, A sends a message: B gets a notification banner
 
 ### The core loop: a request rides on a trip already happening
 - [ ] A: Home → **What do you need?** → *Request something*. "Blender under $50", pickup **Any store**,
@@ -53,11 +59,17 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 - [ ] B: Home → **What do you need?** → *Announce a store run*. Store **Target**, heading back to **Unit 2**,
       everyone on campus, fee $6, max detour 8 min → **Announce run**
 - [ ] B: the result lists the blender at **+5 min**. Tap **Accept**
-- [ ] A: Home → the active request card flips to **Accepted** live; Activity → Requesting shows "Accepted by Sam"
+- [ ] A: a notification "Sam accepted “Blender under $50”" appears. Home → the active request card flips to
+      **Accepted** live; Activity → Requesting shows "Accepted by Sam"
+- [ ] A: open the request → **Messages** → "Room 214, the Ninja one if they have it". B opens it from
+      Activity → Helping and sees the message live; B replies. A third account can't see this chat
 - [ ] B: Activity → Helping → open it → **Mark picking up**, **Mark on the way**, then **Mark delivered**.
-      A sees each step live. B has no "complete" button: B sees "Waiting for Alex to confirm"
+      The sheet stays open between steps. A sees each step live in an open detail sheet, with a notification for each. B has no "complete" button: B sees "Waiting for Alex to confirm"
 - [ ] A: open the request → **Confirm I received it**. The timeline shows all six steps
-- [ ] B: Profile → Earnings shows **$8**, 1 completed
+- [ ] B: Profile → Earnings shows **$8**, 1 completed, and a "confirmed … You earned $8" notification
+- [ ] After completion the chat shows "This chat is closed" with the history kept
+- [ ] B (Earn): allow location when asked. The feed is sorted from where B is when that's near campus,
+      otherwise from B's home. A new request posted by A raises a "New request nearby" notification on B
 
 ### Places (Apple Maps search)
 - [ ] A: New request → **Pick up from** → the sheet lists *Any store* and the places already on Grab

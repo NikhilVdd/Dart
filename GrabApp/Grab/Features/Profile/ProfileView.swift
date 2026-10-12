@@ -8,6 +8,8 @@ struct ProfileView: View {
     @State private var editingName = false
     @State private var confirmDelete = false
     @State private var nameDraft = ""
+    @State private var choosingHome = false
+    @State private var homeID: UUID?
 
     var body: some View {
         NavigationStack {
@@ -20,21 +22,23 @@ struct ProfileView: View {
                     appearanceCard
                     earningsCard
                     previewExplanation
-                    NavigationLink {
-                        ComponentGalleryView()
-                    } label: {
-                        Label("Open component gallery", systemImage: "square.grid.2x2.fill")
-                            .font(.headline).foregroundStyle(GrabTheme.blue)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(18)
-                            .grabGlass()
+                    if !store.isLive {
+                        NavigationLink {
+                            ComponentGalleryView()
+                        } label: {
+                            Label("Open component gallery", systemImage: "square.grid.2x2.fill")
+                                .font(.headline).foregroundStyle(GrabTheme.blue)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(18)
+                                .grabGlass()
+                        }
+                        .buttonStyle(PressableStyle())
+                        Button(role: .destructive) { confirmReset = true } label: {
+                            Label("Reset demo", systemImage: "arrow.counterclockwise")
+                                .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(PressableStyle())
-                    Button(role: .destructive) { confirmReset = true } label: {
-                        Label("Reset demo", systemImage: "arrow.counterclockwise")
-                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
-                    }
-                    .buttonStyle(.bordered)
                 }
                 .padding(.horizontal, GrabTheme.pageInset)
                 .padding(.top, 18)
@@ -43,6 +47,13 @@ struct ProfileView: View {
             .background(GrabBackdrop())
             .refreshable { await store.refresh() }
             .sheet(isPresented: $showSignIn) { SignInView() }
+            .sheet(isPresented: $choosingHome) {
+                PlaceSearchView(title: "Where you live", selection: $homeID, filter: .destinations, allowsAnyStore: false)
+            }
+            .onChange(of: homeID) { _, id in
+                guard let id, id != store.profile?.homePlaceID else { return }
+                Task { _ = await store.setHome(id) }
+            }
             .alert("Display name", isPresented: $editingName) {
                 TextField("Name", text: $nameDraft)
                 Button("Save") { Task { await store.updateDisplayName(nameDraft.trimmingCharacters(in: .whitespaces)) } }
@@ -65,7 +76,7 @@ struct ProfileView: View {
 
     private var profileHeader: some View {
         HStack(spacing: 16) {
-            Text(store.profile?.initials ?? "NV")
+            Text(store.isLive ? (store.profile?.initials ?? "?") : "NV")
                 .font(.title.bold()).foregroundStyle(.white)
                 .frame(width: 72, height: 72)
                 .background(GrabTheme.blue.gradient, in: Circle())
@@ -81,7 +92,15 @@ struct ProfileView: View {
         VStack(spacing: 0) {
             ProfileRow(icon: "graduationcap.fill", title: "Campus", value: store.isLive ? (store.campusName ?? "Not linked") : state.campus)
             Divider().padding(.leading, 48)
-            ProfileRow(icon: "building.2.fill", title: "Building", value: store.isLive ? (store.buildingName ?? "Join one in Groups") : state.building)
+            if store.isLive {
+                Button { homeID = store.profile?.homePlaceID; choosingHome = true } label: {
+                    ProfileRow(icon: "building.2.fill", title: "Home", value: store.buildingName ?? "Choose where you live", showsChevron: true)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                ProfileRow(icon: "building.2.fill", title: "Building", value: state.building)
+            }
         }
         .padding(.horizontal, 16)
         .grabGlass()
@@ -125,7 +144,7 @@ struct ProfileView: View {
 
     private var aboutText: String {
         switch store.phase {
-        case .live: "Connected to the Grab backend. Requests, runs, chat, and shopping lists are live. Payments and background location are not part of this build."
+        case .live: "Connected to the Grab backend. Requests, runs, chat, shopping lists and notifications are live while the app is open. Card payments and push notifications with the app closed are not part of this build."
         case .signedOut: "Connected to the Grab backend. Sign in to replace the sample data with your campus’s live requests, runs, and groups."
         case .preview: "This is a development-only product preview. Sample tasks, people, messages, rewards, notifications, and earnings are not real. Add Supabase settings to connect a backend."
         }
@@ -171,12 +190,14 @@ private struct ProfileRow: View {
     let icon: String
     let title: String
     let value: String
+    var showsChevron = false
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon).foregroundStyle(GrabTheme.blue).frame(width: 26)
             Text(title)
             Spacer()
-            Text(value).foregroundStyle(.secondary)
+            Text(value).foregroundStyle(.secondary).lineLimit(1)
+            if showsChevron { Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary) }
         }
         .padding(.vertical, 15)
     }

@@ -187,5 +187,43 @@ const cvs = await as('nikhil', `select id from create_place('CVS Pharmacy', 'sto
 check('"CVS Pharmacy" from Apple Maps matches the seeded "CVS"', cvs[0].id === 'a0000000-0000-0000-0000-000000000003');
 check('new places are visible to everyone signed in', (await as('devon', `select 1 from places where name = 'Walgreens'`)).length === 2);
 
+// --- home building, leaving groups, request chat ----------------------------------------------
+const UNIT2 = 'a0000000-0000-0000-0000-000000000008', DURANT = 'a0000000-0000-0000-0000-000000000007';
+const g1 = await as('jordan', `select id, name, kind, place_id from set_home_place($1)`, [UNIT2]);
+check('setting a residence as home creates its building group', g1[0].kind === 'building' && g1[0].place_id === UNIT2 && g1[0].name === 'Unit 2', JSON.stringify(g1));
+check('…and makes it your home', (await as('jordan', `select home_place_id from profiles where id = auth.uid()`))[0].home_place_id === UNIT2);
+const g2 = await as('devon', `select id from set_home_place($1)`, [UNIT2]);
+check('a neighbor joins the same group rather than creating another', g2[0].id === g1[0].id);
+check('…and leaves their previous building', (await as(null, `select count(*)::int n from group_members m join groups g on g.id = m.group_id where m.user_id = '${U.devon}' and g.kind = 'building'`))[0].n === 1);
+check('a non-residence home joins no group', (await as('nikhil', `select set_home_place('a0000000-0000-0000-0000-000000000004') g`))[0].g === null);
+await rejects('users without a campus cannot set a home', 'pat', `select set_home_place($1)`, [UNIT2]);
+await rejects('anon cannot set a home', 'anon', `select set_home_place($1)`, [UNIT2]);
+const viaJoin = await as('nikhil', `select join_building_group('20000000-0000-0000-0000-000000000003') g`);
+check('joining a building group makes it home', (await as('nikhil', `select home_place_id from profiles where id = auth.uid()`))[0].home_place_id === DURANT, JSON.stringify(viaJoin));
+
+await as('devon', `select leave_group($1)`, [g1[0].id]);
+check('leaving a building clears it as home', (await as('devon', `select home_place_id from profiles where id = auth.uid()`))[0].home_place_id === null);
+const fg = await as('nikhil', `select id from create_group('Leavers')`);
+await as(null, `insert into group_members (group_id, user_id) values ($1, '${U.jordan}')`, [fg[0].id]);
+await as('nikhil', `select leave_group($1)`, [fg[0].id]);
+check('when the owner leaves, the next member owns the group', (await as(null, `select role from group_members where group_id = $1 and user_id = '${U.jordan}'`, [fg[0].id]))[0]?.role === 'owner');
+await as('jordan', `select leave_group($1)`, [fg[0].id]);
+check('the last member out closes the group', (await as(null, `select count(*)::int n from groups where id = $1`, [fg[0].id]))[0].n === 0);
+await rejects('cannot leave a group you are not in', 'devon', `select leave_group('20000000-0000-0000-0000-000000000001')`);
+
+const cq = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Chat test', 'Any store', 'Unit 2', now() + interval '1 hour') returning id`);
+await rejects('no chat before anyone accepts', 'jordan', `insert into request_messages (request_id, body) values ($1, 'hello?')`, [cq[0].id]);
+await as('nikhil', `select accept_request($1)`, [cq[0].id]);
+const rm = await as('jordan', `insert into request_messages (request_id, body) values ($1, 'Thanks! Room 214') returning sender_id`, [cq[0].id]);
+check('requester messages the helper as themselves', rm[0].sender_id === U.jordan);
+await as('nikhil', `insert into request_messages (request_id, body) values ($1, 'On it')`, [cq[0].id]);
+check('both participants read the chat', (await as('jordan', `select 1 from request_messages where request_id = $1`, [cq[0].id])).length === 2 && (await as('nikhil', `select 1 from request_messages where request_id = $1`, [cq[0].id])).length === 2);
+check('others cannot read it', (await as('devon', `select 1 from request_messages where request_id = $1`, [cq[0].id])).length === 0);
+await rejects('others cannot post to it', 'devon', `insert into request_messages (request_id, body) values ($1, 'hi')`, [cq[0].id]);
+await rejects('cannot spoof the sender', 'nikhil', `insert into request_messages (request_id, body, sender_id) values ($1, 'x', '${U.jordan}')`, [cq[0].id]);
+await as('nikhil', `select advance_request($1, 'delivered')`, [cq[0].id]).catch(() => {});
+await as('jordan', `select advance_request($1, 'completed')`, [cq[0].id]).catch(() => {});
+await rejects('chat closes when the request is finished', 'jordan', `insert into request_messages (request_id, body) values ($1, 'late')`, [cq[0].id]);
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

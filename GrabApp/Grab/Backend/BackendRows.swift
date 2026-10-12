@@ -182,6 +182,24 @@ struct MessageRow: Decodable, Hashable {
     }
 }
 
+struct RequestMessageRow: Decodable, Hashable {
+    let id: UUID
+    let requestID: UUID
+    let senderID: UUID?
+    let body: String
+    let createdAt: Date
+    let sender: MessageRow.Sender?
+
+    static let select = "id, request_id, sender_id, body, created_at, sender:profiles!sender_id(display_name)"
+
+    enum CodingKeys: String, CodingKey {
+        case id, body, sender
+        case requestID = "request_id"
+        case senderID = "sender_id"
+        case createdAt = "created_at"
+    }
+}
+
 struct ListItemRow: Decodable, Hashable {
     let id: UUID
     let groupID: UUID

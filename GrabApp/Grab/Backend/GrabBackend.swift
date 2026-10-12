@@ -190,8 +190,43 @@ final class GrabBackend {
         try await client.rpc("join_group", params: ["p_invite_code": inviteCode]).single().execute().value
     }
 
-    func joinBuilding(groupID: UUID) async throws -> GroupRow {
-        try await client.rpc("join_building_group", params: ["p_group_id": groupID]).single().execute().value
+    func joinBuilding(groupID: UUID) async throws {
+        try await client.rpc("join_building_group", params: ["p_group_id": groupID]).execute()
+    }
+
+    /// Sets where you live; for a residence this also puts you in that building's group.
+    func setHomePlace(_ placeID: UUID?) async throws {
+        try await client.rpc("set_home_place", params: ["p_place_id": placeID]).execute()
+    }
+
+    func leaveGroup(_ groupID: UUID) async throws {
+        try await client.rpc("leave_group", params: ["p_group_id": groupID]).execute()
+    }
+
+    func deleteListItem(_ id: UUID) async throws {
+        try await client.from("list_items").delete().eq("id", value: id).execute()
+    }
+
+    // MARK: Requester <-> helper chat
+
+    func requestMessages(requestID: UUID) async throws -> [RequestMessageRow] {
+        try await client.from("request_messages").select(RequestMessageRow.select)
+            .eq("request_id", value: requestID)
+            .order("created_at")
+            .limit(200)
+            .execute().value
+    }
+
+    /// Recent messages across every request you're part of (RLS limits it to those).
+    func latestRequestMessages(limit: Int = 100) async throws -> [RequestMessageRow] {
+        try await client.from("request_messages").select(RequestMessageRow.select)
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute().value
+    }
+
+    func sendRequestMessage(requestID: UUID, body: String) async throws {
+        try await client.from("request_messages").insert(["request_id": requestID.uuidString, "body": body]).execute()
     }
 }
 
