@@ -100,6 +100,8 @@ function errorMessage(error) {
   const replacements = [
     [/invalid login credentials/i, "Check your email and password, then try again."],
     [/user already registered/i, "An account already exists for this email. Sign in instead."],
+    [/email address not authorized/i, "Grab’s recovery email service is not connected for this address yet. Contact the app owner for a password reset."],
+    [/email rate limit exceeded/i, "Too many recovery emails were requested. Wait a little, then try again."],
     [/password should be at least/i, "Use a password with at least 6 characters."],
     [/failed to fetch/i, "Grab couldn’t reach the backend. Check your connection and try again."],
     [/networkerror/i, "Grab couldn’t reach the backend. Check your connection and try again."]
@@ -179,7 +181,7 @@ function renderAuth() {
           <img class="auth-mark" src="./icons/icon-192.png" alt="Grab" />
           <p class="eyebrow">${resetting ? "ACCOUNT RECOVERY" : creating ? "NEW ACCOUNT" : "WELCOME BACK"}</p>
           <h2>${resetting ? "Reset your password" : creating ? "Create your Grab account" : "Sign in to Grab"}</h2>
-          <p class="auth-subtitle">${resetting ? "We’ll email you a secure recovery link." : creating ? "Use any email address. Your profile is protected by Grab’s backend security rules." : "Use your email and password to continue."}</p>
+          <p class="auth-subtitle">${resetting ? "We’ll email you a secure recovery link." : creating ? "Use any email address—no Berkeley address or verification link is required." : "Use your email and password to continue."}</p>
           <form id="auth-form" class="form-stack">
             ${creating ? `<label><span>Your name</span><input name="displayName" autocomplete="name" minlength="2" maxlength="60" required placeholder="Nikhil V" /></label>` : ""}
             <label><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required placeholder="you@example.com" /></label>
@@ -645,8 +647,23 @@ document.addEventListener("submit", async event => {
         showToast("Check your email for the recovery link");
       } else if (state.authMode === "signup") {
         if (values.password !== values.confirmation) throw new Error("The passwords don’t match.");
-        await signUp(values.email.trim().toLowerCase(), values.password, values.displayName.trim());
-        showToast("Account created");
+        const email = values.email.trim().toLowerCase();
+        const password = values.password;
+        const signup = await signUp(email, password, values.displayName.trim());
+        if (signup.session) {
+          showToast("Account created");
+        } else if (signup.user?.identities?.length === 0) {
+          try {
+            await signIn(email, password);
+            showToast("Signed in to your existing account");
+          } catch {
+            state.authMode = "signin";
+            throw new Error("That email already has a Grab account. Sign in with its original password or choose Forgot password.");
+          }
+        } else {
+          state.authMode = "signin";
+          showToast("Check your email to confirm your account, then sign in");
+        }
       } else {
         await signIn(values.email.trim().toLowerCase(), values.password);
       }
