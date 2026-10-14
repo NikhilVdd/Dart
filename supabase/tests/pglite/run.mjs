@@ -133,6 +133,19 @@ await rejects('anon cannot submit launch feedback', 'anon', `insert into launch_
 await rejects('members cannot read private launch feedback', 'nikhil', `select * from launch_feedback`);
 await rejects('members cannot spoof feedback authors', 'nikhil', `insert into launch_feedback (user_id, category, message) values ('${U.jordan}', 'bug', 'spoof')`);
 
+// --- native push destinations + App Clip tracking capabilities ------------------------------
+const apnsToken = 'a'.repeat(64), activityToken = 'b'.repeat(64);
+const pushToken = await as('nikhil', `insert into push_tokens (token, bundle_id, app_variant, environment) values ($1, 'com.grab.preview.restart', 'full', 'sandbox') returning user_id`, [apnsToken]);
+check('member registers an APNs token as themselves', pushToken[0].user_id === U.nikhil);
+await rejects('member cannot register a push token for someone else', 'nikhil', `insert into push_tokens (user_id, token, bundle_id, app_variant, environment) values ('${U.jordan}', $1, 'com.grab.preview.restart', 'full', 'sandbox')`, ['c'.repeat(64)]);
+const activityTokenRow = await as('nikhil', `insert into live_activity_tokens (request_id, token, bundle_id, app_variant, environment) values ('10000000-0000-0000-0000-000000000002', $1, 'com.grab.preview.restart', 'full', 'sandbox') returning user_id`, [activityToken]);
+check('request participant registers a Live Activity token', activityTokenRow[0].user_id === U.nikhil);
+await rejects('non-participant cannot register a Live Activity token', 'jordan', `insert into live_activity_tokens (request_id, token, bundle_id, app_variant, environment) values ('10000000-0000-0000-0000-000000000002', $1, 'com.grab.preview.restart', 'full', 'sandbox')`, ['d'.repeat(64)]);
+check('request participant can read the App Clip tracking capability', (await as('nikhil', `select secret from request_tracking_links where request_id='10000000-0000-0000-0000-000000000002'`)).length === 1);
+check('non-participant cannot read the App Clip tracking capability', (await as('jordan', `select secret from request_tracking_links where request_id='10000000-0000-0000-0000-000000000002'`)).length === 0);
+await rejects('clients cannot read App Clip APNs tokens', 'nikhil', `select * from clip_push_tokens`);
+check('request status changes queue durable push events', (await as(null, `select count(*)::int n from push_events where event_type='request_status'`))[0].n > 0);
+
 // --- delivered -> confirmation, expiry, housekeeping ---------------------------------------
 const q2 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, reward_cents) values ('Snacks', 'Any store', 'Unit 2', now() + interval '1 hour', 500) returning id`);
 await as('maya', `select accept_request($1)`, [q2[0].id]);

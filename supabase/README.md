@@ -14,6 +14,9 @@ Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no s
 | `request_events` | Status timeline, written by trigger. |
 | `messages`, `list_items` | Group chat and shared shopping lists. |
 | `request_messages` | Private chat between a requester and their helper, open while a delivery is in progress. |
+| `push_tokens`, `live_activity_tokens` | Per-user APNs destinations for alerts and ActivityKit updates. |
+| `request_tracking_links`, `clip_push_tokens` | Capability-secured App Clip tracking links and private APNs destinations. |
+| `push_events` | Durable notification outbox populated by request and message triggers. |
 
 Money is integer cents. Payments are **recorded, not charged**: Stripe Connect is a later section.
 
@@ -106,6 +109,9 @@ Row level security is on for every table:
    on, configure custom SMTP so new users reliably receive the confirmation message.
 4. Copy **Project URL** and the **anon / publishable key** from *Project Settings → API* into
    `GrabApp/Grab/Resources/Supabase.plist`.
+5. For remote notifications, deploy `send-grab-push` and `register-clip-push`, add the APNs secrets,
+   and point a Database Webhook for `push_events` inserts at `send-grab-push`. Exact values and Apple
+   setup are in [`docs/ios-live-status.md`](../docs/ios-live-status.md).
 
 Supabase's built-in email sender is heavily rate-limited. If confirmation or password recovery is
 enabled, set up custom SMTP under *Authentication → SMTP Settings*, for example Resend or Postmark.

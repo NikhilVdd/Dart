@@ -1,9 +1,9 @@
 import Foundation
+import UIKit
 import UserNotifications
 
-/// Local notifications for changes other people make: your request is accepted or delivered, a new
-/// message arrives, a request appears nearby. They're raised from realtime refreshes, so they arrive
-/// while the app is running. Remote push (with the app closed) needs an APNs key; see BUILD_PROGRESS.
+/// Presents local notifications while Grab is open and registers the app with APNs for background
+/// delivery. The APNs callback is forwarded to GrabStore, which persists the token in Supabase.
 @MainActor
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     private var center: UNUserNotificationCenter? {
@@ -17,7 +17,10 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func requestPermission() {
-        center?.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        center?.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            Task { @MainActor in UIApplication.shared.registerForRemoteNotifications() }
+        }
     }
 
     func post(_ title: String, _ body: String, id: String = UUID().uuidString) {

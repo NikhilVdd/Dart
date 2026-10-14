@@ -32,6 +32,7 @@ final class GrabStore: ObservableObject {
     private var openConversations: Set<UUID> = []
     private var openRequestChats: Set<UUID> = []
     private let notifier = Notifier()
+    private let liveActivityCoordinator = LiveActivityCoordinator()
     private let location = LocationProvider()
     /// What the last refresh saw, so the next one can tell what other people changed.
     private var seen: Seen?
@@ -45,12 +46,14 @@ final class GrabStore: ObservableObject {
     private var realtimeTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var channel: RealtimeChannelV2?
+    private var notificationObservers: [NSObjectProtocol] = []
 
     init(config: SupabaseConfig? = SupabaseConfig.load()) {
         backend = config.map(GrabBackend.init)
         phase = backend == nil ? .preview : .signedOut
         if backend != nil { observeAuth() }
         location.onUpdate = { [weak self] _ in self?.scheduleRefresh() }
+        observePushTokens()
     }
 
     var isLive: Bool { phase == .live }
@@ -201,6 +204,7 @@ final class GrabStore: ObservableObject {
                             self.notifier.requestPermission()
                             self.location.refresh()
                             await self.refresh()
+                            await self.registerCurrentPushToken()
                             await self.startRealtime()
                         }
                     } else {
@@ -208,6 +212,7 @@ final class GrabStore: ObservableObject {
                     }
                 case .signedOut:
                     await self.stopRealtime()
+                    await self.liveActivityCoordinator.endAll()
                     self.clear()
                     self.phase = .signedOut
                 default:
@@ -245,6 +250,7 @@ final class GrabStore: ObservableObject {
             )
             apply(userID: userID, profile: profile, places: places, groups: groups, members: members, runs: runs,
                   requests: requests, nearby: nearby, items: items, messages: messages, earnings: earnings)
+            await liveActivityCoordinator.sync(records: liveActivities)
             notifyChanges(userID: userID, requests: requests, nearby: nearby, messages: messages, requestMessages: requestMessages)
             for groupID in openConversations { await loadConversation(groupID: groupID) }
             for requestID in openRequestChats { await loadRequestChat(requestID: requestID) }
@@ -313,6 +319,51 @@ final class GrabStore: ObservableObject {
     }
 
     // MARK: Notifications
+
+    private func observePushTokens() {
+        let center = NotificationCenter.default
+        notificationObservers.append(center.addObserver(forName: .grabAPNSDeviceToken, object: nil, queue: .main) { [weak self] note in
+            guard let token = note.userInfo?["token"] as? String else { return }
+            Task { @MainActor in await self?.registerPushToken(token) }
+        })
+        notificationObservers.append(center.addObserver(forName: .grabLiveActivityPushToken, object: nil, queue: .main) { [weak self] note in
+            guard let token = note.userInfo?["token"] as? String,
+                  let request = note.userInfo?["requestID"] as? String,
+                  let requestID = UUID(uuidString: request) else { return }
+            Task { @MainActor in await self?.registerLiveActivityToken(token, requestID: requestID) }
+        })
+    }
+
+    private func registerCurrentPushToken() async {
+        if let token = PushTokenCenter.shared.currentToken { await registerPushToken(token) }
+    }
+
+    private func registerPushToken(_ token: String) async {
+        guard let backend, isLive else { return }
+        do {
+            try await backend.registerPushToken(
+                token,
+                bundleID: Bundle.main.bundleIdentifier ?? "com.grab.preview.restart",
+                appVariant: "full"
+            )
+        } catch {
+            report(error)
+        }
+    }
+
+    private func registerLiveActivityToken(_ token: String, requestID: UUID) async {
+        guard let backend, isLive else { return }
+        do {
+            try await backend.registerLiveActivityToken(
+                token,
+                requestID: requestID,
+                bundleID: Bundle.main.bundleIdentifier ?? "com.grab.preview.restart",
+                appVariant: "full"
+            )
+        } catch {
+            report(error)
+        }
+    }
 
     private func notifyChanges(userID: UUID, requests: [RequestRow], nearby: [RequestRow], messages: [MessageRow],
                                requestMessages: [RequestMessageRow]) {

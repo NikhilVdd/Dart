@@ -65,6 +65,9 @@ What works when live:
 - **Runs**: announce a store run to friends, your building or campus. See the requests that fit within your max detour, then accept them.
 - **Groups**: create a group or join by invite code, join your building, chat, and edit the shared list.
 - **Activity**: timelines for everything you requested or helped with. Requesters confirm receipt.
+- **Live status**: accepted deliveries automatically open a Lock Screen/Dynamic Island Live Activity
+  and follow picking up → on the way → delivered → completed. APNs keeps it current when the app is closed
+  after the production credentials described in [`docs/ios-live-status.md`](../docs/ios-live-status.md) are installed.
 
 Authentication uses standard email/password accounts and accepts any valid email address. The backend
 assigns accounts to the launch campus when their email does not match a configured campus domain.
@@ -97,6 +100,9 @@ fabricate acceptance, payment, purchasing, delivery, chat, or notifications.
 - `Grab/DesignSystem`: adaptive tokens, glass, controls, cards, chips, avatars
 - `Grab/Features`: Home, Groups, Activity, Profile, shared flows, and gallery
 - `Grab/Resources`: asset catalog
+- `GrabLiveActivity`: Lock Screen and Dynamic Island widget extension for the full app
+- `GrabClip`: lightweight tracking experience launched from the public website
+- `GrabClipLiveActivity`: separate Live Activity extension embedded in the App Clip
 
 The shared state persists appearance and ordinary navigation choices with
 `UserDefaults`. Views read from `GrabStore`, which serves either the preview

@@ -145,7 +145,7 @@ struct ProfileView: View {
 
     private var aboutText: String {
         switch store.phase {
-        case .live: "Connected to the Grab backend. Requests, runs, chat, shopping lists and notifications are live while the app is open. Card payments and push notifications with the app closed are not part of this build."
+        case .live: "Connected to the Grab backend. Requests, runs, chat, shopping lists, push notifications, and Live Activity status tracking are enabled. Card payments are not part of this build."
         case .signedOut: "Connected to the Grab backend. Sign in or create an account with any email address to load live requests, runs, groups, and chat."
         case .preview: "This is a development-only product preview. Sample tasks, people, messages, rewards, notifications, and earnings are not real. Add Supabase settings to connect a backend."
         }
