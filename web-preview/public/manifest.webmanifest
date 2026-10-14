@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Grab",
-  "short_name": "Grab",
+  "name": "Dart",
+  "short_name": "Dart",
   "description": "Everyday errands, already on the way.",
   "start_url": "./",
   "scope": "./",

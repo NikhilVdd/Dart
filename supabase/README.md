@@ -164,9 +164,9 @@ Row level security is on for every table:
    delivery, turn off **Confirm email** under Authentication → Providers → Email. If confirmation stays
    on, configure custom SMTP so new users reliably receive the confirmation message.
 4. Copy **Project URL** and the **anon / publishable key** from *Project Settings → API* into
-   `GrabApp/Grab/Resources/Supabase.plist`.
-5. For remote notifications, deploy `send-grab-push` and `register-clip-push`, add the APNs secrets,
-   and point a Database Webhook for `push_events` inserts at `send-grab-push`. Exact values and Apple
+   `DartApp/Dart/Resources/Supabase.plist`.
+5. For remote notifications, deploy `send-dart-push` and `register-clip-push`, add the APNs secrets,
+   and point a Database Webhook for `push_events` inserts at `send-dart-push`. Exact values and Apple
    setup are in [`docs/ios-live-status.md`](../docs/ios-live-status.md).
 
 Supabase's built-in email sender is heavily rate-limited. If confirmation or password recovery is

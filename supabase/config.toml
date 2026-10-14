@@ -390,7 +390,7 @@ deno_version = 2
 
 # Both functions authenticate their own machine/capability requests. The database webhook uses a
 # shared secret header; the App Clip registration endpoint validates a per-request tracking UUID.
-[functions.send-grab-push]
+[functions.send-dart-push]
 verify_jwt = false
 
 [functions.register-clip-push]

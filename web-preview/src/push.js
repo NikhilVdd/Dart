@@ -39,7 +39,7 @@ function usesCurrentKey(subscription) {
 }
 
 async function registration() {
-  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Grab’s background service isn’t ready yet. Reload and try again.")), 8000));
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Dart’s background service isn’t ready yet. Reload and try again.")), 8000));
   return Promise.race([navigator.serviceWorker.ready, timeout]);
 }
 

@@ -10,7 +10,7 @@ fill the feeds, groups and chat so the app looks alive.
    runtime when prompted.
 2. **Supabase CLI login.** From the repo root, run `npx supabase login` in your own terminal (it opens a browser).
    The repo is already linked to the project.
-3. **First build.** Open `GrabApp/Grab.xcodeproj`, let Swift Package Manager fetch `supabase-swift`,
+3. **First build.** Open `DartApp/Dart.xcodeproj`, let Swift Package Manager fetch `supabase-swift`,
    choose **iPhone 16**, and press ⌘R. Then pick **iPhone 16 Plus** and press ⌘R again. Relaunch the
    first simulator's app from its home screen so both run. Put the two windows side by side.
 4. **Clean status bars.** Run once per simulator while it's booted:

@@ -1,5 +1,5 @@
 -- Native iOS push destinations, ActivityKit destinations, and a durable notification outbox.
--- APNs credentials stay server-side in the send-grab-push Edge Function.
+-- APNs credentials stay server-side in the send-dart-push Edge Function.
 
 create table public.push_tokens (
   id uuid primary key default gen_random_uuid(),

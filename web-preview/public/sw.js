@@ -42,7 +42,7 @@ self.addEventListener("push", event => {
     data = { body: event.data?.text() ?? "" };
   }
   const work = [
-    self.registration.showNotification(data.title || "Grab", {
+    self.registration.showNotification(data.title || "Dart", {
       body: data.body || "",
       tag: data.tag || undefined,
       renotify: Boolean(data.tag),

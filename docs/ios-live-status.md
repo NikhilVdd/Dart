@@ -6,7 +6,7 @@ Grab now has the native and backend pieces for a DoorDash-style delivery tracker
 - Accepted requests start a Live Activity. Supabase realtime updates it immediately while Grab is open.
 - `GrabLiveActivity` renders the Lock Screen, Dynamic Island expanded/compact/minimal, progress, route, and latest status.
 - `GrabClip` can start the same tracker from a capability-secured request URL and registers both its ephemeral-alert and Live Activity tokens.
-- `push_events` queues request/message events; `send-grab-push` delivers standard alerts and ActivityKit update/end payloads through APNs.
+- `push_events` queues request/message events; `send-dart-push` delivers standard alerts and ActivityKit update/end payloads through APNs.
 
 The public web app remains live at <https://grab-product-preview-nv.vaddeynikhil.chatgpt.site>. The iOS
 associated-domain entitlements already point at that host. The site is not a replacement for the native
@@ -32,11 +32,11 @@ These steps need the Apple Developer account and cannot be completed with an uns
    ```sh
    supabase db push
    supabase functions deploy register-clip-push --no-verify-jwt
-   supabase functions deploy send-grab-push --no-verify-jwt
+   supabase functions deploy send-dart-push --no-verify-jwt
    supabase secrets set APNS_TEAM_ID=... APNS_KEY_ID=... APNS_PRIVATE_KEY=... PUSH_WEBHOOK_SECRET=...
    ```
 
-5. In Supabase Database Webhooks, invoke `send-grab-push` on `INSERT` to `public.push_events` and add
+5. In Supabase Database Webhooks, invoke `send-dart-push` on `INSERT` to `public.push_events` and add
    `x-grab-webhook-secret: <PUSH_WEBHOOK_SECRET>`.
 6. Host `/.well-known/apple-app-site-association` on the final website with the real Apple Team ID and
    app identifiers, then configure the default/advanced App Clip experience in App Store Connect.

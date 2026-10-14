@@ -27,7 +27,7 @@ if (!index.includes("manifest.webmanifest")) throw new Error("Manifest is not li
 if (!index.includes("Content-Security-Policy")) throw new Error("CSP is not configured");
 
 const main = fs.readFileSync(path.join(root, "src/main.js"), "utf8");
-for (const launchFeature of ["Search Grab", "Share feedback", "Start using Grab"]) {
+for (const launchFeature of ["Search Dart", "Share feedback", "Start using Dart"]) {
   if (!main.includes(launchFeature)) throw new Error(`Missing Friends & Family feature: ${launchFeature}`);
 }
 

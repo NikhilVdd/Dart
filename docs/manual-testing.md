@@ -10,7 +10,7 @@ feature with two test accounts on two simulators, against the hosted Supabase pr
    ```sh
    node supabase/dev/accounts.mjs building
    ```
-3. **Two simulators.** In Xcode, open `GrabApp/Grab.xcodeproj`, pick a simulator (e.g. *iPhone 16*), and Run (⌘R).
+3. **Two simulators.** In Xcode, open `DartApp/Dart.xcodeproj`, pick a simulator (e.g. *iPhone 16*), and Run (⌘R).
    Then switch the destination to a second one (e.g. *iPhone 16 Plus*) and Run again. The first simulator
    keeps the app installed; relaunch it from its home screen. Each simulator has its own keychain, so each
    stays signed in as a different person.

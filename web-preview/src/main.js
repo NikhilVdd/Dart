@@ -144,11 +144,11 @@ function errorMessage(error) {
   const replacements = [
     [/invalid login credentials/i, "Check your email and password, then try again."],
     [/user already registered/i, "An account already exists for this email. Sign in instead."],
-    [/email address not authorized/i, "Grab’s recovery email service is not connected for this address yet. Contact the app owner for a password reset."],
+    [/email address not authorized/i, "Dart’s recovery email service is not connected for this address yet. Contact the app owner for a password reset."],
     [/email rate limit exceeded/i, "Too many recovery emails were requested. Wait a little, then try again."],
     [/password should be at least/i, "Use a password with at least 6 characters."],
-    [/failed to fetch/i, "Grab couldn’t reach the backend. Check your connection and try again."],
-    [/networkerror/i, "Grab couldn’t reach the backend. Check your connection and try again."]
+    [/failed to fetch/i, "Dart couldn’t reach the backend. Check your connection and try again."],
+    [/networkerror/i, "Dart couldn’t reach the backend. Check your connection and try again."]
   ];
   return replacements.find(([pattern]) => pattern.test(message))?.[1] ?? message;
 }
@@ -261,7 +261,7 @@ function pageHeader(eyebrow, title, subtitle, action = "") {
 }
 
 function skeleton() {
-  return `<main class="skeleton-shell" aria-label="Loading Grab"><aside class="skeleton-rail"></aside><section class="skeleton-page"><div class="skeleton-line title"></div><div class="skeleton-composer"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></section></main>`;
+  return `<main class="skeleton-shell" aria-label="Loading Dart"><aside class="skeleton-rail"></aside><section class="skeleton-page"><div class="skeleton-line title"></div><div class="skeleton-composer"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></section></main>`;
 }
 
 // Every render replaces the DOM, so realtime refreshes would otherwise wipe whatever the person is
@@ -341,8 +341,8 @@ function renderAuth() {
   const resetting = state.authMode === "reset";
   app.innerHTML = `
     <main class="auth-layout" id="main">
-      <section class="auth-story" aria-label="About Grab">
-        <div class="brand-lockup"><img src="./icons/icon-192.png" alt="" /><strong>Grab</strong></div>
+      <section class="auth-story" aria-label="About Dart">
+        <div class="brand-lockup"><img src="./icons/icon-192.png" alt="" /><strong>Dart</strong></div>
         <div class="story-copy">
           <p class="eyebrow light">EVERYDAY ERRANDS</p>
           <h1>Already on<br />the way.</h1>
@@ -352,9 +352,9 @@ function renderAuth() {
       </section>
       <section class="auth-panel">
         <div class="auth-card">
-          <img class="auth-mark" src="./icons/icon-192.png" alt="Grab" />
+          <img class="auth-mark" src="./icons/icon-192.png" alt="Dart" />
           <p class="eyebrow">${resetting ? "ACCOUNT RECOVERY" : creating ? "NEW ACCOUNT" : "WELCOME BACK"}</p>
-          <h2>${resetting ? "Reset your password" : creating ? "Create your Grab account" : "Sign in to Grab"}</h2>
+          <h2>${resetting ? "Reset your password" : creating ? "Create your Dart account" : "Sign in to Dart"}</h2>
           <p class="auth-subtitle">${resetting ? "We’ll email you a secure recovery link." : creating ? "Use any email address—no Berkeley address or verification link is required." : "Use your email and password to continue."}</p>
           <form id="auth-form" class="form-stack">
             ${creating ? `<label><span>Your name</span><input name="displayName" autocomplete="name" minlength="2" maxlength="60" required placeholder="Nikhil V" /></label>` : ""}
@@ -364,7 +364,7 @@ function renderAuth() {
             <button class="primary-button" type="submit" ${state.working ? "disabled" : ""}>${state.working ? '<span class="button-spinner"></span>' : resetting ? "Send recovery link" : creating ? "Create account" : "Sign in"}</button>
           </form>
           <div class="auth-actions">
-            ${resetting ? `<button data-action="auth-mode" data-mode="signin">Back to sign in</button>` : `<button data-action="auth-mode" data-mode="${creating ? "signin" : "signup"}">${creating ? "Already have an account? Sign in" : "New to Grab? Create an account"}</button>`}
+            ${resetting ? `<button data-action="auth-mode" data-mode="signin">Back to sign in</button>` : `<button data-action="auth-mode" data-mode="${creating ? "signin" : "signup"}">${creating ? "Already have an account? Sign in" : "New to Dart? Create an account"}</button>`}
             ${!creating && !resetting ? `<button data-action="auth-mode" data-mode="reset">Forgot password?</button>` : ""}
           </div>
           <p class="legal-copy">By continuing, you agree to the <button data-action="legal" data-document="terms">Terms</button> and acknowledge the <button data-action="legal" data-document="privacy">Privacy Notice</button>.</p>
@@ -379,17 +379,17 @@ function renderShell() {
   app.innerHTML = `
     <div class="app-layout">
       <aside class="side-nav">
-        <a class="app-brand" href="./" aria-label="Grab home"><span class="brand-mark">G</span><span>Grab</span><em>Beta</em></a>
+        <a class="app-brand" href="./" aria-label="Dart home"><span class="brand-mark">D</span><span>Dart</span><em>Beta</em></a>
         <nav aria-label="Main navigation">${navTabs.map(tab => navButton(tab)).join("")}</nav>
         <button class="feedback-rail" data-action="feedback">${icon("spark")}<span>Share feedback</span></button>
-        <button class="side-profile" data-action="nav" data-tab="profile">${avatar(profile)}<div><strong>${escapeHTML(profile?.display_name || "Grab member")}</strong><span>${escapeHTML(profile?.campus?.name || "Grab community")}</span></div>${icon("chevron")}</button>
+        <button class="side-profile" data-action="nav" data-tab="profile">${avatar(profile)}<div><strong>${escapeHTML(profile?.display_name || "Dart member")}</strong><span>${escapeHTML(profile?.campus?.name || "Dart community")}</span></div>${icon("chevron")}</button>
       </aside>
       <div class="app-content">
         <div class="network-banner" ${state.online ? "hidden" : ""}>You’re offline. Changes will be available when you reconnect.</div>
         <header class="top-bar">
-          <a class="mobile-brand" href="./"><span class="brand-mark">G</span><strong>Grab</strong></a>
+          <a class="mobile-brand" href="./"><span class="brand-mark">D</span><strong>Dart</strong></a>
           <div class="top-actions">
-            <button class="search-trigger" data-action="search" aria-label="Search Grab">${icon("search")}<span>Search Grab</span><kbd>⌘K</kbd></button>
+            <button class="search-trigger" data-action="search" aria-label="Search Dart">${icon("search")}<span>Search Dart</span><kbd>⌘K</kbd></button>
             <button class="icon-button" data-action="updates" aria-label="View updates${attention ? ` (${attention} need attention)` : ""}">${icon("bell")}${attention ? `<i class="badge">${attention}</i>` : ""}</button>
             <button class="profile-button" data-action="nav" data-tab="profile" aria-label="Open profile">${escapeHTML(profile?.initials || "?")}</button>
           </div>
@@ -655,7 +655,7 @@ function renderDraft() {
       ? `<div class="bubble bubble-user editing"><input id="draft-title" maxlength="120" value="${escapeHTML(draft.title)}" aria-label="What you need" /><button class="text-button picker-done" data-action="draft-picker" data-field="title">Done</button></div>`
       : `<button class="bubble bubble-user" data-action="draft-picker" data-field="title" aria-label="Edit what you need: ${escapeHTML(draft.title)}">${escapeHTML(draft.title)}<small>Edit</small></button>`}</div>
     <div class="msg msg-bot">
-      <span class="bot-mark" aria-hidden="true">G</span>
+      <span class="bot-mark" aria-hidden="true">D</span>
       <div class="bubble bubble-bot">
         <p>${escapeHTML(draft.intro)}</p>
         <div class="draft-card">
@@ -710,7 +710,7 @@ function renderHome() {
       <div class="section-heading"><div><h2>Heading out now</h2><p>Add an item to a trip someone’s already making.</p></div></div>
       ${runs.length ? `<div class="run-list">${runs.map(renderRunRow).join("")}</div>` : `<p class="quiet-empty">No one’s announced a run right now. Ask above and anyone nearby can pick it up.</p>`}
     </section>
-    ${showInstall ? `<section class="install-tip"><span class="brand-mark">G</span><div><strong>Put Grab on your Home Screen</strong><p>One tap to ask, and it opens like an app.</p></div><button class="secondary-button compact" data-action="install">Install</button><button class="text-button compact" data-action="dismiss-install" aria-label="Dismiss install tip">Not now</button></section>` : ""}
+    ${showInstall ? `<section class="install-tip"><span class="brand-mark">D</span><div><strong>Put Dart on your Home Screen</strong><p>One tap to ask, and it opens like an app.</p></div><button class="secondary-button compact" data-action="install">Install</button><button class="text-button compact" data-action="dismiss-install" aria-label="Dismiss install tip">Not now</button></section>` : ""}
   </div>`;
 }
 
@@ -829,14 +829,14 @@ function renderProfile() {
   const { profile, places } = state.data;
   const residences = places.filter(place => place.kind === "residence");
   return `<div class="page page-narrow profile-page">
-    <section class="profile-hero">${avatar(profile)}<div><h2>${escapeHTML(profile.display_name)}</h2><p>${escapeHTML(state.session.user.email)}</p><span>${escapeHTML(profile.campus?.name || "Grab community")}</span></div></section>
+    <section class="profile-hero">${avatar(profile)}<div><h2>${escapeHTML(profile.display_name)}</h2><p>${escapeHTML(state.session.user.email)}</p><span>${escapeHTML(profile.campus?.name || "Dart community")}</span></div></section>
     <div class="settings-grid">
       <section class="panel"><h2>Display name</h2><form id="profile-form" class="form-stack"><label><span>Name shown to members</span><input name="displayName" value="${escapeHTML(profile.display_name)}" minlength="1" maxlength="60" required /></label><button class="secondary-button" type="submit">Save name</button></form></section>
       <section class="panel"><h2>Home building</h2><form id="home-form" class="form-stack"><label><span>Used as your default drop-off</span><select name="placeId"><option value="">No home selected</option>${placeOptions(residences, profile.home_place_id)}</select></label><button class="secondary-button" type="submit">Update home</button></form></section>
-      <section class="panel"><h2>Install Grab</h2><p>Use Grab from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Grab is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
+      <section class="panel"><h2>Install Dart</h2><p>Use Dart from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Dart is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
       <section class="panel"><h2>Account</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="replay-intro">Replay the intro</button>${pushButton()}<button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
     </div>
-    <footer class="app-footer"><button data-action="legal" data-document="privacy">Privacy</button><button data-action="legal" data-document="terms">Terms</button><span>Grab web v1.1</span></footer>
+    <footer class="app-footer"><button data-action="legal" data-document="privacy">Privacy</button><button data-action="legal" data-document="terms">Terms</button><span>Dart web v1.1</span></footer>
   </div>`;
 }
 
@@ -878,7 +878,7 @@ function modalBody() {
 }
 
 function searchModal() {
-  return `<div class="search-modal"><h2 id="modal-title">Search Grab</h2><label class="search-field">${icon("search")}<span class="sr-only">Search requests, runs, and groups</span><input id="global-search" value="${escapeHTML(state.searchQuery)}" placeholder="Try “Target”, “oat milk”, or a group" autocomplete="off" autofocus /></label><div id="search-results">${searchResultsMarkup()}</div></div>`;
+  return `<div class="search-modal"><h2 id="modal-title">Search Dart</h2><label class="search-field">${icon("search")}<span class="sr-only">Search requests, runs, and groups</span><input id="global-search" value="${escapeHTML(state.searchQuery)}" placeholder="Try “Target”, “oat milk”, or a group" autocomplete="off" autofocus /></label><div id="search-results">${searchResultsMarkup()}</div></div>`;
 }
 
 function searchResultsMarkup() {
@@ -895,7 +895,7 @@ function searchResultsMarkup() {
   if (query.length === 1) return `<div class="search-empty">Keep typing to search your community.</div>`;
   if (!requests.length && !runs.length && !groups.length) return `<div class="search-empty">${icon("search")}<strong>No matches yet</strong><span>Try a store, item, destination, or group name.</span>${query ? `<button class="secondary-button compact" data-action="ask-from-search">Ask for “${escapeHTML(state.searchQuery.trim())}”</button>` : ""}</div>`;
   return `<div class="search-groups">
-    ${runs.length ? `<section><span class="result-label">LIVE RUNS</span>${runs.map(run => `<button class="search-result" data-action="open-run" data-id="${run.id}"><span class="result-icon">${icon("bag")}</span><span><strong>${escapeHTML(run.store_label)}</strong><small>${escapeHTML(run.destination_label)} · ${escapeHTML(run.runner?.display_name || "Grab runner")}</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
+    ${runs.length ? `<section><span class="result-label">LIVE RUNS</span>${runs.map(run => `<button class="search-result" data-action="open-run" data-id="${run.id}"><span class="result-icon">${icon("bag")}</span><span><strong>${escapeHTML(run.store_label)}</strong><small>${escapeHTML(run.destination_label)} · ${escapeHTML(run.runner?.display_name || "Dart runner")}</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
     ${requests.length ? `<section><span class="result-label">REQUESTS</span>${requests.map(request => `<button class="search-result" data-action="open-request" data-id="${request.id}"><span class="result-icon">${icon("route")}</span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
     ${groups.length ? `<section><span class="result-label">GROUPS</span>${groups.map(group => `<button class="search-result" data-action="search-group" data-id="${group.id}"><span class="result-icon">${icon("users")}</span><span><strong>${escapeHTML(group.name)}</strong><small>${escapeHTML(titleCase(group.kind))} community</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
   </div>`;
@@ -908,22 +908,22 @@ function updatesModal() {
 }
 
 function feedbackModal() {
-  return `<p class="eyebrow">FRIENDS & FAMILY</p><h2 id="modal-title">Help shape Grab</h2><p>Tell us what felt confusing, broken, or surprisingly useful.</p><form id="feedback-form" class="form-stack"><label><span>Feedback type</span><select name="category"><option value="idea">Idea</option><option value="bug">Something is broken</option><option value="confusing">Something is confusing</option><option value="love">Something I love</option></select></label><label><span>Your feedback</span><textarea name="message" minlength="3" maxlength="2000" rows="5" required placeholder="What happened, and what did you expect?"></textarea></label><label class="check-row"><input name="contactOk" type="checkbox" /><span>You may follow up with me at my account email.</span></label><button class="primary-button" type="submit" ${state.working ? "disabled" : ""}>Send feedback</button></form>`;
+  return `<p class="eyebrow">FRIENDS & FAMILY</p><h2 id="modal-title">Help shape Dart</h2><p>Tell us what felt confusing, broken, or surprisingly useful.</p><form id="feedback-form" class="form-stack"><label><span>Feedback type</span><select name="category"><option value="idea">Idea</option><option value="bug">Something is broken</option><option value="confusing">Something is confusing</option><option value="love">Something I love</option></select></label><label><span>Your feedback</span><textarea name="message" minlength="3" maxlength="2000" rows="5" required placeholder="What happened, and what did you expect?"></textarea></label><label class="check-row"><input name="contactOk" type="checkbox" /><span>You may follow up with me at my account email.</span></label><button class="primary-button" type="submit" ${state.working ? "disabled" : ""}>Send feedback</button></form>`;
 }
 
 function onboardingModal() {
   const slides = [
-    { icon: "home", eyebrow: "WELCOME TO GRAB", title: "Just ask.", body: "Type what you need—“oat milk from Berkeley Bowl”—and someone already heading out can bring it back." },
+    { icon: "home", eyebrow: "WELCOME TO DART", title: "Just ask.", body: "Type what you need—“oat milk from Berkeley Bowl”—and someone already heading out can bring it back." },
     { icon: "activity", eyebrow: "STAY IN THE LOOP", title: "Watch it arrive.", body: "Follow every step live, chat privately with your helper, and confirm when it’s in your hands." },
     { icon: "users", eyebrow: "WHEN YOU’RE OUT", title: "Help on your way.", body: "Pick up a nearby request, announce a store run, or coordinate with your groups—only when it fits." }
   ];
   const slide = slides[state.onboardingStep] || slides[0];
-  return `<div class="onboarding"><span class="onboarding-icon">${icon(slide.icon)}</span><p class="eyebrow">${slide.eyebrow}</p><h2 id="modal-title">${slide.title}</h2><p>${slide.body}</p><div class="onboarding-dots">${slides.map((_, index) => `<i class="${index === state.onboardingStep ? "active" : ""}"></i>`).join("")}</div><div class="onboarding-actions">${state.onboardingStep ? `<button class="secondary-button" data-action="onboarding-back">Back</button>` : `<button class="text-button" data-action="onboarding-skip">Skip</button>`}<button class="primary-button" data-action="${state.onboardingStep === slides.length - 1 ? "onboarding-complete" : "onboarding-next"}">${state.onboardingStep === slides.length - 1 ? "Start using Grab" : "Continue"}</button></div></div>`;
+  return `<div class="onboarding"><span class="onboarding-icon">${icon(slide.icon)}</span><p class="eyebrow">${slide.eyebrow}</p><h2 id="modal-title">${slide.title}</h2><p>${slide.body}</p><div class="onboarding-dots">${slides.map((_, index) => `<i class="${index === state.onboardingStep ? "active" : ""}"></i>`).join("")}</div><div class="onboarding-actions">${state.onboardingStep ? `<button class="secondary-button" data-action="onboarding-back">Back</button>` : `<button class="text-button" data-action="onboarding-skip">Skip</button>`}<button class="primary-button" data-action="${state.onboardingStep === slides.length - 1 ? "onboarding-complete" : "onboarding-next"}">${state.onboardingStep === slides.length - 1 ? "Start using Dart" : "Continue"}</button></div></div>`;
 }
 
 function installModal() {
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  return `<p class="eyebrow">INSTALL GRAB</p><h2 id="modal-title">Put Grab on your Home Screen</h2>${ios ? `<ol class="install-steps"><li><b>1</b><span>Open this page in Safari.</span></li><li><b>2</b><span>Tap the Share button.</span></li><li><b>3</b><span>Choose <strong>Add to Home Screen</strong>, turn on <strong>Open as Web App</strong>, then tap Add.</span></li></ol>` : `<p>Your browser can install Grab as an app. Choose Install below or use your browser’s install menu.</p><button class="primary-button" data-action="trigger-install">Install Grab</button>`}<p class="modal-note">After installation, Grab opens in its own app window and keeps your signed-in session securely on this device.</p>`;
+  return `<p class="eyebrow">INSTALL DART</p><h2 id="modal-title">Put Dart on your Home Screen</h2>${ios ? `<ol class="install-steps"><li><b>1</b><span>Open this page in Safari.</span></li><li><b>2</b><span>Tap the Share button.</span></li><li><b>3</b><span>Choose <strong>Add to Home Screen</strong>, turn on <strong>Open as Web App</strong>, then tap Add.</span></li></ol>` : `<p>Your browser can install Dart as an app. Choose Install below or use your browser’s install menu.</p><button class="primary-button" data-action="trigger-install">Install Dart</button>`}<p class="modal-note">After installation, Dart opens in its own app window and keeps your signed-in session securely on this device.</p>`;
 }
 
 function runFormModal() {
@@ -947,7 +947,7 @@ function runModal(id) {
   if (!run) return `<h2 id="modal-title">Run unavailable</h2><p>This run may have closed. Refresh to see current activity.</p>`;
   const own = run.runner_id === userId();
   return `<p class="eyebrow">${escapeHTML(titleCase(run.audience))} RUN</p><div class="modal-title-row"><div><h2 id="modal-title">${escapeHTML(run.store_label)}</h2><p>Heading to ${escapeHTML(run.destination_label)}</p></div>${statusPill(run.status)}</div>
-    <div class="detail-person">${avatar(run.runner)}<div><strong>${escapeHTML(run.runner?.display_name || "Grab runner")}</strong><span>${own ? "You announced this run" : `Accepting requests · closes ${relativeTime(run.closes_at)}`}</span></div></div>
+    <div class="detail-person">${avatar(run.runner)}<div><strong>${escapeHTML(run.runner?.display_name || "Dart runner")}</strong><span>${own ? "You announced this run" : `Accepting requests · closes ${relativeTime(run.closes_at)}`}</span></div></div>
     ${run.note ? `<div class="notice"><b>Runner note</b><p>${escapeHTML(run.note)}</p></div>` : ""}
     ${own ? `<dl class="detail-grid"><div><dt>Closes</dt><dd>${escapeHTML(shortDate(run.closes_at))}</dd></div><div><dt>Capacity</dt><dd>${run.capacity} requests</dd></div><div><dt>Max detour</dt><dd>${run.max_added_minutes} min</dd></div></dl><div class="modal-actions">${run.status === "open" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="shopping">Start shopping</button>` : ""}${run.status === "shopping" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="returning">Head back</button>` : ""}${run.status === "returning" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="completed">Finish run</button>` : ""}<button class="quiet-danger" data-action="run-status" data-id="${run.id}" data-status="cancelled">Cancel run</button></div>` : `<form id="request-from-run-form" class="form-stack"><input type="hidden" name="runId" value="${run.id}" /><label><span>What should they grab?</span><input name="title" required maxlength="120" placeholder="One carton of oat milk" /></label><label><span>Details (optional)</span><textarea name="details" maxlength="1000" rows="2" placeholder="Brand or substitution notes"></textarea></label><button class="primary-button" type="submit">Add to ${escapeHTML(firstName(run.runner?.display_name) || "this")}’s run</button></form><p class="modal-note">Capacity ${run.capacity} requests · up to ${run.max_added_minutes} min detour · closes ${escapeHTML(shortDate(run.closes_at))}</p>`}`;
 }
@@ -972,7 +972,7 @@ function requestModal(id) {
     <p class="status-headline status-text-${escapeHTML(request.status)}">${escapeHTML(statusLine(request))}</p>
     ${progressSteps(request.status)}
     ${request.details ? `<div class="notice"><b>Note</b><p>${escapeHTML(request.details)}</p></div>` : ""}
-    <dl class="detail-grid"><div><dt>From</dt><dd>${escapeHTML(request.pickup_label)}</dd></div><div><dt>Drop-off</dt><dd>${escapeHTML(request.destination_label)}</dd></div><div><dt>By</dt><dd>${escapeHTML(shortDate(request.deliver_by))}</dd></div><div><dt>${isRequester ? "Helper" : "Posted by"}</dt><dd>${escapeHTML(isRequester ? helperName || "Not yet" : request.requester?.display_name || "Grab member")}</dd></div></dl>
+    <dl class="detail-grid"><div><dt>From</dt><dd>${escapeHTML(request.pickup_label)}</dd></div><div><dt>Drop-off</dt><dd>${escapeHTML(request.destination_label)}</dd></div><div><dt>By</dt><dd>${escapeHTML(shortDate(request.deliver_by))}</dd></div><div><dt>${isRequester ? "Helper" : "Posted by"}</dt><dd>${escapeHTML(isRequester ? helperName || "Not yet" : request.requester?.display_name || "Dart member")}</dd></div></dl>
     ${actions ? `<div class="modal-actions">${actions}</div>` : ""}
     ${canChat && request.helper_id ? `<section class="request-chat"><div class="section-heading"><h3>Chat with ${escapeHTML(firstName(isRequester ? helperName : request.requester?.display_name) || "them")}</h3></div><div class="chat-feed compact-chat">${state.requestMessages.length ? state.requestMessages.map(message => `<div class="chat-message ${message.sender_id === userId() ? "mine" : ""}"><strong>${escapeHTML(message.sender?.display_name || "Member")}</strong><p>${escapeHTML(message.body)}</p></div>`).join("") : `<p class="empty-copy">No messages yet. Say hi or share handoff details.</p>`}</div>${isActive(request) ? `<form id="request-message-form" class="inline-form"><input type="hidden" name="requestId" value="${request.id}" /><input name="body" required maxlength="2000" placeholder="Message privately" aria-label="Message privately" autocomplete="off" /><button type="submit" aria-label="Send">${icon("send")}</button></form>` : ""}</section>` : ""}`;
 }
@@ -982,7 +982,7 @@ function groupToolsModal() {
 }
 
 function confirmDeleteModal() {
-  return `<p class="eyebrow danger-text">PERMANENT ACTION</p><h2 id="modal-title">Delete your Grab account?</h2><p>This deletes your profile, requests, runs, and memberships. Active deliveries are safely released or completed by the backend. This cannot be undone.</p><form id="delete-account-form" class="form-stack"><label><span>Type DELETE to confirm</span><input name="confirmation" required pattern="DELETE" autocomplete="off" /></label><button class="danger-button" type="submit">Permanently delete account</button></form>`;
+  return `<p class="eyebrow danger-text">PERMANENT ACTION</p><h2 id="modal-title">Delete your Dart account?</h2><p>This deletes your profile, requests, runs, and memberships. Active deliveries are safely released or completed by the backend. This cannot be undone.</p><form id="delete-account-form" class="form-stack"><label><span>Type DELETE to confirm</span><input name="confirmation" required pattern="DELETE" autocomplete="off" /></label><button class="danger-button" type="submit">Permanently delete account</button></form>`;
 }
 
 function passwordModal() {
@@ -990,8 +990,8 @@ function passwordModal() {
 }
 
 function legalModal(document) {
-  if (document === "privacy") return `<p class="eyebrow">PRIVACY NOTICE</p><h2 id="modal-title">Your data in Grab</h2><div class="legal-document"><p>Grab uses your email for account access and stores your display name, campus, optional home building, groups, requests, runs, shopping-list items, and messages so the service can work.</p><h3>Who can see what</h3><p>Supabase row-level security restricts data by account, group membership, campus audience, and request participation. Contact details are not stored in public profiles.</p><h3>Location</h3><p>If you choose “Use my location,” the browser supplies coordinates to sort nearby requests. Grab does not store that browser location from this web app.</p><h3>Account control</h3><p>You can sign out, change your name and home building, or permanently delete your account from Profile. Account deletion removes associated records according to the backend’s retention rules.</p><p class="modal-note">For a public commercial launch, replace this product notice with counsel-reviewed company contact, jurisdiction, retention, subprocessors, and consumer-rights language.</p></div>`;
-  return `<p class="eyebrow">TERMS OF USE</p><h2 id="modal-title">Use Grab responsibly</h2><div class="legal-document"><p>Grab helps people coordinate errands. Users are responsible for accurate requests, lawful items, safe public handoffs, and respectful communication.</p><h3>Safety</h3><p>Do not request controlled, illegal, dangerous, age-restricted, or unsafe items. Do not share sensitive personal information in group messages or public request details.</p><h3>Availability</h3><p>Requests and runs may change or be cancelled. Grab does not guarantee that another person will accept or complete a task.</p><p class="modal-note">These launch terms are product copy, not a substitute for counsel-reviewed commercial terms.</p></div>`;
+  if (document === "privacy") return `<p class="eyebrow">PRIVACY NOTICE</p><h2 id="modal-title">Your data in Dart</h2><div class="legal-document"><p>Dart uses your email for account access and stores your display name, campus, optional home building, groups, requests, runs, shopping-list items, and messages so the service can work.</p><h3>Who can see what</h3><p>Supabase row-level security restricts data by account, group membership, campus audience, and request participation. Contact details are not stored in public profiles.</p><h3>Location</h3><p>If you choose “Use my location,” the browser supplies coordinates to sort nearby requests. Dart does not store that browser location from this web app.</p><h3>Account control</h3><p>You can sign out, change your name and home building, or permanently delete your account from Profile. Account deletion removes associated records according to the backend’s retention rules.</p><p class="modal-note">For a public commercial launch, replace this product notice with counsel-reviewed company contact, jurisdiction, retention, subprocessors, and consumer-rights language.</p></div>`;
+  return `<p class="eyebrow">TERMS OF USE</p><h2 id="modal-title">Use Dart responsibly</h2><div class="legal-document"><p>Dart helps people coordinate errands. Users are responsible for accurate requests, lawful items, safe public handoffs, and respectful communication.</p><h3>Safety</h3><p>Do not request controlled, illegal, dangerous, age-restricted, or unsafe items. Do not share sensitive personal information in group messages or public request details.</p><h3>Availability</h3><p>Requests and runs may change or be cancelled. Dart does not guarantee that another person will accept or complete a task.</p><p class="modal-note">These launch terms are product copy, not a substitute for counsel-reviewed commercial terms.</p></div>`;
 }
 
 /* ---------- Data and actions ---------- */
@@ -1224,7 +1224,7 @@ document.addEventListener("click", async event => {
     await refreshPush();
     render();
     if (result === "granted") showToast("Notifications are on for this device");
-    else if (result === "denied") showToast("Notifications are blocked. Allow them for Grab in Settings, then try again.", "error");
+    else if (result === "denied") showToast("Notifications are blocked. Allow them for Dart in Settings, then try again.", "error");
   } else if (action === "push-disable") {
     await disablePush();
     await refreshPush();
@@ -1364,7 +1364,7 @@ document.addEventListener("submit", async event => {
             showToast("Signed in to your existing account");
           } catch {
             state.authMode = "signin";
-            throw new Error("That email already has a Grab account. Sign in with its original password or choose Forgot password.");
+            throw new Error("That email already has a Dart account. Sign in with its original password or choose Forgot password.");
           }
         } else {
           state.authMode = "signin";
@@ -1473,7 +1473,7 @@ window.addEventListener("beforeinstallprompt", event => {
   state.installPrompt = event;
   render();
 });
-window.addEventListener("appinstalled", () => { state.installPrompt = null; render(); showToast("Grab installed"); });
+window.addEventListener("appinstalled", () => { state.installPrompt = null; render(); showToast("Dart installed"); });
 window.addEventListener("online", () => { state.online = true; render(); if (state.session) loadData({ quiet: true }); });
 window.addEventListener("offline", () => { state.online = false; render(); });
 window.addEventListener("keydown", event => {
@@ -1538,5 +1538,5 @@ async function initialize() {
 
 initialize().catch(error => {
   state.loading = false;
-  app.innerHTML = `<main class="center-state error-state"><img src="./icons/icon-192.png" alt="" /><h1>Grab couldn’t start</h1><p>${escapeHTML(errorMessage(error))}</p><a class="primary-button retry-link" href="./">Try again</a></main>`;
+  app.innerHTML = `<main class="center-state error-state"><img src="./icons/icon-192.png" alt="" /><h1>Dart couldn’t start</h1><p>${escapeHTML(errorMessage(error))}</p><a class="primary-button retry-link" href="./">Try again</a></main>`;
 });
