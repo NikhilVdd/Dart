@@ -90,7 +90,9 @@ Deno.serve(async request => {
   if (!sameSecret(request.headers.get("x-grab-push-secret"))) return new Response("unauthorized", { status: 401 });
 
   const totals = { notifications: 0, delivered: 0, removed: 0, failed: 0 };
-  for (let round = 0; round < 10; round++) {
+  // Five rounds of 100 keeps one call well inside the Edge Function CPU and memory limits; anything
+  // left over is picked up by the next dispatch or the minute-ly retry.
+  for (let round = 0; round < 5; round++) {
     const { data: rows, error } = await admin.rpc("claim_push_batch", { p_limit: 100 });
     if (error) return Response.json({ error: error.message }, { status: 500 });
     const batch = (rows ?? []) as OutboxRow[];

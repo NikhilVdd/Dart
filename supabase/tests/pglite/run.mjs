@@ -330,5 +330,24 @@ await as(null, `select note_push_failure($1)`, [nk]);
 check('…and forgotten after 20 failures in a row', (await as(null, `select 1 from push_subscriptions where id = $1`, [nk])).length === 0);
 check('people without a device are skipped', (await outbox('jordan', mark)).length === 0);
 
+// --- push hardening (migration 13) -----------------------------------------------------------
+check('signed-out users have no access to request chat', (await as(null, `select has_table_privilege('anon', 'public.request_messages', 'select') or has_table_privilege('anon', 'public.request_messages', 'insert') a`))[0].a === false);
+check('signed-in users can only read and post request chat', (await as(null, `select has_table_privilege('authenticated', 'public.request_messages', 'update') or has_table_privilege('authenticated', 'public.request_messages', 'delete') or has_table_privilege('authenticated', 'public.request_messages', 'truncate') a`))[0].a === false);
+await as('jordan', `select save_push_subscription($1, $2, $3)`, [EP.jordan, KEY, AUTH]);
+await as(null, `create or replace function net_outage() returns trigger language plpgsql as $$ begin raise exception 'simulated outage'; end $$`);
+await as(null, `create trigger simulated_outage after insert on notification_outbox for each statement execute function net_outage()`);
+const iso = await as('devon', `insert into runs (audience, store_label, destination_label, closes_at) values ('campus', 'Berkeley Bowl', 'Unit 2', now() + interval '1 hour') returning id`).then(() => 'ok', e => e.message);
+check('a broken push path does not block announcing a run', iso === 'ok', iso);
+const iso2 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Isolated', 'Any store', 'Unit 2', now() + interval '1 hour') returning id`).then(r => r[0].id, e => e.message);
+const iso3 = await as('devon', `select accept_request($1)`, [iso2]).then(() => 'ok', e => e.message);
+check('…or accepting a request', iso3 === 'ok', iso3);
+await as(null, `drop trigger simulated_outage on notification_outbox`);
+await as(null, `insert into notification_outbox (user_id, category, title, body, tag) select '${U.jordan}', 'chat', 'old', 'b', 'chat-x' from generate_series(1, 5)`);
+await as(null, `insert into notification_outbox (user_id, category, title, body, tag, created_at) values ('${U.jordan}', 'chat', 'stale', 'b', 'chat-y', now() - interval '2 hours')`);
+await as(null, `select retry_push()`);
+check('stale unsent pushes are retired', (await as(null, `select last_error from notification_outbox where title = 'stale'`))[0].last_error.includes('gave up'));
+const burst = (await as(null, `select * from claim_push_batch(100)`)).filter(r => r.tag === 'chat-x');
+check('a burst on one tag still sends only the newest', burst.length === 1, JSON.stringify(burst.length));
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);
