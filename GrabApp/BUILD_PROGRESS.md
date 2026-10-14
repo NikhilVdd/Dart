@@ -53,7 +53,9 @@ Updated: 2026-10-11
 - [x] Local notifications while the app is running: status changes, new chat messages, new requests nearby
 - [x] Earn feed ranked from your current location when you're near campus (when-in-use, one-shot)
 - [x] Detail sheets follow realtime changes; accept and delivery steps keep the sheet open
-- [ ] Remote push with the app closed (needs an Apple Developer APNs key and a sender, e.g. an Edge Function)
+- [x] Web Push for the installed PWA with the app closed (VAPID, no Apple Developer account): outbox + triggers, `send-push` Edge Function, per-request notification that updates in place, store-run announcements, chat, preferences
+- [ ] Deploy Web Push: migration 12, `send-push` function + secrets, Vault URL/secret (steps in `supabase/README.md`)
+- [ ] Native iOS remote push / Live Activities (needs an Apple Developer APNs key; not planned while the PWA is the product)
 - [ ] Card payments (Stripe Connect); rewards are tracked, not charged
 - [ ] Calibrate matching walking pace (straight-line estimate runs 10–17% fast against Apple walking routes), or replace it with the travel-time table (maps step 3)
 - [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)

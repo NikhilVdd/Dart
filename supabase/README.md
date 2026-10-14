@@ -80,6 +80,62 @@ The ten launch places are aligned to Apple Maps coordinates (migration 8).
   friend groups where you were the last member, then deletes your auth user. Your profile, requests,
   runs and memberships cascade; messages and list items stay with the author cleared.
 
+### Push notifications (Web Push, migration 12)
+
+The installed PWA gets real push notifications through Web Push with our own VAPID keys. No Apple
+Developer account or APNs is involved; iPhone (iOS 16.4+) delivers them once Grab is opened from the
+Home Screen and the person taps **Turn on notifications**.
+
+```
+trigger ─▶ enqueue_push() ─▶ notification_outbox ─pg_net─▶ send-push Edge Function ─▶ Apple / Google / Mozilla push service
+                                     ▲                                                    
+                         grab-push-retry (pg_cron, every minute)
+```
+
+- `push_subscriptions`: one row per browser/device, registered with `save_push_subscription()` and removed
+  with `delete_push_subscription()` (or automatically when the push service says it's gone). Only real
+  push-service endpoints are accepted. Clients can't read the table.
+- `notification_prefs`: per-person switches (no settings screen yet; defaults apply). On by default: order progress, private chat, group store
+  runs. Opt-in: campus-wide runs, new requests nearby, group chat.
+- What sends what:
+
+| Event | Who hears | Category |
+| --- | --- | --- |
+| Request accepted → picking up → on the way → delivered | Requester (one tag per request, so it updates in place with a `▰▰▰▱▱` meter) | `request_updates` |
+| Requester confirms / housekeeping auto-completes | Helper (and requester when automatic) | `request_updates` |
+| Cancelled; released back to open; expired | Helper / requester | `request_updates` |
+| Someone asks a runner for something (`request_from_run`) | Runner | `request_updates` |
+| Store run announced to a friend or building group | Group members | `run_announcements` |
+| Store run announced to the campus | Everyone on the campus who opted in | `campus_runs` |
+| Private request chat message | The other participant | `chat` |
+| New open request | Its group, or its campus (opt-in) | `nearby_requests` |
+| Group chat message | Group members (opt-in) | `group_chat` |
+
+The person who caused an event is never notified about it. Unsent updates that share a tag collapse to
+the newest one, and the push `Topic` header does the same at the push service for a phone that's offline.
+
+#### Turning it on for a hosted project
+
+1. Generate a VAPID key pair (`npx web-push generate-vapid-keys`) and a long random webhook secret.
+   Put the **public** key in `web-preview/src/config.js` (`VAPID_PUBLIC_KEY`). Never commit the private key.
+2. Apply the migration: `npx supabase db push`.
+3. Set the function secrets and deploy it:
+   ```sh
+   npx supabase secrets set VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> \
+     VAPID_SUBJECT=mailto:<contact email> PUSH_WEBHOOK_SECRET=<webhook secret>
+   npx supabase functions deploy send-push --no-verify-jwt
+   ```
+4. Tell Postgres where to send (SQL editor):
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/send-push', 'grab_push_url');
+   select vault.create_secret('<webhook secret>', 'grab_push_secret');
+   ```
+5. Deploy the web app, open it from the Home Screen and tap Profile → Account → **Turn on
+   notifications**. (`send_test_push()` queues a test for the signed-in user.) `select * from notification_outbox order by id desc` shows what was
+   queued, sent, superseded, or why it failed (`last_error`).
+
+Rotating the VAPID keys invalidates every device; each one re-registers the next time Grab is opened.
+
 ### Security
 
 Row level security is on for every table:

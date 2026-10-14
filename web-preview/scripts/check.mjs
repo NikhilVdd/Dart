@@ -35,4 +35,10 @@ const api = fs.readFileSync(path.join(root, "src/api.js"), "utf8");
 if (!api.includes('from("launch_feedback")')) throw new Error("Feedback is not connected to Supabase");
 if (!api.includes('from("product_events")')) throw new Error("Product events are not connected to Supabase");
 
+const sw = fs.readFileSync(path.join(root, "public/sw.js"), "utf8");
+for (const handler of ['"push"', '"notificationclick"']) {
+  if (!sw.includes(`addEventListener(${handler}`)) throw new Error(`Service worker is missing the ${handler} handler`);
+}
+if (!/VAPID_PUBLIC_KEY = "B[\w-]{86}"/.test(fs.readFileSync(path.join(root, "src/config.js"), "utf8"))) throw new Error("Missing VAPID public key");
+
 console.log("Grab web checks passed");

@@ -43,6 +43,8 @@ npm test
 ## Release checklist
 
 - Test signup and sign-in with a fresh account.
+- On an iPhone, add Grab to the Home Screen, tap Profile → Account → Turn on notifications, then run a
+  request through every step from a second account and watch the one notification advance.
 - Complete onboarding and visit Home, Groups, Request, Earn, Activity, and Profile.
 - Verify global search, updates, feedback, and mobile navigation.
 - Exercise the request lifecycle with two accounts before widening the audience.
@@ -51,5 +53,6 @@ npm test
 
 ## Known boundary
 
-Payment processing and payouts are intentionally out of scope for Friends & Family. Custom SMTP is
+Payment processing and payouts are intentionally out of scope for Friends & Family. Push
+notifications are Web Push (no Apple Developer account); deployment steps are in `supabase/README.md`. Custom SMTP is
 the only remaining external service configuration needed for reliable password-reset email delivery.

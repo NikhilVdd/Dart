@@ -234,5 +234,88 @@ await as('nikhil', `select advance_request($1, 'delivered')`, [cq[0].id]).catch(
 await as('jordan', `select advance_request($1, 'completed')`, [cq[0].id]).catch(() => {});
 await rejects('chat closes when the request is finished', 'jordan', `insert into request_messages (request_id, body) values ($1, 'late')`, [cq[0].id]);
 
+// --- web push --------------------------------------------------------------------------------
+const KEY = 'B' + 'x'.repeat(86), AUTH = 'a'.repeat(22);
+const EP = { jordan: 'https://web.push.apple.com/QJordanDevice', nikhil: 'https://fcm.googleapis.com/fcm/send/nikhil-device' };
+const outbox = async (user, since) => as(null, `select category, title, body, tag, url, badge from notification_outbox where user_id = $1 and id > $2 order by id`, [U[user], since]);
+const lastId = async () => (await as(null, `select coalesce(max(id), 0)::int n from notification_outbox`))[0].n;
+await rejects('anon cannot register a device', 'anon', `select save_push_subscription($1, $2, $3)`, [EP.jordan, KEY, AUTH]);
+await rejects('only real push services are accepted', 'jordan', `select save_push_subscription('https://evil.example.com/web.push.apple.com/', $1, $2)`, [KEY, AUTH]);
+await as('jordan', `select save_push_subscription($1, $2, $3, 'test')`, [EP.jordan, KEY, AUTH]);
+await as('nikhil', `select save_push_subscription($1, $2, $3)`, [EP.nikhil, KEY, AUTH]);
+check('devices are registered to their owners', (await as(null, `select count(*)::int n from push_subscriptions where user_id in ('${U.jordan}', '${U.nikhil}')`))[0].n === 2);
+await rejects('clients cannot read device keys', 'jordan', `select * from push_subscriptions`);
+await rejects('clients cannot read the outbox', 'jordan', `select * from notification_outbox`);
+await rejects('clients cannot enqueue pushes', 'jordan', `select enqueue_push('${U.nikhil}', 'chat', 'x', 'y')`);
+await rejects('clients cannot claim the outbox', 'jordan', `select * from claim_push_batch()`);
+
+let mark = await lastId();
+const pq = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Oat milk', 'Target', 'Unit 2', now() + interval '1 hour') returning id`);
+const PQ = pq[0].id;
+check('nearby-request pushes are opt-in', (await outbox('nikhil', mark)).length === 0);
+await as('nikhil', `select accept_request($1)`, [PQ]);
+for (const step of ['picking_up', 'on_the_way', 'delivered']) await as('nikhil', `select advance_request($1, $2)`, [PQ, step]);
+const steps = await outbox('jordan', mark);
+check('requester gets a push for every step', JSON.stringify(steps.map(s => s.title)) === JSON.stringify(['Oat milk — Accepted', 'Oat milk — Picking up', 'Oat milk — On the way', 'Oat milk — Delivered']), JSON.stringify(steps.map(s => s.title)));
+check('…with a moving meter and one shared tag', steps[0].body.startsWith('▰▱▱▱▱') && steps[3].body.startsWith('▰▰▰▰▱') && steps.every(s => s.tag === `request-${PQ}` && s.url === `./?request=${PQ}`), steps[2].body);
+check('…and a badge counting active requests', steps[0].badge >= 1);
+check('the helper is not notified of their own taps', (await outbox('nikhil', mark)).length === 0);
+await as('jordan', `select advance_request($1, 'completed')`, [PQ]);
+check('confirming receipt notifies only the helper', (await outbox('jordan', mark)).length === 4 && (await outbox('nikhil', mark))[0]?.title === 'Oat milk — Confirmed');
+
+const claimed = await as(null, `select * from claim_push_batch(100)`);
+check('a burst on one tag sends only the latest step', claimed.filter(r => r.user_id === U.jordan).length === 1 && claimed.find(r => r.user_id === U.jordan).title === 'Oat milk — Delivered', JSON.stringify(claimed.map(r => r.title)));
+check('claimed rows are not handed out twice', (await as(null, `select * from claim_push_batch(100)`)).length === 0);
+
+mark = await lastId();
+const cq2 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Batteries', 'CVS', 'Unit 2', now() + interval '1 hour') returning id`);
+await as('nikhil', `select accept_request($1)`, [cq2[0].id]);
+await as('nikhil', `insert into request_messages (request_id, body) values ($1, 'AA or AAA?')`, [cq2[0].id]);
+const chat = (await outbox('jordan', mark)).filter(r => r.tag === `chat-${cq2[0].id}`);
+check('private chat notifies the other participant', chat.length === 1 && chat[0].body === 'AA or AAA?' && chat[0].url.endsWith('&chat=1'), JSON.stringify(chat));
+await as('jordan', `insert into notification_prefs (chat) values (false) on conflict (user_id) do update set chat = excluded.chat`);
+await as('nikhil', `insert into request_messages (request_id, body) values ($1, 'Got AA')`, [cq2[0].id]);
+check('turning chat off stops chat pushes', (await outbox('jordan', mark)).filter(r => r.tag === `chat-${cq2[0].id}`).length === 1);
+await rejects('cannot edit someone else’s preferences', 'nikhil', `insert into notification_prefs (user_id, chat) values ('${U.jordan}', true)`);
+check('preferences are private', (await as('nikhil', `select * from notification_prefs`)).length === 0);
+
+mark = await lastId();
+const shared = await as(null, `select group_id from group_members m join groups g on g.id = m.group_id where g.kind = 'friends' and user_id in ('${U.jordan}', '${U.nikhil}') group by group_id having count(*) = 2 limit 1`);
+const fr = await as('nikhil', `insert into runs (group_id, audience, store_label, destination_label, closes_at) values ($1, 'friends', 'Trader Joe’s', 'Unit 2', now() + interval '40 minutes') returning id`, [shared[0].group_id]);
+const ann = await outbox('jordan', mark);
+check('store runs are announced to the group', ann.length === 1 && ann[0].title === 'Nikhil is heading to Trader Joe’s' && ann[0].body.includes('next 40 min') && ann[0].url === `./?run=${fr[0].id}`, JSON.stringify(ann));
+await as('devon', `insert into runs (audience, store_label, destination_label, closes_at) values ('campus', 'Safeway', 'Unit 2', now() + interval '2 hours')`);
+check('campus-wide runs are opt-in', (await outbox('jordan', mark)).length === 1);
+await as('jordan', `update notification_prefs set campus_runs = true`);
+await as('devon', `insert into runs (audience, store_label, destination_label, closes_at, fee_cents) values ('campus', 'Walgreens', 'Unit 2', now() + interval '2 hours', 250)`);
+const campusRun = (await outbox('jordan', mark))[1];
+check('…and arrive once enabled, without any payment wording', campusRun?.body.includes('2 hr') && !campusRun.body.includes('$'), JSON.stringify(campusRun));
+
+mark = await lastId();
+await as('jordan', `select request_from_run($1, 'Frozen dumplings')`, [fr[0].id]);
+const added = await outbox('nikhil', mark);
+check('asking a runner for something notifies the runner', added.length === 1 && added[0].title === 'Jordan added to your Trader Joe’s run', JSON.stringify(added));
+
+await rejects('a test push needs a device', 'devon', `select send_test_push()`);
+await as('jordan', `select send_test_push()`);
+await rejects('test pushes are rate limited', 'jordan', `select send_test_push()`);
+
+await as('nikhil', `select save_push_subscription($1, $2, $3)`, [EP.jordan, KEY, AUTH]);
+check('a device that changes hands moves to the new account', (await as(null, `select user_id from push_subscriptions where endpoint = $1`, [EP.jordan]))[0].user_id === U.nikhil);
+await as('jordan', `select delete_push_subscription($1)`, [EP.nikhil]);
+check('cannot remove someone else’s device', (await as(null, `select 1 from push_subscriptions where endpoint = $1`, [EP.nikhil])).length === 1);
+await as('nikhil', `select delete_push_subscription($1)`, [EP.jordan]);
+mark = await lastId();
+await as('nikhil', `insert into request_messages (request_id, body) values ($1, 'Back soon')`, [cq2[0].id]);
+await as('jordan', `update notification_prefs set chat = true`);
+await as('nikhil', `insert into request_messages (request_id, body) values ($1, 'Here')`, [cq2[0].id]);
+const nk = (await as(null, `select id from push_subscriptions where endpoint = $1`, [EP.nikhil]))[0].id;
+await rejects('clients cannot record delivery failures', 'nikhil', `select note_push_failure($1)`, [nk]);
+for (let i = 0; i < 19; i++) await as(null, `select note_push_failure($1)`, [nk]);
+check('a failing device is kept for a while', (await as(null, `select failure_count from push_subscriptions where id = $1`, [nk]))[0]?.failure_count === 19);
+await as(null, `select note_push_failure($1)`, [nk]);
+check('…and forgotten after 20 failures in a row', (await as(null, `select 1 from push_subscriptions where id = $1`, [nk])).length === 0);
+check('people without a device are skipped', (await outbox('jordan', mark)).length === 0);
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

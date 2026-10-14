@@ -32,6 +32,7 @@ import {
   updatePassword,
   updateRunStatus
 } from "./api.js";
+import { disablePush, enablePush, pushEnabled, pushStatus, setBadge, syncPush } from "./push.js";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -70,7 +71,10 @@ const state = {
   picker: null,
   onboardingStep: 0,
   unsubscribeRealtime: null,
-  loadVersion: 0
+  loadVersion: 0,
+  pushOn: false,
+  // A tapped notification to open once data has loaded.
+  pendingLink: hasDeepLink(location.href) ? location.href : null
 };
 
 const icons = {
@@ -182,6 +186,60 @@ function isInstalled() {
 
 function userId() {
   return state.session.user.id;
+}
+
+async function refreshPush() {
+  state.pushOn = await pushEnabled().catch(() => false);
+}
+
+function pushButton() {
+  if (pushStatus() === "unsupported") return "";
+  return `<button data-action="${state.pushOn ? "push-disable" : "push-enable"}">${state.pushOn ? "Turn off notifications" : "Turn on notifications"}</button>`;
+}
+
+function updateBadge() {
+  if (!state.data) return;
+  const me = userId();
+  setBadge(state.data.requests.filter(item => isActive(item) && (item.requester_id === me || item.helper_id === me)).length);
+}
+
+function hasDeepLink(href) {
+  const params = new URL(href, location.href).searchParams;
+  return ["request", "run", "group"].some(key => params.has(key));
+}
+
+// Opens what a notification points at: ./?request=<id>[&chat=1], ./?run=<id>, ./?tab=groups&group=<id>.
+function openLink(href) {
+  const params = new URL(href, location.href).searchParams;
+  const requestId = params.get("request");
+  const runId = params.get("run");
+  const groupId = params.get("group");
+  const clean = new URL(location.href);
+  for (const key of ["request", "run", "group", "chat"]) clean.searchParams.delete(key);
+  history.replaceState({}, "", clean);
+  if (groupId) {
+    state.tab = "groups";
+    state.groupId = groupId;
+    state.modal = null;
+    setUrlTab("groups");
+    render();
+  } else if (runId) {
+    state.modal = { type: "run", id: runId };
+    renderModal();
+  } else if (requestId) {
+    openRequest(requestId, { focusChat: params.get("chat") === "1" });
+  }
+}
+
+async function openRequest(id, { focusChat = false } = {}) {
+  state.requestMessages = [];
+  state.modal = { type: "request", id };
+  renderModal();
+  const request = allRequests().find(item => item.id === id);
+  if (request && (request.requester_id === userId() || request.helper_id === userId()) && request.helper_id) {
+    try { state.requestMessages = await loadRequestMessages(id); preserving(renderModal); } catch { /* chat remains available after refresh */ }
+  }
+  if (focusChat) document.querySelector("#request-message-form input[name=body]")?.focus();
 }
 
 function avatar(person, fallback = "?") {
@@ -776,7 +834,7 @@ function renderProfile() {
       <section class="panel"><h2>Display name</h2><form id="profile-form" class="form-stack"><label><span>Name shown to members</span><input name="displayName" value="${escapeHTML(profile.display_name)}" minlength="1" maxlength="60" required /></label><button class="secondary-button" type="submit">Save name</button></form></section>
       <section class="panel"><h2>Home building</h2><form id="home-form" class="form-stack"><label><span>Used as your default drop-off</span><select name="placeId"><option value="">No home selected</option>${placeOptions(residences, profile.home_place_id)}</select></label><button class="secondary-button" type="submit">Update home</button></form></section>
       <section class="panel"><h2>Install Grab</h2><p>Use Grab from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Grab is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
-      <section class="panel"><h2>Account</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="replay-intro">Replay the intro</button><button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
+      <section class="panel"><h2>Account</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="replay-intro">Replay the intro</button>${pushButton()}<button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
     </div>
     <footer class="app-footer"><button data-action="legal" data-document="privacy">Privacy</button><button data-action="legal" data-document="terms">Terms</button><span>Grab web v1.1</span></footer>
   </div>`;
@@ -959,6 +1017,12 @@ async function loadData({ quiet = false } = {}) {
         state.modal = { type: "onboarding" };
       }
       render();
+      updateBadge();
+      if (state.data && state.pendingLink) {
+        const link = state.pendingLink;
+        state.pendingLink = null;
+        openLink(link);
+      }
     }
   }
 }
@@ -1152,8 +1216,22 @@ document.addEventListener("click", async event => {
     state.onboardingStep = 0;
     state.modal = { type: "onboarding" };
     renderModal();
+  } else if (action === "push-enable") {
+    // enablePush() must run before any other await so Safari still treats this as the tap.
+    if (pushStatus() === "needs-install") { state.modal = { type: "install" }; renderModal(); return; }
+    let result;
+    try { result = await enablePush(); } catch (error) { showToast(errorMessage(error), "error"); }
+    await refreshPush();
+    render();
+    if (result === "granted") showToast("Notifications are on for this device");
+    else if (result === "denied") showToast("Notifications are blocked. Allow them for Grab in Settings, then try again.", "error");
+  } else if (action === "push-disable") {
+    await disablePush();
+    await refreshPush();
+    render();
+    showToast("Notifications are off for this device");
   } else if (action === "signout") {
-    await work(() => signOut(), "Signed out", { close: false });
+    await work(async () => { await disablePush({ remember: false }); await signOut(); }, "Signed out", { close: false });
   } else if (action === "install") {
     if (state.installPrompt) await triggerInstall();
     else { state.modal = { type: "install" }; render(); }
@@ -1171,13 +1249,7 @@ document.addEventListener("click", async event => {
     state.modal = { type: "run", id };
     renderModal();
   } else if (action === "open-request") {
-    state.requestMessages = [];
-    state.modal = { type: "request", id };
-    renderModal();
-    const request = allRequests().find(item => item.id === id);
-    if (request && (request.requester_id === userId() || request.helper_id === userId()) && request.helper_id) {
-      try { state.requestMessages = await loadRequestMessages(id); preserving(renderModal); } catch { /* chat remains available after refresh */ }
-    }
+    await openRequest(id);
   } else if (action === "group-tools") {
     state.modal = { type: "group-tools" };
     renderModal();
@@ -1351,7 +1423,7 @@ document.addEventListener("submit", async event => {
     ok = await work(() => setHomePlace(values.placeId || null), "Home updated", { close: false });
   } else if (form.id === "delete-account-form") {
     if (values.confirmation !== "DELETE") return;
-    ok = await work(async () => { await deleteAccount(); await supabase.auth.signOut({ scope: "local" }); }, "Account deleted");
+    ok = await work(async () => { await deleteAccount(); await disablePush({ remember: false }); await supabase.auth.signOut({ scope: "local" }); }, "Account deleted");
   } else if (form.id === "password-form") {
     if (values.password !== values.confirmation) { showToast("The passwords don’t match", "error"); return; }
     ok = await work(() => updatePassword(values.password), "Password updated");
@@ -1420,6 +1492,12 @@ modalRoot.addEventListener("click", event => { if (event.target.classList.contai
 async function initialize() {
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
+    // A notification was tapped while Grab was already open.
+    navigator.serviceWorker.addEventListener("message", event => {
+      if (event.data?.type !== "open" || !event.data.url) return;
+      if (state.data) openLink(event.data.url);
+      else state.pendingLink = event.data.url;
+    });
   }
   const { data } = await supabase.auth.getSession();
   state.session = data.session;
@@ -1433,6 +1511,7 @@ async function initialize() {
       state.modal = { type: "password" };
     }
     if (session && !wasSignedIn) {
+      syncPush().then(refreshPush).then(render).catch(() => {});
       state.unsubscribeRealtime?.();
       state.unsubscribeRealtime = subscribeToChanges(() => loadData({ quiet: true }));
       loadData();
@@ -1449,6 +1528,7 @@ async function initialize() {
   });
 
   if (state.session) {
+    syncPush().then(refreshPush).then(render).catch(() => {});
     state.unsubscribeRealtime = subscribeToChanges(() => loadData({ quiet: true }));
     await loadData();
   } else {

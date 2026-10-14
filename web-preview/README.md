@@ -35,6 +35,22 @@ The hosted project currently permits immediate email/password signup. Password-r
 arbitrary Friends & Family addresses requires custom SMTP in Supabase; the default mail service is
 only suitable for project-team testing.
 
+## Push notifications
+
+Grab uses standard Web Push (VAPID), so it works without an Apple Developer account:
+
+- **iPhone / iPad (iOS 16.4+):** only after Grab is added to the Home Screen and opened from there.
+  The permission prompt only appears from a tap: Profile → Account → **Turn on notifications**.
+- **Android, desktop Chrome, Edge, Firefox, macOS Safari:** works in the browser or installed.
+
+Each request has one notification that is replaced at every step (`▰▰▰▱▱ On the way`), which is the
+closest the web gets to a Live Activity. A true Live Activity / Dynamic Island progress bar needs a
+native app with ActivityKit and therefore an Apple Developer account.
+
+`src/push.js` handles permission, subscription and badge; `public/sw.js` shows notifications and opens
+the right screen when one is tapped (`./?request=<id>`, `./?run=<id>`, `./?tab=groups&group=<id>`).
+The backend side (outbox, triggers, `send-push` Edge Function, setup steps) is in `supabase/README.md`.
+
 ## Current product boundary
 
 Rewards and merchandise budgets are recorded by the backend, but payments are not charged. A

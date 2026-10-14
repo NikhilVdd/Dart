@@ -186,6 +186,19 @@ export async function submitFeedback({ category, message, contactOk, page }) {
   }));
 }
 
+export async function savePushSubscription(endpoint, p256dh, auth, userAgent) {
+  return one(await supabase.rpc("save_push_subscription", {
+    p_endpoint: endpoint,
+    p_p256dh: p256dh,
+    p_auth: auth,
+    p_user_agent: userAgent
+  }));
+}
+
+export async function deletePushSubscription(endpoint) {
+  return one(await supabase.rpc("delete_push_subscription", { p_endpoint: endpoint }));
+}
+
 export async function trackProductEvent(eventName, context = {}) {
   return one(await supabase.from("product_events").insert({
     event_name: eventName,
