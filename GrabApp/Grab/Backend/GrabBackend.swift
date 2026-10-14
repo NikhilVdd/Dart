@@ -235,6 +235,37 @@ final class GrabBackend {
     func sendRequestMessage(requestID: UUID, body: String) async throws {
         try await client.from("request_messages").insert(["request_id": requestID.uuidString, "body": body]).execute()
     }
+
+    // MARK: Push notifications + Live Activities
+
+    func registerPushToken(_ token: String, bundleID: String, appVariant: String) async throws {
+        let row = PushTokenRegistration(
+            token: token,
+            bundleID: bundleID,
+            appVariant: appVariant,
+            environment: Self.pushEnvironment
+        )
+        try await client.from("push_tokens").upsert(row, onConflict: "user_id,token").execute()
+    }
+
+    func registerLiveActivityToken(_ token: String, requestID: UUID, bundleID: String, appVariant: String) async throws {
+        let row = LiveActivityTokenRegistration(
+            requestID: requestID,
+            token: token,
+            bundleID: bundleID,
+            appVariant: appVariant,
+            environment: Self.pushEnvironment
+        )
+        try await client.from("live_activity_tokens").upsert(row, onConflict: "user_id,request_id,token").execute()
+    }
+
+    private static var pushEnvironment: String {
+        #if DEBUG
+        "sandbox"
+        #else
+        "production"
+        #endif
+    }
 }
 
 // MARK: - RPC parameter payloads
@@ -281,5 +312,33 @@ private struct RequestFromRunParams: Encodable {
         case runID = "p_run_id"
         case title = "p_title"
         case budgetCents = "p_merchandise_budget_cents"
+    }
+}
+
+private struct PushTokenRegistration: Encodable {
+    let token: String
+    let bundleID: String
+    let appVariant: String
+    let environment: String
+
+    enum CodingKeys: String, CodingKey {
+        case token, environment
+        case bundleID = "bundle_id"
+        case appVariant = "app_variant"
+    }
+}
+
+private struct LiveActivityTokenRegistration: Encodable {
+    let requestID: UUID
+    let token: String
+    let bundleID: String
+    let appVariant: String
+    let environment: String
+
+    enum CodingKeys: String, CodingKey {
+        case token, environment
+        case requestID = "request_id"
+        case bundleID = "bundle_id"
+        case appVariant = "app_variant"
     }
 }

@@ -51,11 +51,16 @@ Updated: 2026-10-11
 - [x] Leave groups (ownership passes on; last member closes the group); remove shopping-list items
 - [x] Private requester↔helper chat on each request (`request_messages`, realtime)
 - [x] Local notifications while the app is running: status changes, new chat messages, new requests nearby
+- [x] Native APNs registration and authenticated push-token storage
+- [x] DoorDash-style Lock Screen and Dynamic Island Live Activity for accepted → delivered requests
+- [x] App Clip target with ephemeral notifications and its own Live Activity extension
+- [x] Push outbox triggers plus APNs sender and secure App Clip token-registration Edge Functions
 - [x] Earn feed ranked from your current location when you're near campus (when-in-use, one-shot)
 - [x] Detail sheets follow realtime changes; accept and delivery steps keep the sheet open
 - [x] Web Push for the installed PWA with the app closed (VAPID, no Apple Developer account): outbox + triggers, `send-push` Edge Function, per-request notification that updates in place, store-run announcements, chat, preferences
-- [ ] Deploy Web Push: migration 12, `send-push` function + secrets, Vault URL/secret (steps in `supabase/README.md`)
-- [ ] Native iOS remote push / Live Activities (needs an Apple Developer APNs key; not planned while the PWA is the product)
+- [x] Deploy Web Push backend: migration `20261014000012`, `send-push` function + secrets, Vault URL/secret (steps in `supabase/README.md`)
+- [ ] Publish the web build with push to the live site and test on a real iPhone
+- [ ] Enable real-device delivery with the Apple Developer Team, APNs key, provisioning, App Store Connect App Clip experience, and website AASA file
 - [ ] Card payments (Stripe Connect); rewards are tracked, not charged
 - [ ] Calibrate matching walking pace (straight-line estimate runs 10–17% fast against Apple walking routes), or replace it with the travel-time table (maps step 3)
 - [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)
