@@ -16,7 +16,7 @@
     { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Make a request", "short_name": "Request", "url": "./?tab=request" },
-    { "name": "Find a task", "short_name": "Earn", "url": "./?tab=earn" }
+    { "name": "Ask for something", "short_name": "Ask", "url": "./?tab=request" },
+    { "name": "Help a friend", "short_name": "Help", "url": "./?tab=earn" }
   ]
 }

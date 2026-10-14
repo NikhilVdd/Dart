@@ -38,7 +38,13 @@ const modalRoot = document.querySelector("#modal-root");
 const toast = document.querySelector("#toast");
 
 const initialTab = new URLSearchParams(location.search).get("tab");
-const validTabs = ["home", "groups", "request", "earn", "activity", "profile"];
+const navTabs = ["home", "activity", "groups", "earn"];
+const validTabs = [...navTabs, "profile"];
+const tabLabels = { home: "Ask", activity: "Activity", groups: "Groups", earn: "Help", profile: "Profile" };
+const ACTIVE_STATUSES = ["open", "accepted", "picking_up", "on_the_way", "delivered"];
+const PROGRESS = ["open", "accepted", "picking_up", "on_the_way", "delivered", "completed"];
+const PREFS_KEY = "grab:request-prefs:v1";
+
 const state = {
   session: null,
   data: null,
@@ -46,7 +52,9 @@ const state = {
   refreshing: false,
   working: false,
   authMode: "signin",
+  // "request" was the old standalone form; asking now happens on Home.
   tab: validTabs.includes(initialTab) ? initialTab : "home",
+  focusComposer: initialTab === "request",
   groupId: null,
   modal: null,
   requestMessages: [],
@@ -56,13 +64,17 @@ const state = {
   recovery: false,
   searchQuery: "",
   earnSort: "soonest",
+  activityView: "requesting",
+  draftText: "",
+  draft: null,
+  picker: null,
   onboardingStep: 0,
   unsubscribeRealtime: null,
   loadVersion: 0
 };
 
 const icons = {
-  home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/>',
+  home: '<path d="M4 5.5h16v10H9l-5 4v-14Z"/><path d="M8.5 10.5h7"/>',
   groups: '<circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.7-4 2.6-6 5.5-6s4.8 2 5.5 6"/><path d="M14 15c3.9-.6 6.3 1.1 7 5"/>',
   request: '<path d="M12 5v14M5 12h14"/>',
   earn: '<path d="m5 16 11-11"/><path d="M9 5h7v7"/><path d="M5 20h14"/>',
@@ -78,7 +90,10 @@ const icons = {
   inbox: '<path d="M4 5h16v14H4V5Z"/><path d="M4 14h5l2 2h2l2-2h5"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   tune: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
-  arrow: '<path d="M5 12h14M14 7l5 5-5 5"/>'
+  arrow: '<path d="M5 12h14M14 7l5 5-5 5"/>',
+  send: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/>'
 };
 
 function icon(name, className = "") {
@@ -92,13 +107,13 @@ function escapeHTML(value = "") {
   })[char]);
 }
 
-function money(cents = 0) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(cents) / 100);
-}
-
 function shortDate(value) {
   if (!value) return "Not set";
   return new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+}
+
+function clockTime(value) {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function relativeTime(value) {
@@ -114,6 +129,10 @@ function relativeTime(value) {
 
 function titleCase(value = "") {
   return String(value).replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function firstName(name = "") {
+  return String(name || "").trim().split(/\s+/)[0] || "";
 }
 
 function errorMessage(error) {
@@ -143,6 +162,14 @@ function track(eventName, context = {}) {
   trackProductEvent(eventName, context).catch(() => {});
 }
 
+function readStorage(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function writeStorage(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* storage can be unavailable in private windows */ }
+}
+
 function setUrlTab(tab) {
   const url = new URL(location.href);
   url.searchParams.set("tab", tab);
@@ -151,6 +178,10 @@ function setUrlTab(tab) {
 
 function isInstalled() {
   return matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function userId() {
+  return state.session.user.id;
 }
 
 function avatar(person, fallback = "?") {
@@ -164,11 +195,7 @@ function statusPill(status) {
 }
 
 function emptyState(iconName, title, body, action = "") {
-  return `<section class="empty-card"><span class="empty-icon">${iconMarkup(iconName)}</span><h3>${escapeHTML(title)}</h3><p>${escapeHTML(body)}</p>${action}</section>`;
-}
-
-function iconMarkup(name) {
-  return icons[name] ? icon(name) : icon("spark");
+  return `<section class="empty-card"><span class="empty-icon">${icon(iconName)}</span><h3>${escapeHTML(title)}</h3><p>${escapeHTML(body)}</p>${action}</section>`;
 }
 
 function pageHeader(eyebrow, title, subtitle, action = "") {
@@ -176,7 +203,63 @@ function pageHeader(eyebrow, title, subtitle, action = "") {
 }
 
 function skeleton() {
-  return `<main class="skeleton-shell" aria-label="Loading Grab"><aside class="skeleton-rail"></aside><section class="skeleton-page"><div class="skeleton-line short"></div><div class="skeleton-line title"></div><div class="skeleton-line"></div><div class="skeleton-grid"><div></div><div></div></div><div class="skeleton-row"></div><div class="skeleton-row"></div></section></main>`;
+  return `<main class="skeleton-shell" aria-label="Loading Grab"><aside class="skeleton-rail"></aside><section class="skeleton-page"><div class="skeleton-line title"></div><div class="skeleton-composer"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></section></main>`;
+}
+
+// Every render replaces the DOM, so realtime refreshes would otherwise wipe whatever the person is
+// typing. Edited form fields and focus are carried across each render.
+function captureUi() {
+  const fields = [...document.querySelectorAll("form[id] input[name], form[id] textarea[name], form[id] select[name]")]
+    .filter(field => field.type !== "hidden" && isDirty(field))
+    .map(field => ({ key: fieldKey(field), value: field.type === "checkbox" ? field.checked : field.value }));
+  const active = document.activeElement;
+  let focus = null;
+  if (active && active !== document.body && (active.matches("input, textarea, select"))) {
+    focus = { id: active.id || null, key: active.form?.id && active.name ? fieldKey(active) : null, selection: null };
+    try { focus.selection = [active.selectionStart, active.selectionEnd]; } catch { /* not a text field */ }
+  }
+  return { fields, focus };
+}
+
+function isDirty(field) {
+  if (field.type === "checkbox") return field.checked !== field.defaultChecked;
+  if (field.tagName === "SELECT") return field.value !== ([...field.options].find(option => option.defaultSelected) ?? field.options[0])?.value;
+  return field.value !== field.defaultValue;
+}
+
+function fieldKey(field) {
+  return `${field.form.id}\u0000${field.name}`;
+}
+
+function findField(key) {
+  const [formId, name] = key.split("\u0000");
+  const field = document.getElementById(formId)?.elements.namedItem(name);
+  return field instanceof Element ? field : null;
+}
+
+function restoreUi({ fields, focus }) {
+  for (const { key, value } of fields) {
+    const field = findField(key);
+    if (!field) continue;
+    if (field.type === "checkbox") field.checked = value;
+    else field.value = value;
+  }
+  if (focus) {
+    const field = (focus.id && document.getElementById(focus.id)) || (focus.key && findField(focus.key));
+    if (field) {
+      field.focus({ preventScroll: true });
+      if (focus.selection?.[0] != null) {
+        try { field.setSelectionRange(...focus.selection); } catch { /* not a text field */ }
+      }
+    }
+  }
+  document.querySelectorAll(".chat-feed").forEach(feed => { feed.scrollTop = feed.scrollHeight; });
+}
+
+function preserving(paint) {
+  const snapshot = captureUi();
+  paint();
+  restoreUi(snapshot);
 }
 
 function render() {
@@ -185,11 +268,14 @@ function render() {
     app.innerHTML = skeleton();
     return;
   }
-  if (!state.session) {
-    renderAuth();
-    return;
+  preserving(() => {
+    if (!state.session) renderAuth();
+    else renderShell();
+  });
+  if (state.focusComposer && state.data && state.tab === "home") {
+    state.focusComposer = false;
+    document.querySelector("#composer-input, #draft-title")?.focus();
   }
-  renderShell();
 }
 
 function renderAuth() {
@@ -202,7 +288,7 @@ function renderAuth() {
         <div class="story-copy">
           <p class="eyebrow light">EVERYDAY ERRANDS</p>
           <h1>Already on<br />the way.</h1>
-          <p>Ask trusted people nearby for what you need—or earn by helping along a route you’re already taking.</p>
+          <p>Ask trusted people nearby for what you need—or help out along a route you’re already taking.</p>
         </div>
         <div class="trust-row"><span>Private groups</span><span>Live updates</span><span>Secure accounts</span></div>
       </section>
@@ -231,14 +317,14 @@ function renderAuth() {
 
 function renderShell() {
   const profile = state.data?.profile;
-  const tabs = ["home", "groups", "request", "earn", "activity", "profile"];
+  const attention = state.data ? attentionCount() : 0;
   app.innerHTML = `
     <div class="app-layout">
       <aside class="side-nav">
         <a class="app-brand" href="./" aria-label="Grab home"><span class="brand-mark">G</span><span>Grab</span><em>Beta</em></a>
-        <nav aria-label="Main navigation">${tabs.map(tab => navButton(tab)).join("")}</nav>
+        <nav aria-label="Main navigation">${navTabs.map(tab => navButton(tab)).join("")}</nav>
         <button class="feedback-rail" data-action="feedback">${icon("spark")}<span>Share feedback</span></button>
-        <button class="side-profile" data-action="nav" data-tab="profile">${avatar(profile)}<div><strong>${escapeHTML(profile?.display_name || "Grab member")}</strong><span>${escapeHTML(profile?.campus?.name || "Grab community")}</span></div>${icon("arrow")}</button>
+        <button class="side-profile" data-action="nav" data-tab="profile">${avatar(profile)}<div><strong>${escapeHTML(profile?.display_name || "Grab member")}</strong><span>${escapeHTML(profile?.campus?.name || "Grab community")}</span></div>${icon("chevron")}</button>
       </aside>
       <div class="app-content">
         <div class="network-banner" ${state.online ? "hidden" : ""}>You’re offline. Changes will be available when you reconnect.</div>
@@ -246,92 +332,345 @@ function renderShell() {
           <a class="mobile-brand" href="./"><span class="brand-mark">G</span><strong>Grab</strong></a>
           <div class="top-actions">
             <button class="search-trigger" data-action="search" aria-label="Search Grab">${icon("search")}<span>Search Grab</span><kbd>⌘K</kbd></button>
-            ${!isInstalled() ? `<button class="install-button" data-action="install">Install app</button>` : ""}
-            <button class="icon-button" data-action="updates" aria-label="View updates">${icon("bell")}</button>
-            <button class="icon-button ${state.refreshing ? "is-spinning" : ""}" data-action="refresh" aria-label="Refresh live data" ${state.refreshing ? "disabled" : ""}>${icon("route")}</button>
+            <button class="icon-button" data-action="updates" aria-label="View updates${attention ? ` (${attention} need attention)` : ""}">${icon("bell")}${attention ? `<i class="badge">${attention}</i>` : ""}</button>
             <button class="profile-button" data-action="nav" data-tab="profile" aria-label="Open profile">${escapeHTML(profile?.initials || "?")}</button>
           </div>
         </header>
         <main id="main" class="main-content">${renderPage()}</main>
       </div>
-      <nav class="bottom-nav" aria-label="Main navigation">${tabs.map(tab => navButton(tab)).join("")}</nav>
+      <nav class="bottom-nav" aria-label="Main navigation">${navTabs.map(tab => navButton(tab)).join("")}</nav>
     </div>`;
   renderModal();
 }
 
 function navButton(tab) {
-  return `<button class="nav-item ${state.tab === tab ? "active" : ""}" data-action="nav" data-tab="${tab}" aria-current="${state.tab === tab ? "page" : "false"}"><span>${icon(tab)}</span><b>${titleCase(tab)}</b></button>`;
+  const active = state.tab === tab;
+  return `<button class="nav-item ${active ? "active" : ""}" data-action="nav" data-tab="${tab}" aria-current="${active ? "page" : "false"}"><span>${icon(tab)}</span><b>${tabLabels[tab]}</b></button>`;
 }
 
 function renderPage() {
   if (!state.data) return skeleton();
   if (state.tab === "groups") return renderGroups();
-  if (state.tab === "request") return renderRequestForm();
   if (state.tab === "earn") return renderEarn();
   if (state.tab === "activity") return renderActivity();
   if (state.tab === "profile") return renderProfile();
   return renderHome();
 }
 
-function renderHome() {
-  const { profile, runs, nearby, requests } = state.data;
-  const active = requests.filter(item => !["completed", "cancelled", "expired"].includes(item.status));
-  const openCount = nearby.length;
-  const communityCount = memberGroups().length;
-  return `
-    <div class="page page-wide">
-      <section class="welcome-band">
-        <div><p class="eyebrow">GOOD TO SEE YOU</p><h1>Hi, ${escapeHTML((profile.display_name || "there").split(" ")[0])}.</h1><p>What can your community help move today?</p></div>
-        <div class="pulse-stats"><span><b>${openCount}</b> open nearby</span><span><b>${runs.length}</b> live runs</span><span><b>${communityCount}</b> communities</span></div>
-        <button class="primary-button compact" data-action="nav" data-tab="request">${icon("request")} Make a request</button>
-      </section>
-      <section class="quick-grid">
-        <button class="quick-card request-card" data-action="nav" data-tab="request"><span class="quick-icon">${icon("bag")}</span><span class="category-pill">REQUEST</span><h2>Get something<br />you need.</h2><p>Post it in under a minute. A nearby friend can pick it up.</p><b>Start a request ${icon("arrow")}</b></button>
-        <button class="quick-card earn-card" data-action="nav" data-tab="earn"><span class="quick-icon">${icon("route")}</span><span class="category-pill">HELP & EARN</span><h2>Make your route<br />count.</h2><p>Help with a request that already fits where you’re going.</p><b>Browse tasks ${icon("arrow")}</b></button>
-      </section>
-      <div class="content-grid">
-        <section>
-          <div class="section-heading"><div><p class="eyebrow">LIVE NOW</p><h2>Store runs</h2></div><button data-action="open-run-form">Announce a run</button></div>
-          ${runs.length ? `<div class="card-list">${runs.slice(0, 4).map(renderRunCard).join("")}</div>` : emptyState("bag", "No live runs yet", "Be the first to announce a trip you’re already taking.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
-        </section>
-        <aside>
-          <div class="section-heading"><div><p class="eyebrow">YOUR DAY</p><h2>Active activity</h2></div><button data-action="nav" data-tab="activity">See all</button></div>
-          ${active.length ? `<div class="mini-list">${active.slice(0, 4).map(renderMiniRequest).join("")}</div>` : emptyState("check", "You’re all clear", "Requests you post or accept will appear here.")}
-        </aside>
+/* ---------- Requests: shared helpers ---------- */
+
+function allRequests() {
+  return [...state.data.requests, ...state.data.nearby].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
+}
+
+function isActive(request) {
+  return ACTIVE_STATUSES.includes(request.status);
+}
+
+function attentionCount() {
+  const me = userId();
+  return state.data.requests.filter(request =>
+    (request.requester_id === me && ["on_the_way", "delivered"].includes(request.status)) ||
+    (request.helper_id === me && ["accepted", "picking_up", "on_the_way"].includes(request.status))
+  ).length;
+}
+
+const helperTransitions = { accepted: "picking_up", picking_up: "on_the_way", on_the_way: "delivered" };
+
+function statusLine(request) {
+  const mine = request.requester_id === userId();
+  const helper = firstName(request.helper?.display_name) || "Your helper";
+  const requester = firstName(request.requester?.display_name) || "the requester";
+  const lines = {
+    open: mine ? "Looking for someone already headed that way" : "Waiting for a helper",
+    accepted: mine ? `${helper} accepted and will head out soon` : "You accepted · pick it up next",
+    picking_up: mine ? `${helper} is picking it up` : "You’re picking it up",
+    on_the_way: mine ? `${helper} is on the way` : `On the way to ${requester}`,
+    delivered: mine ? "Delivered — confirm you got it" : `Delivered · waiting for ${requester} to confirm`,
+    completed: "Done",
+    cancelled: "Cancelled",
+    expired: "Expired — nobody could make it in time"
+  };
+  return lines[request.status] ?? titleCase(request.status);
+}
+
+function progressBar(status) {
+  const index = PROGRESS.indexOf(status);
+  if (index < 0) return "";
+  const steps = PROGRESS.slice(1);
+  return `<div class="progress" role="img" aria-label="Progress: ${escapeHTML(titleCase(status))}">${steps.map((_, step) => `<i class="${step < index ? "done" : step === index ? "now" : ""}"></i>`).join("")}</div>`;
+}
+
+function progressSteps(status) {
+  const index = PROGRESS.indexOf(status);
+  if (index < 0) return "";
+  const labels = ["Posted", "Accepted", "Picking up", "On the way", "Delivered"];
+  return `<ol class="stepper">${labels.map((label, step) => `<li class="${step <= index ? "done" : ""} ${step === index ? "now" : ""}"><i>${step <= index ? icon("check") : ""}</i><span>${label}</span></li>`).join("")}</ol>`;
+}
+
+function quickAction(request) {
+  const me = userId();
+  if (request.requester_id === me && ["on_the_way", "delivered"].includes(request.status)) {
+    return `<button class="primary-button compact" data-action="advance-request" data-id="${request.id}" data-status="completed">Confirm received</button>`;
+  }
+  const next = helperTransitions[request.status];
+  if (request.helper_id === me && next) {
+    return `<button class="secondary-button compact" data-action="advance-request" data-id="${request.id}" data-status="${next}">Mark ${escapeHTML(titleCase(next))}</button>`;
+  }
+  return "";
+}
+
+function renderTrackRow(request) {
+  const action = quickAction(request);
+  const live = isActive(request);
+  return `<article class="track-row ${live ? "" : "is-past"} ${action ? "has-action" : ""}">
+    <button class="track-main" data-action="open-request" data-id="${request.id}">
+      <span class="track-head"><strong>${escapeHTML(request.title)}</strong></span>
+      <span class="track-status status-text-${escapeHTML(request.status)}">${escapeHTML(statusLine(request))}</span>
+      ${live ? progressBar(request.status) : ""}
+      <small>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)} · ${live ? `by ${escapeHTML(clockTime(request.deliver_by))}` : escapeHTML(shortDate(request.updated_at || request.created_at))}</small>
+    </button>
+    ${action ? `<div class="track-action">${action}</div>` : ""}
+  </article>`;
+}
+
+/* ---------- Home: ask ---------- */
+
+function storePlaces() {
+  return state.data.places.filter(place => ["store", "restaurant", "library", "other"].includes(place.kind));
+}
+
+function dropoffPlaces() {
+  const home = state.data.profile.home_place_id;
+  return state.data.places
+    .filter(place => ["residence", "campus", "transit", "library", "other"].includes(place.kind))
+    .sort((a, b) => (b.id === home) - (a.id === home));
+}
+
+function placeName(id, fallback) {
+  return state.data.places.find(place => place.id === id)?.name ?? fallback;
+}
+
+function loadPrefs() {
+  try { return JSON.parse(readStorage(PREFS_KEY)) || {}; } catch { return {}; }
+}
+
+function inferPickup(title) {
+  const text = title.toLowerCase();
+  return storePlaces()
+    .filter(place => text.includes(place.name.toLowerCase()))
+    .sort((a, b) => b.name.length - a.name.length)[0]?.id ?? null;
+}
+
+function startDraft(title, overrides = {}) {
+  const prefs = loadPrefs();
+  const dropoffs = dropoffPlaces();
+  const known = id => id && dropoffs.some(place => place.id === id);
+  const home = state.data.profile.home_place_id;
+  const draft = {
+    title,
+    details: "",
+    pickupId: inferPickup(title),
+    destinationId: known(prefs.destinationId) ? prefs.destinationId : known(home) ? home : null,
+    when: "60",
+    customWhen: "",
+    groupId: memberGroups().some(group => group.id === prefs.groupId) ? prefs.groupId : null,
+    ...overrides
+  };
+  if (draft.pickupId && !storePlaces().some(place => place.id === draft.pickupId)) draft.pickupId = null;
+  if (!known(draft.destinationId)) draft.destinationId = null;
+  if (draft.groupId && !memberGroups().some(group => group.id === draft.groupId)) draft.groupId = null;
+  const store = draft.pickupId ? placeName(draft.pickupId) : null;
+  if (!draft.destinationId) draft.intro = `Got it${store ? ` — from ${store}` : ""}. Where should it be dropped off?`;
+  else if (overrides.title) draft.intro = "Same as last time? Change anything below, then post.";
+  else draft.intro = `Got it${store ? ` — from ${store}` : ""}. Here’s your request. Tap anything to change it.`;
+  state.draft = draft;
+  state.draftText = "";
+  state.picker = draft.destinationId ? null : "destinationId";
+}
+
+function whenOptions() {
+  const now = new Date();
+  const options = [["45", "In 45 min"], ["60", "In 1 hour"], ["120", "In 2 hours"]];
+  if (now.getHours() < 20 || (now.getHours() === 20 && now.getMinutes() < 30)) options.push(["tonight", "Tonight"]);
+  options.push(["tomorrow", "Tomorrow morning"], ["custom", "Pick a time"]);
+  return options;
+}
+
+function resolveWhen(draft) {
+  const now = new Date();
+  if (draft.when === "custom") return draft.customWhen ? new Date(draft.customWhen) : null;
+  if (draft.when === "tonight") {
+    const date = new Date(now);
+    date.setHours(21, 0, 0, 0);
+    return date;
+  }
+  if (draft.when === "tomorrow") {
+    const date = new Date(now);
+    date.setDate(date.getDate() + 1);
+    date.setHours(10, 0, 0, 0);
+    return date;
+  }
+  const date = new Date(now.getTime() + Number(draft.when) * 60000);
+  date.setMinutes(Math.ceil(date.getMinutes() / 5) * 5, 0, 0);
+  return date;
+}
+
+function whenLabel(draft) {
+  const date = resolveWhen(draft);
+  if (!date || Number.isNaN(date.getTime())) return "Pick a time";
+  const option = whenOptions().find(([value]) => value === draft.when);
+  if (draft.when === "custom") return shortDate(date);
+  return `${option?.[1] ?? "Soon"} · ${clockTime(date)}`;
+}
+
+function localInputValue(date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function draftRows(draft) {
+  const group = memberGroups().find(item => item.id === draft.groupId);
+  return [
+    { field: "pickupId", label: "From", value: draft.pickupId ? placeName(draft.pickupId, "Any store") : "Any store" },
+    { field: "destinationId", label: "Drop-off", value: draft.destinationId ? placeName(draft.destinationId, "Choose a spot") : "Choose a spot", missing: !draft.destinationId },
+    { field: "when", label: "By", value: whenLabel(draft) },
+    { field: "groupId", label: "Who sees it", value: group ? group.name : "Everyone on campus" },
+    { field: "details", label: "Note", value: draft.details.trim() || "Brand, size, substitutions…", placeholder: !draft.details.trim() }
+  ];
+}
+
+function choice(field, value, label, active) {
+  return `<button class="choice ${active ? "active" : ""}" data-action="draft-set" data-field="${field}" data-value="${escapeHTML(value ?? "")}" aria-pressed="${active}">${escapeHTML(label)}</button>`;
+}
+
+function placeChoices(field, places, selected, extra = "") {
+  const home = state.data.profile.home_place_id;
+  const filter = places.length > 8 ? `<label class="picker-filter">${icon("search")}<span class="sr-only">Filter places</span><input id="picker-filter" placeholder="Search places" autocomplete="off" /></label>` : "";
+  return `${filter}<div class="choices">${extra}${places.map(place => choice(field, place.id, place.id === home ? `${place.name} · Home` : place.name, place.id === selected)).join("")}</div>`;
+}
+
+function pickerBody(field) {
+  const draft = state.draft;
+  if (field === "pickupId") return placeChoices(field, storePlaces(), draft.pickupId, choice(field, "", "Any store", !draft.pickupId));
+  if (field === "destinationId") {
+    const places = dropoffPlaces();
+    return places.length ? placeChoices(field, places, draft.destinationId) : `<p class="picker-note">No drop-off spots are set up for your campus yet.</p>`;
+  }
+  if (field === "when") {
+    const min = localInputValue(new Date(Date.now() + 30 * 60000));
+    return `<div class="choices">${whenOptions().map(([value, label]) => choice(field, value, label, draft.when === value)).join("")}</div>
+      ${draft.when === "custom" ? `<label class="picker-input"><span>Deliver by</span><input id="draft-when-custom" type="datetime-local" min="${min}" value="${escapeHTML(draft.customWhen || min)}" /></label>` : ""}`;
+  }
+  if (field === "groupId") {
+    return `<div class="choices">${choice(field, "", "Everyone on campus", !draft.groupId)}${memberGroups().map(group => choice(field, group.id, group.name, draft.groupId === group.id)).join("")}</div>`;
+  }
+  if (field === "details") {
+    return `<textarea id="draft-details" maxlength="1000" rows="3" placeholder="Any brand, unsweetened, one carton" aria-label="Note for your helper">${escapeHTML(draft.details)}</textarea><button class="text-button picker-done" data-action="draft-picker" data-field="details">Done</button>`;
+  }
+  return "";
+}
+
+function renderComposer() {
+  const name = firstName(state.data.profile.display_name) || "there";
+  const example = storePlaces()[0]?.name;
+  const recent = recentRequests();
+  const starters = ["Groceries from ", "Coffee from ", "Snacks from ", "Something from the pharmacy"];
+  return `<section class="ask">
+    <h1 class="ask-title">Hi ${escapeHTML(name)}. <span>What do you need?</span></h1>
+    <form id="composer-form" class="composer" autocomplete="off">
+      <label class="sr-only" for="composer-input">What do you need?</label>
+      <input id="composer-input" name="title" required minlength="2" maxlength="120" enterkeyhint="send" value="${escapeHTML(state.draftText)}" placeholder="${escapeHTML(example ? `Oat milk from ${example}` : "Oat milk and a baguette")}" />
+      <button class="composer-send" type="submit" aria-label="Continue">${icon("send")}</button>
+    </form>
+    <div class="suggest-row">
+      ${recent.length
+        ? `<span class="suggest-label">Again?</span>${recent.map(request => `<button class="suggest-chip" data-action="draft-again" data-id="${request.id}">${icon("clock")}<span>${escapeHTML(request.title)}</span></button>`).join("")}`
+        : starters.map(text => `<button class="suggest-chip" data-action="composer-prefill" data-value="${escapeHTML(text)}">${escapeHTML(text.trim())}</button>`).join("")}
+    </div>
+  </section>`;
+}
+
+function renderDraft() {
+  const draft = state.draft;
+  return `<section class="ask thread" aria-label="New request">
+    <div class="msg msg-user">${state.picker === "title"
+      ? `<div class="bubble bubble-user editing"><input id="draft-title" maxlength="120" value="${escapeHTML(draft.title)}" aria-label="What you need" /><button class="text-button picker-done" data-action="draft-picker" data-field="title">Done</button></div>`
+      : `<button class="bubble bubble-user" data-action="draft-picker" data-field="title" aria-label="Edit what you need: ${escapeHTML(draft.title)}">${escapeHTML(draft.title)}<small>Edit</small></button>`}</div>
+    <div class="msg msg-bot">
+      <span class="bot-mark" aria-hidden="true">G</span>
+      <div class="bubble bubble-bot">
+        <p>${escapeHTML(draft.intro)}</p>
+        <div class="draft-card">
+          ${draftRows(draft).map(row => {
+            const open = state.picker === row.field;
+            return `<div class="draft-row ${open ? "open" : ""} ${row.missing ? "missing" : ""}">
+              <button class="draft-row-head" data-action="draft-picker" data-field="${row.field}" aria-expanded="${open}"><span>${row.label}</span><b class="${row.placeholder ? "placeholder" : ""}" data-draft-value="${row.field}">${escapeHTML(row.value)}</b>${icon("chevron")}</button>
+              ${open ? `<div class="picker">${pickerBody(row.field)}</div>` : ""}
+            </div>`;
+          }).join("")}
+        </div>
+        <button class="primary-button post-button" data-action="draft-post" ${state.working ? "disabled" : ""}>${state.working ? '<span class="button-spinner"></span>' : "Post request"}</button>
       </div>
-      <section>
-        <div class="section-heading"><div><p class="eyebrow">NEARBY</p><h2>Tasks that could fit</h2></div><button data-action="locate">${state.coords ? "Using your location" : "Use my location"}</button></div>
-        ${nearby.length ? `<div class="task-grid">${nearby.slice(0, 6).map(renderRequestCard).join("")}</div>` : emptyState("route", "Nothing open nearby", "New tasks will appear here as your community posts them.")}
-      </section>
-    </div>`;
+    </div>
+    <button class="text-button start-over" data-action="draft-reset">Start over</button>
+  </section>`;
 }
 
-function renderRunCard(run) {
-  const own = run.runner_id === state.session.user.id;
-  return `<button class="run-card" data-action="open-run" data-id="${run.id}">
-    <div class="card-top"><span class="category-pill">${escapeHTML(titleCase(run.audience))}</span>${statusPill(run.status)}</div>
-    <div class="card-person">${avatar(run.runner)}<div><strong>${escapeHTML(run.runner?.display_name || "Grab runner")}</strong><span>${own ? "Your run" : "is making a run"}</span></div></div>
-    <h3>${escapeHTML(run.store_label)}</h3><p>Heading to ${escapeHTML(run.destination_label)}</p>
-    <div class="card-meta"><span>Closes ${escapeHTML(relativeTime(run.closes_at))}</span><b>${run.fee_cents ? `${money(run.fee_cents)} / request` : "Free"}</b></div>
+function refreshDraftLabels() {
+  const draft = state.draft;
+  if (!draft) return;
+  const labels = { when: whenLabel(draft) };
+  for (const [field, text] of Object.entries(labels)) {
+    document.querySelectorAll(`[data-draft-value="${field}"]`).forEach(element => { element.textContent = text; });
+  }
+}
+
+function recentRequests() {
+  const seen = new Set();
+  return state.data.requests
+    .filter(request => request.requester_id === userId())
+    .filter(request => {
+      const key = request.title.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
+}
+
+function renderHome() {
+  const me = userId();
+  const { runs } = state.data;
+  const mine = state.data.requests.filter(request => request.requester_id === me && isActive(request));
+  const helping = state.data.requests.filter(request => request.helper_id === me && isActive(request));
+  const showInstall = !isInstalled() && readStorage("grab:install-tip:dismissed") !== "true";
+  return `<div class="page page-ask">
+    ${state.draft ? renderDraft() : renderComposer()}
+    ${mine.length ? `<section class="home-section"><div class="section-heading"><h2>On its way to you</h2><button data-action="nav" data-tab="activity">All activity</button></div><div class="track-list">${mine.map(renderTrackRow).join("")}</div></section>` : ""}
+    ${helping.length ? `<button class="helping-strip" data-action="activity-view" data-view="helping">${icon("route")}<span>You’re helping with <b>${helping.length}</b> ${helping.length === 1 ? "request" : "requests"}</span>${icon("chevron")}</button>` : ""}
+    <section class="home-section">
+      <div class="section-heading"><div><h2>Heading out now</h2><p>Add an item to a trip someone’s already making.</p></div></div>
+      ${runs.length ? `<div class="run-list">${runs.map(renderRunRow).join("")}</div>` : `<p class="quiet-empty">No one’s announced a run right now. Ask above and anyone nearby can pick it up.</p>`}
+    </section>
+    ${showInstall ? `<section class="install-tip"><span class="brand-mark">G</span><div><strong>Put Grab on your Home Screen</strong><p>One tap to ask, and it opens like an app.</p></div><button class="secondary-button compact" data-action="install">Install</button><button class="text-button compact" data-action="dismiss-install" aria-label="Dismiss install tip">Not now</button></section>` : ""}
+  </div>`;
+}
+
+function renderRunRow(run) {
+  const own = run.runner_id === userId();
+  return `<button class="run-row" data-action="open-run" data-id="${run.id}">
+    ${avatar(run.runner)}
+    <span><strong>${own ? "You" : escapeHTML(firstName(run.runner?.display_name) || "Someone")} → ${escapeHTML(run.store_label)}</strong><small>Back to ${escapeHTML(run.destination_label)} · closes ${escapeHTML(relativeTime(run.closes_at))}</small></span>
+    ${own ? "<b>Your run</b>" : ""}
+    ${own ? icon("chevron") : `<em>Add item</em>`}
   </button>`;
 }
 
-function renderRequestCard(request) {
-  return `<button class="task-card" data-action="open-request" data-id="${request.id}">
-    <div class="card-top">${statusPill(request.status)}<strong class="reward">${money(request.reward_cents)}</strong></div>
-    <h3>${escapeHTML(request.title)}</h3><p>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</p>
-    <div class="card-meta"><span>Due ${escapeHTML(shortDate(request.deliver_by))}</span><span>${request.est_minutes ? `+${request.est_minutes} min` : "Open task"}</span></div>
-  </button>`;
-}
-
-function renderMiniRequest(request) {
-  const role = request.requester_id === state.session.user.id ? "Requested" : "Helping";
-  return `<button class="mini-row" data-action="open-request" data-id="${request.id}">${avatar(role === "Requested" ? request.helper : request.requester, role[0])}<span><strong>${escapeHTML(request.title)}</strong><small>${role} · ${escapeHTML(titleCase(request.status))}</small></span><b>${money(request.reward_cents)}</b></button>`;
-}
+/* ---------- Groups ---------- */
 
 function renderGroups() {
   const { groups, members } = state.data;
-  const memberIds = new Set(members.filter(item => item.user_id === state.session.user.id).map(item => item.group_id));
+  const memberIds = new Set(members.filter(item => item.user_id === userId()).map(item => item.group_id));
   const joined = groups.filter(group => memberIds.has(group.id));
   const discoverable = groups.filter(group => !memberIds.has(group.id) && group.kind === "building");
   if (state.groupId) {
@@ -339,17 +678,17 @@ function renderGroups() {
     if (group) return renderGroupDetail(group, members.filter(item => item.group_id === group.id));
     state.groupId = null;
   }
-  return `<div class="page">
-    ${pageHeader("PRIVATE SPACES", "Your groups", "Coordinate lists, runs, and conversations with people you trust.", `<button class="primary-button compact" data-action="group-tools">＋ Add group</button>`)}
-    ${joined.length ? `<div class="group-grid">${joined.map(group => renderGroupCard(group, members)).join("")}</div>` : emptyState("users", "No groups yet", "Create a friend group or join one with an invite code.", `<button class="secondary-button compact" data-action="group-tools">Create or join</button>`)}
-    ${discoverable.length ? `<section class="subsection"><div class="section-heading"><div><p class="eyebrow">YOUR CAMPUS</p><h2>Building communities</h2></div></div><div class="group-grid">${discoverable.map(group => `<article class="group-card"><span class="group-icon">⌂</span><div><span class="category-pill">Building</span><h3>${escapeHTML(group.name)}</h3><p>Join your neighbors for shared errands.</p></div><button class="secondary-button compact" data-action="join-building" data-id="${group.id}">Join building</button></article>`).join("")}</div></section>` : ""}
+  return `<div class="page page-narrow">
+    ${pageHeader("YOUR PEOPLE", "Groups", "Shared lists, runs, and chat with people you trust.", `<button class="primary-button compact" data-action="group-tools">${icon("request")} New or join</button>`)}
+    ${joined.length ? `<div class="group-list">${joined.map(group => renderGroupCard(group, members)).join("")}</div>` : emptyState("users", "No groups yet", "Create a friend group or join one with an invite code.", `<button class="secondary-button compact" data-action="group-tools">Create or join</button>`)}
+    ${discoverable.length ? `<section class="subsection"><div class="section-heading"><h2>Buildings near you</h2></div><div class="group-list">${discoverable.map(group => `<article class="group-card"><span class="group-icon">⌂</span><div><h3>${escapeHTML(group.name)}</h3><p>Join your neighbors for shared errands.</p></div><button class="secondary-button compact" data-action="join-building" data-id="${group.id}">Join</button></article>`).join("")}</div></section>` : ""}
   </div>`;
 }
 
 function renderGroupCard(group, members) {
   const count = members.filter(item => item.group_id === group.id).length;
   const latest = state.data.messages.find(item => item.group_id === group.id);
-  return `<button class="group-card clickable" data-action="open-group" data-id="${group.id}"><span class="group-icon">${group.kind === "building" ? "⌂" : "◎"}</span><div><span class="category-pill">${escapeHTML(titleCase(group.kind))}</span><h3>${escapeHTML(group.name)}</h3><p>${latest ? `${escapeHTML(latest.sender?.display_name || "Member")}: ${escapeHTML(latest.body)}` : "No messages yet"}</p><small>${count} ${count === 1 ? "member" : "members"}</small></div><span class="chevron">›</span></button>`;
+  return `<button class="group-card clickable" data-action="open-group" data-id="${group.id}"><span class="group-icon">${group.kind === "building" ? "⌂" : "◎"}</span><div><h3>${escapeHTML(group.name)}</h3><p>${latest ? `${escapeHTML(latest.sender?.display_name || "Member")}: ${escapeHTML(latest.body)}` : "No messages yet"}</p><small>${escapeHTML(titleCase(group.kind))} · ${count} ${count === 1 ? "member" : "members"}</small></div>${icon("chevron", "chevron")}</button>`;
 }
 
 function renderGroupDetail(group, members) {
@@ -358,103 +697,88 @@ function renderGroupDetail(group, members) {
   const run = state.data.runs.find(item => item.group_id === group.id);
   return `<div class="page">
     <button class="back-button" data-action="back-groups">← All groups</button>
-    ${pageHeader(titleCase(group.kind), group.name, `${members.length} ${members.length === 1 ? "member" : "members"} · Invite code ${group.invite_code}`, `<button class="quiet-danger" data-action="leave-group" data-id="${group.id}">Leave</button>`)}
-    ${run ? `<section class="run-highlight"><div><span class="category-pill">Active run</span><h2>${escapeHTML(run.store_label)}</h2><p>${escapeHTML(run.runner?.display_name || "A member")} is accepting requests until ${escapeHTML(shortDate(run.closes_at))}.</p></div><button class="primary-button compact" data-action="open-run" data-id="${run.id}">View run</button></section>` : ""}
+    ${pageHeader(titleCase(group.kind), group.name, `${members.length} ${members.length === 1 ? "member" : "members"} · Invite code ${group.invite_code}`, `<button class="quiet-danger compact" data-action="leave-group" data-id="${group.id}">Leave</button>`)}
+    ${run ? `<section class="run-highlight"><div><span class="category-pill">Active run</span><h2>${escapeHTML(run.store_label)}</h2><p>${escapeHTML(run.runner?.display_name || "A member")} is accepting requests until ${escapeHTML(shortDate(run.closes_at))}.</p></div><button class="primary-button compact" data-action="open-run" data-id="${run.id}">View run</button></section>` : `<button class="helping-strip" data-action="open-run-form">${icon("bag")}<span>Heading to a store? <b>Announce a run</b> to this group</span>${icon("chevron")}</button>`}
     <div class="group-detail-grid">
-      <section class="panel"><div class="section-heading"><div><p class="eyebrow">SHARED LIST</p><h2>What the group needs</h2></div></div>
-        <form id="list-item-form" class="inline-form"><input type="hidden" name="groupId" value="${group.id}" /><input name="body" required maxlength="200" placeholder="Add an item" aria-label="Add a list item" /><button type="submit" aria-label="Add item">＋</button></form>
-        <div class="list-rows">${items.length ? items.map(item => `<div class="list-row ${item.status === "picked" ? "done" : ""}"><button data-action="toggle-list" data-id="${item.id}" data-picked="${item.status === "picked"}" aria-label="${item.status === "picked" ? "Mark needed" : "Mark picked"}">${item.status === "picked" ? "✓" : "○"}</button><span>${escapeHTML(item.body)}${item.quantity > 1 ? `<small>Qty ${item.quantity}</small>` : ""}</span><button class="row-delete" data-action="delete-list" data-id="${item.id}" aria-label="Delete ${escapeHTML(item.body)}">×</button></div>`).join("") : `<p class="empty-copy">Nothing on the list yet.</p>`}</div>
+      <section class="panel chat-panel"><div class="section-heading"><h2>Chat</h2></div>
+        <div class="chat-feed">${messages.length ? messages.map(message => `<div class="chat-message ${message.sender_id === userId() ? "mine" : ""}"><strong>${escapeHTML(message.sender?.display_name || "Member")}</strong><p>${escapeHTML(message.body)}</p><small>${escapeHTML(shortDate(message.created_at))}</small></div>`).join("") : `<p class="empty-copy">Say hi to your group.</p>`}</div>
+        <form id="group-message-form" class="inline-form"><input type="hidden" name="groupId" value="${group.id}" /><input name="body" required maxlength="2000" placeholder="Message the group" aria-label="Message the group" autocomplete="off" /><button type="submit" aria-label="Send message">${icon("send")}</button></form>
       </section>
-      <section class="panel chat-panel"><div class="section-heading"><div><p class="eyebrow">GROUP CHAT</p><h2>Conversation</h2></div></div>
-        <div class="chat-feed">${messages.length ? messages.map(message => `<div class="chat-message ${message.sender_id === state.session.user.id ? "mine" : ""}"><strong>${escapeHTML(message.sender?.display_name || "Member")}</strong><p>${escapeHTML(message.body)}</p><small>${escapeHTML(shortDate(message.created_at))}</small></div>`).join("") : `<p class="empty-copy">Say hi to your group.</p>`}</div>
-        <form id="group-message-form" class="inline-form"><input type="hidden" name="groupId" value="${group.id}" /><input name="body" required maxlength="2000" placeholder="Message the group" aria-label="Message the group" /><button type="submit" aria-label="Send message">↑</button></form>
+      <section class="panel"><div class="section-heading"><h2>Shared list</h2></div>
+        <form id="list-item-form" class="inline-form"><input type="hidden" name="groupId" value="${group.id}" /><input name="body" required maxlength="200" placeholder="Add an item" aria-label="Add a list item" autocomplete="off" /><button type="submit" aria-label="Add item">${icon("request")}</button></form>
+        <div class="list-rows">${items.length ? items.map(item => `<div class="list-row ${item.status === "picked" ? "done" : ""}"><button data-action="toggle-list" data-id="${item.id}" data-picked="${item.status === "picked"}" aria-label="${item.status === "picked" ? "Mark needed" : "Mark picked"}">${item.status === "picked" ? "✓" : "○"}</button><span>${escapeHTML(item.body)}${item.quantity > 1 ? `<small>Qty ${item.quantity}</small>` : ""}</span><button class="row-delete" data-action="delete-list" data-id="${item.id}" aria-label="Delete ${escapeHTML(item.body)}">×</button></div>`).join("") : `<p class="empty-copy">Nothing on the list yet.</p>`}</div>
       </section>
     </div>
   </div>`;
 }
 
-function renderRequestForm() {
-  const stores = state.data.places.filter(place => ["store", "restaurant", "library", "other"].includes(place.kind));
-  const destinations = state.data.places.filter(place => ["residence", "campus", "transit", "library", "other"].includes(place.kind));
-  const groups = memberGroups();
-  const minDate = new Date(Date.now() + 30 * 60 * 1000);
-  minDate.setMinutes(Math.ceil(minDate.getMinutes() / 15) * 15, 0, 0);
-  const localMin = new Date(minDate.getTime() - minDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  return `<div class="page form-page">
-    ${pageHeader("ASK YOUR COMMUNITY", "Make a request", "Clear details, a realistic deadline, and a fair reward help the right person say yes.")}
-    <form id="request-form" class="form-card">
-      <div class="form-section"><span class="step">1</span><div><h2>What do you need?</h2><p>Keep the title short and put substitutions or quantities in the details.</p></div></div>
-      <label class="wide"><span>Request title</span><input name="title" required minlength="2" maxlength="120" placeholder="Oat milk from Berkeley Bowl" /></label>
-      <label class="wide"><span>Details</span><textarea name="details" maxlength="1000" rows="3" placeholder="Any brand, unsweetened, one carton"></textarea></label>
-      <div class="form-section"><span class="step">2</span><div><h2>Where and when?</h2><p>Precise places improve matching while private handoff details stay between participants.</p></div></div>
-      <div class="form-grid">
-        <label><span>Pickup</span><select name="pickupPlaceId"><option value="">Any store</option>${placeOptions(stores)}</select></label>
-        <label><span>Destination</span><select name="destinationPlaceId" required><option value="">Choose a handoff area</option>${placeOptions(destinations)}</select></label>
-        <label><span>Deliver by</span><input name="deliverBy" type="datetime-local" min="${localMin}" value="${localMin}" required /></label>
-        <label><span>Audience</span><select name="groupId"><option value="">Campus</option>${groups.map(group => `<option value="${group.id}">${escapeHTML(group.name)}</option>`).join("")}</select></label>
-      </div>
-      <div class="form-section"><span class="step">3</span><div><h2>Set the amounts</h2><p>The purchase budget and runner reward are separate. Grab is not charging payments yet.</p></div></div>
-      <div class="form-grid">
-        <label><span>Purchase budget</span><div class="money-input"><b>$</b><input name="budget" type="number" min="0" max="500" step="0.01" placeholder="12.00" /></div></label>
-        <label><span>Runner reward</span><div class="money-input"><b>$</b><input name="reward" type="number" min="0" max="200" step="0.01" value="5.00" required /></div></label>
-      </div>
-      <div class="notice"><b>Payment status</b><p>Amounts are recorded for coordination only. No card is charged and no payout is sent.</p></div>
-      <button class="primary-button" type="submit" ${state.working ? "disabled" : ""}>${state.working ? "Posting…" : "Post request"}</button>
-    </form>
-  </div>`;
-}
+/* ---------- Earn ---------- */
 
 function renderEarn() {
   const { earnings } = state.data;
   const nearby = sortedEarnRequests();
   return `<div class="page">
-    ${pageHeader("HELP ON YOUR ROUTE", "Earn with Grab", "Accept only the requests that fit where you’re already going.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
-    <section class="earnings-strip"><div><span>Recorded earnings</span><strong>${money(earnings.earned_cents)}</strong></div><div><span>Completed</span><strong>${earnings.completed_count}</strong></div><div><span>Active</span><strong>${earnings.active_count}</strong></div><p>Payments are not processed yet.</p></section>
-    <div class="section-heading stacked-mobile"><div><p class="eyebrow">OPEN REQUESTS</p><h2>Available tasks</h2></div><button data-action="locate">${state.coords ? "Location on" : "Use my location"}</button></div>
-    <div class="filter-row" role="group" aria-label="Sort open requests">
-      ${[["soonest", "Soonest"], ["closest", "Closest"], ["reward", "Top reward"]].map(([value, label]) => `<button class="filter-chip ${state.earnSort === value ? "active" : ""}" data-action="earn-sort" data-sort="${value}">${label}</button>`).join("")}
+    ${pageHeader("HELP ON YOUR ROUTE", "Help a friend", "Pick up requests that fit where you’re already going.", `<button class="primary-button compact" data-action="open-run-form">${icon("bag")} Announce a run</button>`)}
+    <section class="earnings-strip"><div><span>Helped</span><strong>${earnings.completed_count}</strong></div><div><span>In progress</span><strong>${earnings.active_count}</strong></div></section>
+    <div class="toolbar">
+      <div class="filter-row" role="group" aria-label="Sort open requests">
+        ${[["soonest", "Soonest"], ["closest", "Closest"]].map(([value, label]) => `<button class="filter-chip ${state.earnSort === value ? "active" : ""}" data-action="earn-sort" data-sort="${value}" aria-pressed="${state.earnSort === value}">${label}</button>`).join("")}
+      </div>
+      <button class="link-button" data-action="locate">${state.coords ? "Location on" : "Use my location"}</button>
     </div>
     ${nearby.length ? `<div class="task-grid">${nearby.map(renderRequestCard).join("")}</div>` : emptyState("route", "No tasks available", "Try again soon or announce a store run so neighbors can request items.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
   </div>`;
 }
 
+function renderRequestCard(request) {
+  return `<button class="task-card" data-action="open-request" data-id="${request.id}">
+    <div class="card-top">${statusPill(request.status)}</div>
+    <h3>${escapeHTML(request.title)}</h3><p>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</p>
+    <div class="card-meta"><span>Due ${escapeHTML(shortDate(request.deliver_by))}</span><span>${request.est_minutes ? `+${request.est_minutes} min` : "Open task"}</span></div>
+  </button>`;
+}
+
 function sortedEarnRequests() {
   const requests = [...state.data.nearby];
-  if (state.earnSort === "reward") return requests.sort((a, b) => Number(b.reward_cents) - Number(a.reward_cents));
   if (state.earnSort === "closest") return requests.sort((a, b) => Number(a.est_minutes ?? 9999) - Number(b.est_minutes ?? 9999));
   return requests.sort((a, b) => new Date(a.deliver_by) - new Date(b.deliver_by));
 }
 
+/* ---------- Activity ---------- */
+
 function renderActivity() {
-  const mine = state.data.requests.filter(item => item.requester_id === state.session.user.id);
-  const helping = state.data.requests.filter(item => item.helper_id === state.session.user.id);
-  return `<div class="page">
-    ${pageHeader("LIVE STATUS", "Activity", "Track every request you posted or agreed to help with.")}
-    <div class="activity-columns">
-      <section><div class="section-heading"><div><p class="eyebrow">REQUESTING</p><h2>Your requests</h2></div></div>${mine.length ? `<div class="activity-list">${mine.map(renderActivityCard).join("")}</div>` : emptyState("request", "No requests yet", "Post your first request and it will appear here.", `<button class="secondary-button compact" data-action="nav" data-tab="request">Make a request</button>`)}</section>
-      <section><div class="section-heading"><div><p class="eyebrow">HELPING</p><h2>Your deliveries</h2></div></div>${helping.length ? `<div class="activity-list">${helping.map(renderActivityCard).join("")}</div>` : emptyState("route", "No accepted tasks", "Browse open requests and pick one that fits your route.", `<button class="secondary-button compact" data-action="nav" data-tab="earn">Browse tasks</button>`)}</section>
-    </div>
+  const me = userId();
+  const mine = state.data.requests.filter(item => item.requester_id === me);
+  const helping = state.data.requests.filter(item => item.helper_id === me);
+  const showingHelping = state.activityView === "helping";
+  const list = showingHelping ? helping : mine;
+  const live = list.filter(isActive);
+  const past = list.filter(request => !isActive(request));
+  const segment = (view, label, count) => `<button class="${state.activityView === view ? "active" : ""}" data-action="activity-view" data-view="${view}" aria-pressed="${state.activityView === view}">${label}<b>${count}</b></button>`;
+  return `<div class="page page-narrow">
+    ${pageHeader("LIVE STATUS", "Activity", "Everything you’ve asked for or agreed to help with.")}
+    <div class="segmented" role="group" aria-label="Activity view">${segment("requesting", "Requesting", mine.filter(isActive).length)}${segment("helping", "Helping", helping.filter(isActive).length)}</div>
+    ${live.length ? `<div class="track-list">${live.map(renderTrackRow).join("")}</div>` : showingHelping
+      ? emptyState("route", "Nothing in progress", "Browse open requests and pick one that fits your route.", `<button class="secondary-button compact" data-action="nav" data-tab="earn">Browse tasks</button>`)
+      : emptyState("home", "Nothing in progress", "Ask for something and you can follow it here.", `<button class="secondary-button compact" data-action="ask">Ask for something</button>`)}
+    ${past.length ? `<section class="subsection"><div class="section-heading"><h2>Earlier</h2></div><div class="track-list">${past.map(renderTrackRow).join("")}</div></section>` : ""}
   </div>`;
 }
 
-function renderActivityCard(request) {
-  const person = request.requester_id === state.session.user.id ? request.helper : request.requester;
-  return `<button class="activity-card" data-action="open-request" data-id="${request.id}"><div>${statusPill(request.status)}<h3>${escapeHTML(request.title)}</h3><p>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</p></div><div class="activity-side">${avatar(person)}<strong>${money(request.reward_cents)}</strong><span>${escapeHTML(shortDate(request.deliver_by))}</span></div></button>`;
-}
+/* ---------- Profile ---------- */
 
 function renderProfile() {
   const { profile, places } = state.data;
   const residences = places.filter(place => place.kind === "residence");
-  return `<div class="page profile-page">
-    ${pageHeader("YOUR ACCOUNT", "Profile & settings", "Manage your identity, home community, installation, and data.")}
+  return `<div class="page page-narrow profile-page">
     <section class="profile-hero">${avatar(profile)}<div><h2>${escapeHTML(profile.display_name)}</h2><p>${escapeHTML(state.session.user.email)}</p><span>${escapeHTML(profile.campus?.name || "Grab community")}</span></div></section>
     <div class="settings-grid">
-      <section class="panel"><p class="eyebrow">IDENTITY</p><h2>Display name</h2><form id="profile-form" class="form-stack"><label><span>Name shown to members</span><input name="displayName" value="${escapeHTML(profile.display_name)}" minlength="1" maxlength="60" required /></label><button class="secondary-button" type="submit">Save name</button></form></section>
-      <section class="panel"><p class="eyebrow">HOME</p><h2>Building community</h2><form id="home-form" class="form-stack"><label><span>Home building</span><select name="placeId"><option value="">No home selected</option>${placeOptions(residences, profile.home_place_id)}</select></label><button class="secondary-button" type="submit">Update home</button></form></section>
-      <section class="panel"><p class="eyebrow">PHONE</p><h2>Install Grab</h2><p>Use Grab from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Grab is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
-      <section class="panel"><p class="eyebrow">ACCOUNT</p><h2>Security & data</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
+      <section class="panel"><h2>Display name</h2><form id="profile-form" class="form-stack"><label><span>Name shown to members</span><input name="displayName" value="${escapeHTML(profile.display_name)}" minlength="1" maxlength="60" required /></label><button class="secondary-button" type="submit">Save name</button></form></section>
+      <section class="panel"><h2>Home building</h2><form id="home-form" class="form-stack"><label><span>Used as your default drop-off</span><select name="placeId"><option value="">No home selected</option>${placeOptions(residences, profile.home_place_id)}</select></label><button class="secondary-button" type="submit">Update home</button></form></section>
+      <section class="panel"><h2>Install Grab</h2><p>Use Grab from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Grab is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
+      <section class="panel"><h2>Account</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="replay-intro">Replay the intro</button><button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
     </div>
-    <footer class="app-footer"><button data-action="legal" data-document="privacy">Privacy</button><button data-action="legal" data-document="terms">Terms</button><span>Grab web v1.0</span></footer>
+    <footer class="app-footer"><button data-action="legal" data-document="privacy">Privacy</button><button data-action="legal" data-document="terms">Terms</button><span>Grab web v1.1</span></footer>
   </div>`;
 }
 
@@ -463,9 +787,11 @@ function placeOptions(places, selected = null) {
 }
 
 function memberGroups() {
-  const memberIds = new Set(state.data.members.filter(item => item.user_id === state.session.user.id).map(item => item.group_id));
+  const memberIds = new Set(state.data.members.filter(item => item.user_id === userId()).map(item => item.group_id));
   return state.data.groups.filter(group => memberIds.has(group.id));
 }
+
+/* ---------- Modals ---------- */
 
 function renderModal() {
   if (!state.modal) {
@@ -494,13 +820,12 @@ function modalBody() {
 }
 
 function searchModal() {
-  return `<div class="search-modal"><p class="eyebrow">DISCOVER</p><h2 id="modal-title">Search Grab</h2><label class="search-field">${icon("search")}<span class="sr-only">Search requests, runs, and groups</span><input id="global-search" value="${escapeHTML(state.searchQuery)}" placeholder="Try “Target”, “oat milk”, or a group" autocomplete="off" autofocus /></label><div id="search-results">${searchResultsMarkup()}</div></div>`;
+  return `<div class="search-modal"><h2 id="modal-title">Search Grab</h2><label class="search-field">${icon("search")}<span class="sr-only">Search requests, runs, and groups</span><input id="global-search" value="${escapeHTML(state.searchQuery)}" placeholder="Try “Target”, “oat milk”, or a group" autocomplete="off" autofocus /></label><div id="search-results">${searchResultsMarkup()}</div></div>`;
 }
 
 function searchResultsMarkup() {
   const query = state.searchQuery.trim().toLowerCase();
-  const requests = [...state.data.nearby, ...state.data.requests]
-    .filter((item, index, all) => all.findIndex(other => other.id === item.id) === index)
+  const requests = allRequests()
     .filter(item => !query || [item.title, item.details, item.pickup_label, item.destination_label].some(value => String(value || "").toLowerCase().includes(query)))
     .slice(0, 5);
   const runs = state.data.runs
@@ -510,18 +835,18 @@ function searchResultsMarkup() {
     .filter(item => !query || item.name.toLowerCase().includes(query))
     .slice(0, 4);
   if (query.length === 1) return `<div class="search-empty">Keep typing to search your community.</div>`;
-  if (!requests.length && !runs.length && !groups.length) return `<div class="search-empty">${icon("search")}<strong>No matches yet</strong><span>Try a store, item, destination, or group name.</span></div>`;
+  if (!requests.length && !runs.length && !groups.length) return `<div class="search-empty">${icon("search")}<strong>No matches yet</strong><span>Try a store, item, destination, or group name.</span>${query ? `<button class="secondary-button compact" data-action="ask-from-search">Ask for “${escapeHTML(state.searchQuery.trim())}”</button>` : ""}</div>`;
   return `<div class="search-groups">
     ${runs.length ? `<section><span class="result-label">LIVE RUNS</span>${runs.map(run => `<button class="search-result" data-action="open-run" data-id="${run.id}"><span class="result-icon">${icon("bag")}</span><span><strong>${escapeHTML(run.store_label)}</strong><small>${escapeHTML(run.destination_label)} · ${escapeHTML(run.runner?.display_name || "Grab runner")}</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
-    ${requests.length ? `<section><span class="result-label">REQUESTS</span>${requests.map(request => `<button class="search-result" data-action="open-request" data-id="${request.id}"><span class="result-icon">${icon("route")}</span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</small></span><b>${money(request.reward_cents)}</b></button>`).join("")}</section>` : ""}
+    ${requests.length ? `<section><span class="result-label">REQUESTS</span>${requests.map(request => `<button class="search-result" data-action="open-request" data-id="${request.id}"><span class="result-icon">${icon("route")}</span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
     ${groups.length ? `<section><span class="result-label">GROUPS</span>${groups.map(group => `<button class="search-result" data-action="search-group" data-id="${group.id}"><span class="result-icon">${icon("users")}</span><span><strong>${escapeHTML(group.name)}</strong><small>${escapeHTML(titleCase(group.kind))} community</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
   </div>`;
 }
 
 function updatesModal() {
-  const active = state.data.requests.filter(item => !["completed", "cancelled", "expired"].includes(item.status)).slice(0, 6);
+  const active = state.data.requests.filter(isActive).slice(0, 6);
   const runs = state.data.runs.slice(0, 3);
-  return `<p class="eyebrow">LIVE ACTIVITY</p><h2 id="modal-title">Your updates</h2><p>Everything that needs your attention, in one place.</p><div class="update-list">${active.map(request => `<button class="update-row" data-action="open-request" data-id="${request.id}"><span class="update-dot"></span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(titleCase(request.status))} · ${escapeHTML(relativeTime(request.updated_at || request.created_at))}</small></span>${statusPill(request.status)}</button>`).join("")}${runs.map(run => `<button class="update-row" data-action="open-run" data-id="${run.id}"><span class="update-dot lime"></span><span><strong>${escapeHTML(run.store_label)}</strong><small>Run closes ${escapeHTML(relativeTime(run.closes_at))}</small></span>${icon("arrow")}</button>`).join("")}${!active.length && !runs.length ? `<div class="search-empty">${icon("check")}<strong>You’re all caught up</strong><span>New request and run activity will appear here.</span></div>` : ""}</div>`;
+  return `<div class="modal-title-row"><div><h2 id="modal-title">Updates</h2><p>Everything that needs your attention, in one place.</p></div><button class="icon-button ${state.refreshing ? "is-spinning" : ""}" data-action="refresh" aria-label="Refresh live data" ${state.refreshing ? "disabled" : ""}>${icon("refresh")}</button></div><div class="update-list">${active.map(request => `<button class="update-row" data-action="open-request" data-id="${request.id}"><span class="update-dot ${quickAction(request) ? "" : "quiet"}"></span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(statusLine(request))} · ${escapeHTML(relativeTime(request.updated_at || request.created_at))}</small></span>${icon("chevron")}</button>`).join("")}${runs.map(run => `<button class="update-row" data-action="open-run" data-id="${run.id}"><span class="update-dot lime"></span><span><strong>${escapeHTML(run.store_label)}</strong><small>Run closes ${escapeHTML(relativeTime(run.closes_at))}</small></span>${icon("chevron")}</button>`).join("")}${!active.length && !runs.length ? `<div class="search-empty">${icon("check")}<strong>You’re all caught up</strong><span>New request and run activity will appear here.</span></div>` : ""}</div>`;
 }
 
 function feedbackModal() {
@@ -530,9 +855,9 @@ function feedbackModal() {
 
 function onboardingModal() {
   const slides = [
-    { icon: "bag", eyebrow: "WELCOME TO GRAB", title: "One less trip.", body: "Ask someone already heading out to bring back what you need." },
-    { icon: "route", eyebrow: "HELP ON YOUR WAY", title: "Make your route count.", body: "Accept a nearby request or announce a store run—only when it fits your plans." },
-    { icon: "users", eyebrow: "PEOPLE YOU TRUST", title: "Start with your circle.", body: "Create a private group, join your building, and coordinate handoffs in real time." }
+    { icon: "home", eyebrow: "WELCOME TO GRAB", title: "Just ask.", body: "Type what you need—“oat milk from Berkeley Bowl”—and someone already heading out can bring it back." },
+    { icon: "activity", eyebrow: "STAY IN THE LOOP", title: "Watch it arrive.", body: "Follow every step live, chat privately with your helper, and confirm when it’s in your hands." },
+    { icon: "users", eyebrow: "WHEN YOU’RE OUT", title: "Help on your way.", body: "Pick up a nearby request, announce a store run, or coordinate with your groups—only when it fits." }
   ];
   const slide = slides[state.onboardingStep] || slides[0];
   return `<div class="onboarding"><span class="onboarding-icon">${icon(slide.icon)}</span><p class="eyebrow">${slide.eyebrow}</p><h2 id="modal-title">${slide.title}</h2><p>${slide.body}</p><div class="onboarding-dots">${slides.map((_, index) => `<i class="${index === state.onboardingStep ? "active" : ""}"></i>`).join("")}</div><div class="onboarding-actions">${state.onboardingStep ? `<button class="secondary-button" data-action="onboarding-back">Back</button>` : `<button class="text-button" data-action="onboarding-skip">Skip</button>`}<button class="primary-button" data-action="${state.onboardingStep === slides.length - 1 ? "onboarding-complete" : "onboarding-next"}">${state.onboardingStep === slides.length - 1 ? "Start using Grab" : "Continue"}</button></div></div>`;
@@ -547,12 +872,13 @@ function runFormModal() {
   const stores = state.data.places.filter(place => ["store", "restaurant", "other"].includes(place.kind));
   const destinations = state.data.places.filter(place => ["residence", "campus", "transit", "other"].includes(place.kind));
   const groups = memberGroups();
+  const currentGroup = state.tab === "groups" ? state.groupId : null;
   return `<p class="eyebrow">ALREADY GOING?</p><h2 id="modal-title">Announce a store run</h2><p>Let people request items only if they fit the route you’re already taking.</p><form id="run-form" class="form-stack">
     <label><span>Store</span><select name="storePlaceId" required><option value="">Choose a store</option>${placeOptions(stores)}</select></label>
-    <label><span>Destination</span><select name="destinationPlaceId" required><option value="">Where are you heading?</option>${placeOptions(destinations)}</select></label>
+    <label><span>Destination</span><select name="destinationPlaceId" required><option value="">Where are you heading?</option>${placeOptions(destinations, state.data.profile.home_place_id)}</select></label>
     <div class="split-fields"><label><span>Accept for</span><select name="minutes"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">90 minutes</option></select></label><label><span>Capacity</span><select name="capacity"><option value="3">3 requests</option><option value="5">5 requests</option><option value="8">8 requests</option></select></label></div>
-    <label><span>Audience</span><select name="audience"><option value="campus">Campus</option>${groups.map(group => `<option value="group:${group.id}">${escapeHTML(group.name)}</option>`).join("")}</select></label>
-    <div class="split-fields"><label><span>Fee per request</span><div class="money-input"><b>$</b><input name="fee" type="number" min="0" max="100" step="0.01" value="0" /></div></label><label><span>Max detour</span><select name="detour"><option value="5">5 min</option><option value="10" selected>10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label></div>
+    <label><span>Audience</span><select name="audience"><option value="campus">Campus</option>${groups.map(group => `<option value="group:${group.id}" ${group.id === currentGroup ? "selected" : ""}>${escapeHTML(group.name)}</option>`).join("")}</select></label>
+    <label><span>Max detour</span><select name="detour"><option value="5">5 min</option><option value="10" selected>10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label>
     <label><span>Note</span><textarea name="note" maxlength="500" rows="2" placeholder="Optional details"></textarea></label>
     <button class="primary-button" type="submit" ${state.working ? "disabled" : ""}>Announce run</button>
   </form>`;
@@ -561,32 +887,36 @@ function runFormModal() {
 function runModal(id) {
   const run = state.data.runs.find(item => item.id === id);
   if (!run) return `<h2 id="modal-title">Run unavailable</h2><p>This run may have closed. Refresh to see current activity.</p>`;
-  const own = run.runner_id === state.session.user.id;
+  const own = run.runner_id === userId();
   return `<p class="eyebrow">${escapeHTML(titleCase(run.audience))} RUN</p><div class="modal-title-row"><div><h2 id="modal-title">${escapeHTML(run.store_label)}</h2><p>Heading to ${escapeHTML(run.destination_label)}</p></div>${statusPill(run.status)}</div>
-    <div class="detail-person">${avatar(run.runner)}<div><strong>${escapeHTML(run.runner?.display_name || "Grab runner")}</strong><span>${own ? "You announced this run" : `Accepting requests ${relativeTime(run.closes_at)}`}</span></div></div>
-    <dl class="detail-grid"><div><dt>Closes</dt><dd>${escapeHTML(shortDate(run.closes_at))}</dd></div><div><dt>Fee</dt><dd>${run.fee_cents ? money(run.fee_cents) : "Free"}</dd></div><div><dt>Capacity</dt><dd>${run.capacity} requests</dd></div><div><dt>Max detour</dt><dd>${run.max_added_minutes} min</dd></div></dl>
+    <div class="detail-person">${avatar(run.runner)}<div><strong>${escapeHTML(run.runner?.display_name || "Grab runner")}</strong><span>${own ? "You announced this run" : `Accepting requests · closes ${relativeTime(run.closes_at)}`}</span></div></div>
     ${run.note ? `<div class="notice"><b>Runner note</b><p>${escapeHTML(run.note)}</p></div>` : ""}
-    ${own ? `<div class="modal-actions">${run.status === "open" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="shopping">Start shopping</button>` : ""}${run.status === "shopping" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="returning">Head back</button>` : ""}${run.status === "returning" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="completed">Finish run</button>` : ""}<button class="quiet-danger" data-action="run-status" data-id="${run.id}" data-status="cancelled">Cancel run</button></div>` : `<form id="request-from-run-form" class="form-stack"><input type="hidden" name="runId" value="${run.id}" /><label><span>What should they grab?</span><input name="title" required maxlength="120" placeholder="One carton of oat milk" /></label><label><span>Details</span><textarea name="details" maxlength="1000" rows="2" placeholder="Brand or substitution notes"></textarea></label><label><span>Purchase budget</span><div class="money-input"><b>$</b><input name="budget" type="number" min="0" max="500" step="0.01" placeholder="10.00" /></div></label><button class="primary-button" type="submit">Request from this run</button></form>`}`;
+    ${own ? `<dl class="detail-grid"><div><dt>Closes</dt><dd>${escapeHTML(shortDate(run.closes_at))}</dd></div><div><dt>Capacity</dt><dd>${run.capacity} requests</dd></div><div><dt>Max detour</dt><dd>${run.max_added_minutes} min</dd></div></dl><div class="modal-actions">${run.status === "open" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="shopping">Start shopping</button>` : ""}${run.status === "shopping" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="returning">Head back</button>` : ""}${run.status === "returning" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="completed">Finish run</button>` : ""}<button class="quiet-danger" data-action="run-status" data-id="${run.id}" data-status="cancelled">Cancel run</button></div>` : `<form id="request-from-run-form" class="form-stack"><input type="hidden" name="runId" value="${run.id}" /><label><span>What should they grab?</span><input name="title" required maxlength="120" placeholder="One carton of oat milk" /></label><label><span>Details (optional)</span><textarea name="details" maxlength="1000" rows="2" placeholder="Brand or substitution notes"></textarea></label><button class="primary-button" type="submit">Add to ${escapeHTML(firstName(run.runner?.display_name) || "this")}’s run</button></form><p class="modal-note">Capacity ${run.capacity} requests · up to ${run.max_added_minutes} min detour · closes ${escapeHTML(shortDate(run.closes_at))}</p>`}`;
 }
 
 function requestModal(id) {
-  const request = [...state.data.requests, ...state.data.nearby].find(item => item.id === id);
+  const request = allRequests().find(item => item.id === id);
   if (!request) return `<h2 id="modal-title">Request unavailable</h2><p>Someone may have accepted or cancelled it. Refresh to see current tasks.</p>`;
-  const isRequester = request.requester_id === state.session.user.id;
-  const isHelper = request.helper_id === state.session.user.id;
+  const isRequester = request.requester_id === userId();
+  const isHelper = request.helper_id === userId();
   const canChat = isRequester || isHelper;
-  const transitions = { accepted: "picking_up", picking_up: "on_the_way", on_the_way: "delivered", delivered: "completed" };
+  const next = helperTransitions[request.status];
   let actions = "";
   if (request.status === "open" && !isRequester) actions += `<button class="primary-button" data-action="accept-request" data-id="${request.id}">Accept request</button>`;
-  if (isHelper && transitions[request.status] && request.status !== "delivered") actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="${transitions[request.status]}">Mark ${escapeHTML(titleCase(transitions[request.status]))}</button>`;
+  if (isHelper && next) actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="${next}">Mark ${escapeHTML(titleCase(next))}</button>`;
   if (isRequester && ["on_the_way", "delivered"].includes(request.status)) actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="completed">Confirm received</button>`;
   if (isHelper && ["accepted", "picking_up"].includes(request.status)) actions += `<button class="secondary-button" data-action="release-request" data-id="${request.id}">Release task</button>`;
+  if (isRequester && !isActive(request)) actions += `<button class="secondary-button" data-action="draft-again" data-id="${request.id}">Ask for this again</button>`;
   if (isRequester && ["open", "accepted"].includes(request.status)) actions += `<button class="quiet-danger" data-action="cancel-request" data-id="${request.id}">Cancel request</button>`;
-  return `<div class="modal-title-row"><div><p class="eyebrow">REQUEST</p><h2 id="modal-title">${escapeHTML(request.title)}</h2></div>${statusPill(request.status)}</div>
-    <p>${escapeHTML(request.details || "No additional details.")}</p>
-    <dl class="detail-grid"><div><dt>Pickup</dt><dd>${escapeHTML(request.pickup_label)}</dd></div><div><dt>Handoff</dt><dd>${escapeHTML(request.destination_label)}</dd></div><div><dt>Due</dt><dd>${escapeHTML(shortDate(request.deliver_by))}</dd></div><div><dt>Reward</dt><dd>${money(request.reward_cents)}</dd></div><div><dt>Purchase cap</dt><dd>${request.merchandise_budget_cents == null ? "Not set" : money(request.merchandise_budget_cents)}</dd></div><div><dt>Posted by</dt><dd>${escapeHTML(request.requester?.display_name || "Grab member")}</dd></div></dl>
-    <div class="modal-actions">${actions || `<div class="success-note">No action is needed right now.</div>`}</div>
-    ${canChat && request.helper_id ? `<section class="request-chat"><div class="section-heading"><div><p class="eyebrow">PRIVATE CHAT</p><h3>Request conversation</h3></div></div><div class="chat-feed compact-chat">${state.requestMessages.length ? state.requestMessages.map(message => `<div class="chat-message ${message.sender_id === state.session.user.id ? "mine" : ""}"><strong>${escapeHTML(message.sender?.display_name || "Member")}</strong><p>${escapeHTML(message.body)}</p></div>`).join("") : `<p class="empty-copy">No messages yet.</p>`}</div>${["accepted", "picking_up", "on_the_way", "delivered"].includes(request.status) ? `<form id="request-message-form" class="inline-form"><input type="hidden" name="requestId" value="${request.id}" /><input name="body" required maxlength="2000" placeholder="Message privately" /><button type="submit" aria-label="Send">↑</button></form>` : ""}</section>` : ""}`;
+  const helperName = request.helper?.display_name;
+  return `<p class="eyebrow">${isRequester ? "YOUR REQUEST" : isHelper ? "YOU’RE HELPING" : "OPEN REQUEST"}</p>
+    <h2 id="modal-title">${escapeHTML(request.title)}</h2>
+    <p class="status-headline status-text-${escapeHTML(request.status)}">${escapeHTML(statusLine(request))}</p>
+    ${progressSteps(request.status)}
+    ${request.details ? `<div class="notice"><b>Note</b><p>${escapeHTML(request.details)}</p></div>` : ""}
+    <dl class="detail-grid"><div><dt>From</dt><dd>${escapeHTML(request.pickup_label)}</dd></div><div><dt>Drop-off</dt><dd>${escapeHTML(request.destination_label)}</dd></div><div><dt>By</dt><dd>${escapeHTML(shortDate(request.deliver_by))}</dd></div><div><dt>${isRequester ? "Helper" : "Posted by"}</dt><dd>${escapeHTML(isRequester ? helperName || "Not yet" : request.requester?.display_name || "Grab member")}</dd></div></dl>
+    ${actions ? `<div class="modal-actions">${actions}</div>` : ""}
+    ${canChat && request.helper_id ? `<section class="request-chat"><div class="section-heading"><h3>Chat with ${escapeHTML(firstName(isRequester ? helperName : request.requester?.display_name) || "them")}</h3></div><div class="chat-feed compact-chat">${state.requestMessages.length ? state.requestMessages.map(message => `<div class="chat-message ${message.sender_id === userId() ? "mine" : ""}"><strong>${escapeHTML(message.sender?.display_name || "Member")}</strong><p>${escapeHTML(message.body)}</p></div>`).join("") : `<p class="empty-copy">No messages yet. Say hi or share handoff details.</p>`}</div>${isActive(request) ? `<form id="request-message-form" class="inline-form"><input type="hidden" name="requestId" value="${request.id}" /><input name="body" required maxlength="2000" placeholder="Message privately" aria-label="Message privately" autocomplete="off" /><button type="submit" aria-label="Send">${icon("send")}</button></form>` : ""}</section>` : ""}`;
 }
 
 function groupToolsModal() {
@@ -602,9 +932,11 @@ function passwordModal() {
 }
 
 function legalModal(document) {
-  if (document === "privacy") return `<p class="eyebrow">PRIVACY NOTICE</p><h2 id="modal-title">Your data in Grab</h2><div class="legal-document"><p>Grab uses your email for account access and stores your display name, campus, optional home building, groups, requests, runs, shopping-list items, and messages so the service can work.</p><h3>Who can see what</h3><p>Supabase row-level security restricts data by account, group membership, campus audience, and request participation. Contact details are not stored in public profiles.</p><h3>Location</h3><p>If you choose “Use my location,” the browser supplies coordinates to sort nearby requests. Grab does not store that browser location from this web app.</p><h3>Account control</h3><p>You can sign out, change your name and home building, or permanently delete your account from Profile. Account deletion removes associated records according to the backend’s retention rules.</p><h3>Payments</h3><p>Payment amounts are coordination records only. Grab does not currently charge cards or send payouts.</p><p class="modal-note">For a public commercial launch, replace this product notice with counsel-reviewed company contact, jurisdiction, retention, subprocessors, and consumer-rights language.</p></div>`;
-  return `<p class="eyebrow">TERMS OF USE</p><h2 id="modal-title">Use Grab responsibly</h2><div class="legal-document"><p>Grab helps people coordinate errands. Users are responsible for accurate requests, lawful items, safe public handoffs, and respectful communication.</p><h3>Safety</h3><p>Do not request controlled, illegal, dangerous, age-restricted, or unsafe items. Do not share sensitive personal information in group messages or public request details.</p><h3>Payments</h3><p>Grab currently records budgets and rewards but does not process payments. Participants must not treat displayed amounts as a completed charge or guaranteed payout.</p><h3>Availability</h3><p>Requests and runs may change or be cancelled. Grab does not guarantee that another person will accept or complete a task.</p><p class="modal-note">These launch terms are product copy, not a substitute for counsel-reviewed commercial terms.</p></div>`;
+  if (document === "privacy") return `<p class="eyebrow">PRIVACY NOTICE</p><h2 id="modal-title">Your data in Grab</h2><div class="legal-document"><p>Grab uses your email for account access and stores your display name, campus, optional home building, groups, requests, runs, shopping-list items, and messages so the service can work.</p><h3>Who can see what</h3><p>Supabase row-level security restricts data by account, group membership, campus audience, and request participation. Contact details are not stored in public profiles.</p><h3>Location</h3><p>If you choose “Use my location,” the browser supplies coordinates to sort nearby requests. Grab does not store that browser location from this web app.</p><h3>Account control</h3><p>You can sign out, change your name and home building, or permanently delete your account from Profile. Account deletion removes associated records according to the backend’s retention rules.</p><p class="modal-note">For a public commercial launch, replace this product notice with counsel-reviewed company contact, jurisdiction, retention, subprocessors, and consumer-rights language.</p></div>`;
+  return `<p class="eyebrow">TERMS OF USE</p><h2 id="modal-title">Use Grab responsibly</h2><div class="legal-document"><p>Grab helps people coordinate errands. Users are responsible for accurate requests, lawful items, safe public handoffs, and respectful communication.</p><h3>Safety</h3><p>Do not request controlled, illegal, dangerous, age-restricted, or unsafe items. Do not share sensitive personal information in group messages or public request details.</p><h3>Availability</h3><p>Requests and runs may change or be cancelled. Grab does not guarantee that another person will accept or complete a task.</p><p class="modal-note">These launch terms are product copy, not a substitute for counsel-reviewed commercial terms.</p></div>`;
 }
+
+/* ---------- Data and actions ---------- */
 
 async function loadData({ quiet = false } = {}) {
   if (!state.session?.user) return;
@@ -622,7 +954,7 @@ async function loadData({ quiet = false } = {}) {
     if (version === state.loadVersion) {
       state.loading = false;
       state.refreshing = false;
-      if (state.data && !state.modal && localStorage.getItem("grab:onboarded:v1") !== "true") {
+      if (state.data && !state.modal && readStorage("grab:onboarded:v1") !== "true") {
         state.onboardingStep = 0;
         state.modal = { type: "onboarding" };
       }
@@ -651,29 +983,142 @@ async function work(action, success, options = {}) {
   return true;
 }
 
+function goTo(tab) {
+  state.tab = tab;
+  state.groupId = null;
+  state.modal = null;
+  setUrlTab(tab);
+  track("page_viewed", { tab });
+  render();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openSearch() {
+  state.searchQuery = "";
+  state.modal = { type: "search" };
+  renderModal();
+  document.querySelector("#global-search")?.focus();
+}
+
+function closeModal() {
+  state.modal = null;
+  state.requestMessages = [];
+  renderModal();
+}
+
+function setDraftField(field, raw) {
+  const draft = state.draft;
+  if (field === "when") {
+    draft.when = raw;
+    if (raw === "custom" && !draft.customWhen) draft.customWhen = localInputValue(new Date(Date.now() + 60 * 60000));
+  }
+  else draft[field] = raw || null;
+  // Picking a time keeps the picker open so the custom field can be filled in.
+  state.picker = field === "when" && raw === "custom" ? "when" : null;
+  if (field === "destinationId" && draft.intro.includes("Where should")) draft.intro = "Perfect. Here’s your request. Tap anything to change it.";
+}
+
+async function postDraft() {
+  const draft = state.draft;
+  const title = draft.title.trim();
+  if (title.length < 2) {
+    state.picker = "title";
+    render();
+    showToast("Say what you need in a couple of words", "error");
+    return;
+  }
+  if (!draft.destinationId) {
+    state.picker = "destinationId";
+    render();
+    showToast("Choose where it should be dropped off", "error");
+    return;
+  }
+  const deliverBy = resolveWhen(draft);
+  if (!deliverBy || Number.isNaN(deliverBy.getTime()) || deliverBy.getTime() < Date.now() + 29 * 60000) {
+    state.picker = "when";
+    render();
+    showToast("Pick a time at least 30 minutes from now", "error");
+    return;
+  }
+  const pickup = state.data.places.find(place => place.id === draft.pickupId);
+  const destination = state.data.places.find(place => place.id === draft.destinationId);
+  const payload = {
+    group_id: draft.groupId || null,
+    title,
+    details: draft.details.trim(),
+    pickup_place_id: pickup?.id ?? null,
+    pickup_label: pickup?.name ?? "Any store",
+    destination_place_id: destination.id,
+    destination_label: destination.name,
+    deliver_by: deliverBy.toISOString(),
+    reward_cents: 0,
+    merchandise_budget_cents: null
+  };
+  const posted = await work(async () => {
+    await createRequest(payload);
+    writeStorage(PREFS_KEY, JSON.stringify({ destinationId: draft.destinationId, groupId: payload.group_id }));
+    state.draft = null;
+    state.picker = null;
+  }, "Posted! We’ll let you know when someone’s on it.");
+  if (posted) track("request_created", { audience: payload.group_id ? "group" : "campus", flow: "ask" });
+}
+
 document.addEventListener("click", async event => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
-  const { action, id, tab, mode, status, sort, document: documentName } = button.dataset;
+  const { action, id, tab, mode, status, sort, view, field, value, document: documentName } = button.dataset;
 
   if (action === "nav") {
-    state.tab = tab;
-    state.groupId = null;
-    state.modal = null;
-    setUrlTab(tab);
-    track("page_viewed", { tab });
+    goTo(tab);
+  } else if (action === "ask" || action === "ask-from-search") {
+    if (action === "ask-from-search" && state.searchQuery.trim()) startDraft(state.searchQuery.trim());
+    state.focusComposer = true;
+    goTo("home");
+  } else if (action === "composer-prefill") {
+    state.draftText = value;
     render();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const input = document.querySelector("#composer-input");
+    input?.focus();
+    input?.setSelectionRange(value.length, value.length);
+  } else if (action === "draft-again") {
+    const source = state.data.requests.find(item => item.id === id);
+    if (!source) return;
+    startDraft(source.title, {
+      title: source.title,
+      details: source.details || "",
+      pickupId: source.pickup_place_id,
+      destinationId: source.destination_place_id,
+      groupId: source.group_id
+    });
+    track("request_repeated");
+    if (state.tab !== "home" || state.modal) goTo("home");
+    else render();
+  } else if (action === "draft-picker") {
+    state.picker = state.picker === field ? null : field;
+    render();
+    if (state.picker === "title") document.querySelector("#draft-title")?.focus();
+    if (state.picker === "details") document.querySelector("#draft-details")?.focus();
+  } else if (action === "draft-set") {
+    setDraftField(field, value);
+    render();
+  } else if (action === "draft-reset") {
+    state.draft = null;
+    state.picker = null;
+    state.focusComposer = true;
+    render();
+  } else if (action === "draft-post") {
+    await postDraft();
+  } else if (action === "activity-view") {
+    state.activityView = view;
+    if (state.tab !== "activity") goTo("activity");
+    else render();
   } else if (action === "auth-mode") {
     state.authMode = mode;
     render();
   } else if (action === "refresh") {
     await loadData({ quiet: true });
   } else if (action === "search") {
-    state.searchQuery = "";
-    state.modal = { type: "search" };
-    renderModal();
-    document.querySelector("#global-search")?.focus();
+    openSearch();
   } else if (action === "updates") {
     state.modal = { type: "updates" };
     renderModal();
@@ -698,21 +1143,27 @@ document.addEventListener("click", async event => {
     state.onboardingStep = Math.max(0, state.onboardingStep - 1);
     renderModal();
   } else if (action === "onboarding-skip" || action === "onboarding-complete") {
-    localStorage.setItem("grab:onboarded:v1", "true");
+    writeStorage("grab:onboarded:v1", "true");
     state.modal = null;
     track(action === "onboarding-complete" ? "onboarding_completed" : "onboarding_skipped");
+    renderModal();
+    if (state.tab === "home" && !state.draft) document.querySelector("#composer-input")?.focus();
+  } else if (action === "replay-intro") {
+    state.onboardingStep = 0;
+    state.modal = { type: "onboarding" };
     renderModal();
   } else if (action === "signout") {
     await work(() => signOut(), "Signed out", { close: false });
   } else if (action === "install") {
     if (state.installPrompt) await triggerInstall();
     else { state.modal = { type: "install" }; render(); }
+  } else if (action === "dismiss-install") {
+    writeStorage("grab:install-tip:dismissed", "true");
+    render();
   } else if (action === "trigger-install") {
     await triggerInstall();
   } else if (action === "close-modal") {
-    state.modal = null;
-    state.requestMessages = [];
-    renderModal();
+    closeModal();
   } else if (action === "open-run-form") {
     state.modal = { type: "run-form" };
     renderModal();
@@ -723,9 +1174,9 @@ document.addEventListener("click", async event => {
     state.requestMessages = [];
     state.modal = { type: "request", id };
     renderModal();
-    const request = [...state.data.requests, ...state.data.nearby].find(item => item.id === id);
-    if (request && (request.requester_id === state.session.user.id || request.helper_id === state.session.user.id) && request.helper_id) {
-      try { state.requestMessages = await loadRequestMessages(id); renderModal(); } catch { /* chat remains available after refresh */ }
+    const request = allRequests().find(item => item.id === id);
+    if (request && (request.requester_id === userId() || request.helper_id === userId()) && request.helper_id) {
+      try { state.requestMessages = await loadRequestMessages(id); preserving(renderModal); } catch { /* chat remains available after refresh */ }
     }
   } else if (action === "group-tools") {
     state.modal = { type: "group-tools" };
@@ -750,7 +1201,7 @@ document.addEventListener("click", async event => {
   } else if (action === "accept-request") {
     await work(() => acceptRequest(id), "Request accepted");
   } else if (action === "advance-request") {
-    await work(() => advanceRequest(id, status), `Request marked ${titleCase(status)}`);
+    await work(() => advanceRequest(id, status), status === "completed" ? "Marked as received. Thanks!" : `Request marked ${titleCase(status)}`);
   } else if (action === "release-request") {
     await work(() => releaseRequest(id), "Request released");
   } else if (action === "cancel-request") {
@@ -771,18 +1222,56 @@ document.addEventListener("click", async event => {
 });
 
 document.addEventListener("input", event => {
-  if (event.target.id !== "global-search") return;
-  state.searchQuery = event.target.value;
-  const results = document.querySelector("#search-results");
-  if (results) results.innerHTML = searchResultsMarkup();
+  const target = event.target;
+  if (target.id === "global-search") {
+    state.searchQuery = target.value;
+    const results = document.querySelector("#search-results");
+    if (results) results.innerHTML = searchResultsMarkup();
+  } else if (target.id === "composer-input") {
+    state.draftText = target.value;
+  } else if (!state.draft) {
+    return;
+  } else if (target.id === "draft-title") {
+    state.draft.title = target.value;
+  } else if (target.id === "draft-details") {
+    state.draft.details = target.value;
+  } else if (target.id === "draft-when-custom") {
+    state.draft.customWhen = target.value;
+    refreshDraftLabels();
+  } else if (target.id === "picker-filter") {
+    const query = target.value.trim().toLowerCase();
+    target.closest(".picker").querySelectorAll(".choice").forEach(chip => {
+      chip.hidden = Boolean(query) && !chip.classList.contains("active") && !chip.textContent.toLowerCase().includes(query);
+    });
+  }
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key !== "Enter" || event.shiftKey) return;
+  if (event.target.id === "draft-title") {
+    event.preventDefault();
+    state.picker = null;
+    render();
+  } else if (event.target.id === "picker-filter") {
+    event.preventDefault();
+    event.target.closest(".picker").querySelector(".choice:not([hidden])")?.click();
+  }
 });
 
 document.addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.target;
   const values = Object.fromEntries(new FormData(form));
+  let ok = false;
 
-  if (form.id === "auth-form") {
+  if (form.id === "composer-form") {
+    const title = values.title.trim();
+    if (title.length < 2) return;
+    startDraft(title);
+    track("request_started", { flow: "ask" });
+    render();
+    return;
+  } else if (form.id === "auth-form") {
     state.working = true;
     render();
     try {
@@ -818,35 +1307,14 @@ document.addEventListener("submit", async event => {
       state.working = false;
       render();
     }
-  } else if (form.id === "request-form") {
-    const pickup = state.data.places.find(place => place.id === values.pickupPlaceId);
-    const destination = state.data.places.find(place => place.id === values.destinationPlaceId);
-    const payload = {
-      group_id: values.groupId || null,
-      title: values.title.trim(),
-      details: values.details.trim(),
-      pickup_place_id: pickup?.id ?? null,
-      pickup_label: pickup?.name ?? "Any store",
-      destination_place_id: destination.id,
-      destination_label: destination.name,
-      deliver_by: new Date(values.deliverBy).toISOString(),
-      reward_cents: Math.round(Number(values.reward || 0) * 100),
-      merchandise_budget_cents: values.budget === "" ? null : Math.round(Number(values.budget) * 100)
-    };
-    if (await work(() => createRequest(payload), "Request posted")) {
-      state.tab = "activity";
-      setUrlTab("activity");
-      track("request_created", { audience: payload.group_id ? "group" : "campus" });
-      render();
-    }
+    return;
   } else if (form.id === "run-form") {
     const store = state.data.places.find(place => place.id === values.storePlaceId);
     const destination = state.data.places.find(place => place.id === values.destinationPlaceId);
     const groupId = values.audience.startsWith("group:") ? values.audience.slice(6) : null;
     const group = state.data.groups.find(item => item.id === groupId);
     const audience = group ? group.kind === "building" ? "building" : "friends" : "campus";
-    const fee = audience === "friends" ? 0 : Math.round(Number(values.fee || 0) * 100);
-    await work(() => createRun({
+    ok = await work(() => createRun({
       group_id: groupId,
       audience,
       store_place_id: store.id,
@@ -855,42 +1323,51 @@ document.addEventListener("submit", async event => {
       destination_label: destination.name,
       note: values.note.trim() || null,
       closes_at: new Date(Date.now() + Number(values.minutes) * 60000).toISOString(),
-      fee_cents: fee,
+      fee_cents: 0,
       max_added_minutes: Number(values.detour),
       capacity: Number(values.capacity)
     }), "Run announced");
   } else if (form.id === "request-from-run-form") {
-    await work(() => requestFromRun(values.runId, values.title.trim(), values.details.trim(), values.budget === "" ? null : Math.round(Number(values.budget) * 100)), "Request sent to the runner");
+    ok = await work(() => requestFromRun(values.runId, values.title.trim(), values.details.trim(), null), "Added to the run. We’ll keep you posted.");
   } else if (form.id === "create-group-form") {
-    await work(() => createGroup(values.name.trim()), "Group created");
+    ok = await work(() => createGroup(values.name.trim()), "Group created");
   } else if (form.id === "join-group-form") {
-    await work(() => joinGroup(values.code.trim().toUpperCase()), "Group joined");
+    ok = await work(() => joinGroup(values.code.trim().toUpperCase()), "Group joined");
   } else if (form.id === "list-item-form") {
     const run = state.data.runs.find(item => item.group_id === values.groupId);
-    await work(() => addListItem(values.groupId, run?.id, values.body.trim()), "Item added", { close: false });
+    ok = await work(() => addListItem(values.groupId, run?.id, values.body.trim()), "Item added", { close: false });
   } else if (form.id === "group-message-form") {
-    await work(() => sendGroupMessage(values.groupId, values.body.trim()), null, { close: false });
+    ok = await work(() => sendGroupMessage(values.groupId, values.body.trim()), null, { close: false });
   } else if (form.id === "request-message-form") {
-    await work(() => sendRequestMessage(values.requestId, values.body.trim()), null, { close: false });
-    state.modal = { type: "request", id: values.requestId };
-    state.requestMessages = await loadRequestMessages(values.requestId);
-    renderModal();
+    ok = await work(() => sendRequestMessage(values.requestId, values.body.trim()), null, { close: false });
+    if (ok) {
+      state.modal = { type: "request", id: values.requestId };
+      state.requestMessages = await loadRequestMessages(values.requestId);
+      preserving(renderModal);
+    }
   } else if (form.id === "profile-form") {
-    await work(() => updateDisplayName(state.session.user.id, values.displayName.trim()), "Name updated", { close: false });
+    ok = await work(() => updateDisplayName(state.session.user.id, values.displayName.trim()), "Name updated", { close: false });
   } else if (form.id === "home-form") {
-    await work(() => setHomePlace(values.placeId || null), "Home updated", { close: false });
+    ok = await work(() => setHomePlace(values.placeId || null), "Home updated", { close: false });
   } else if (form.id === "delete-account-form") {
     if (values.confirmation !== "DELETE") return;
-    await work(async () => { await deleteAccount(); await supabase.auth.signOut({ scope: "local" }); }, "Account deleted");
+    ok = await work(async () => { await deleteAccount(); await supabase.auth.signOut({ scope: "local" }); }, "Account deleted");
   } else if (form.id === "password-form") {
     if (values.password !== values.confirmation) { showToast("The passwords don’t match", "error"); return; }
-    await work(() => updatePassword(values.password), "Password updated");
+    ok = await work(() => updatePassword(values.password), "Password updated");
     state.recovery = false;
   } else if (form.id === "feedback-form") {
     const category = values.category;
     const message = values.message.trim();
-    const sent = await work(() => submitFeedback({ category, message, contactOk: values.contactOk === "on", page: state.tab }), "Thanks—your feedback was sent");
-    if (sent) track("feedback_submitted", { category, page: state.tab });
+    ok = await work(() => submitFeedback({ category, message, contactOk: values.contactOk === "on", page: state.tab }), "Thanks—your feedback was sent");
+    if (ok) track("feedback_submitted", { category, page: state.tab });
+  }
+
+  // Sent text was carried across re-renders; clear it now that it's saved.
+  if (ok) {
+    const sent = document.getElementById(form.id);
+    sent?.reset();
+    if (sent?.classList.contains("inline-form")) sent.querySelector("input:not([type=hidden])")?.focus();
   }
 });
 
@@ -930,16 +1407,15 @@ window.addEventListener("offline", () => { state.online = false; render(); });
 window.addEventListener("keydown", event => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && state.session) {
     event.preventDefault();
-    state.searchQuery = "";
-    state.modal = { type: "search" };
-    renderModal();
-    document.querySelector("#global-search")?.focus();
+    openSearch();
   } else if (event.key === "Escape" && state.modal) {
-    state.modal = null;
-    renderModal();
+    closeModal();
+  } else if (event.key === "Escape" && state.picker) {
+    state.picker = null;
+    render();
   }
 });
-modalRoot.addEventListener("click", event => { if (event.target.classList.contains("modal-backdrop")) { state.modal = null; renderModal(); } });
+modalRoot.addEventListener("click", event => { if (event.target.classList.contains("modal-backdrop")) closeModal(); });
 
 async function initialize() {
   if ("serviceWorker" in navigator && location.protocol === "https:") {
@@ -962,6 +1438,8 @@ async function initialize() {
       loadData();
     } else if (!session) {
       state.data = null;
+      state.draft = null;
+      state.picker = null;
       state.unsubscribeRealtime?.();
       state.unsubscribeRealtime = null;
       render();
