@@ -177,6 +177,22 @@ export async function deleteAccount() {
   return one(await supabase.rpc("delete_my_account"));
 }
 
+export async function submitFeedback({ category, message, contactOk, page }) {
+  return one(await supabase.from("launch_feedback").insert({
+    category,
+    message,
+    contact_ok: contactOk,
+    page
+  }));
+}
+
+export async function trackProductEvent(eventName, context = {}) {
+  return one(await supabase.from("product_events").insert({
+    event_name: eventName,
+    context
+  }));
+}
+
 export function subscribeToChanges(onChange) {
   let timer;
   const refresh = () => {

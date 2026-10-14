@@ -19,6 +19,7 @@ import {
   sendGroupMessage,
   sendPasswordReset,
   sendRequestMessage,
+  submitFeedback,
   setHomePlace,
   setListItem,
   signIn,
@@ -26,6 +27,7 @@ import {
   signUp,
   subscribeToChanges,
   supabase,
+  trackProductEvent,
   updateDisplayName,
   updatePassword,
   updateRunStatus
@@ -52,18 +54,37 @@ const state = {
   online: navigator.onLine,
   installPrompt: null,
   recovery: false,
+  searchQuery: "",
+  earnSort: "soonest",
+  onboardingStep: 0,
   unsubscribeRealtime: null,
   loadVersion: 0
 };
 
 const icons = {
-  home: "⌂",
-  groups: "◎",
-  request: "+",
-  earn: "↗",
-  activity: "≡",
-  profile: "●"
+  home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/>',
+  groups: '<circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.7-4 2.6-6 5.5-6s4.8 2 5.5 6"/><path d="M14 15c3.9-.6 6.3 1.1 7 5"/>',
+  request: '<path d="M12 5v14M5 12h14"/>',
+  earn: '<path d="m5 16 11-11"/><path d="M9 5h7v7"/><path d="M5 20h14"/>',
+  activity: '<path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18" cy="18" r="2"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.8-5 3.5-7 8-7s7.2 2 8 7"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+  route: '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M7.5 16.5 16.5 7.5"/>',
+  bag: '<path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  spark: '<path d="M12 2 14.2 8.8 21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2Z"/>',
+  users: '<circle cx="9" cy="8" r="3"/><path d="M3 20c.7-4 2.7-6 6-6s5.3 2 6 6"/><path d="M16 5c2 .2 3 1.2 3 3s-1 2.8-3 3"/><path d="M17 14c2.5.5 3.8 2.5 4 6"/>',
+  inbox: '<path d="M4 5h16v14H4V5Z"/><path d="M4 14h5l2 2h2l2-2h5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  tune: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  arrow: '<path d="M5 12h14M14 7l5 5-5 5"/>'
 };
+
+function icon(name, className = "") {
+  const paths = icons[name] || icons.spark;
+  return `<svg class="app-icon ${escapeHTML(className)}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+}
 
 function escapeHTML(value = "") {
   return String(value).replace(/[&<>'"]/g, char => ({
@@ -117,6 +138,11 @@ function showToast(message, tone = "default") {
   showToast.timer = setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
+function track(eventName, context = {}) {
+  if (!state.session) return;
+  trackProductEvent(eventName, context).catch(() => {});
+}
+
 function setUrlTab(tab) {
   const url = new URL(location.href);
   url.searchParams.set("tab", tab);
@@ -137,8 +163,12 @@ function statusPill(status) {
   return `<span class="status status-${safe}"><i></i>${escapeHTML(titleCase(status || "open"))}</span>`;
 }
 
-function emptyState(icon, title, body, action = "") {
-  return `<section class="empty-card"><span class="empty-icon">${icon}</span><h3>${escapeHTML(title)}</h3><p>${escapeHTML(body)}</p>${action}</section>`;
+function emptyState(iconName, title, body, action = "") {
+  return `<section class="empty-card"><span class="empty-icon">${iconMarkup(iconName)}</span><h3>${escapeHTML(title)}</h3><p>${escapeHTML(body)}</p>${action}</section>`;
+}
+
+function iconMarkup(name) {
+  return icons[name] ? icon(name) : icon("spark");
 }
 
 function pageHeader(eyebrow, title, subtitle, action = "") {
@@ -146,7 +176,7 @@ function pageHeader(eyebrow, title, subtitle, action = "") {
 }
 
 function skeleton() {
-  return `<main class="center-state"><img src="./icons/icon-192.png" alt="" /><div class="spinner" aria-label="Loading"></div><p>Connecting to Grab…</p></main>`;
+  return `<main class="skeleton-shell" aria-label="Loading Grab"><aside class="skeleton-rail"></aside><section class="skeleton-page"><div class="skeleton-line short"></div><div class="skeleton-line title"></div><div class="skeleton-line"></div><div class="skeleton-grid"><div></div><div></div></div><div class="skeleton-row"></div><div class="skeleton-row"></div></section></main>`;
 }
 
 function render() {
@@ -205,17 +235,20 @@ function renderShell() {
   app.innerHTML = `
     <div class="app-layout">
       <aside class="side-nav">
-        <a class="app-brand" href="./" aria-label="Grab home"><img src="./icons/icon-192.png" alt="" /><span>Grab</span></a>
+        <a class="app-brand" href="./" aria-label="Grab home"><span class="brand-mark">G</span><span>Grab</span><em>Beta</em></a>
         <nav aria-label="Main navigation">${tabs.map(tab => navButton(tab)).join("")}</nav>
-        <div class="side-profile">${avatar(profile)}<div><strong>${escapeHTML(profile?.display_name || "Grab member")}</strong><span>${escapeHTML(profile?.campus?.name || "Grab community")}</span></div></div>
+        <button class="feedback-rail" data-action="feedback">${icon("spark")}<span>Share feedback</span></button>
+        <button class="side-profile" data-action="nav" data-tab="profile">${avatar(profile)}<div><strong>${escapeHTML(profile?.display_name || "Grab member")}</strong><span>${escapeHTML(profile?.campus?.name || "Grab community")}</span></div>${icon("arrow")}</button>
       </aside>
       <div class="app-content">
         <div class="network-banner" ${state.online ? "hidden" : ""}>You’re offline. Changes will be available when you reconnect.</div>
         <header class="top-bar">
-          <a class="mobile-brand" href="./"><img src="./icons/icon-192.png" alt="" /><strong>Grab</strong></a>
+          <a class="mobile-brand" href="./"><span class="brand-mark">G</span><strong>Grab</strong></a>
           <div class="top-actions">
+            <button class="search-trigger" data-action="search" aria-label="Search Grab">${icon("search")}<span>Search Grab</span><kbd>⌘K</kbd></button>
             ${!isInstalled() ? `<button class="install-button" data-action="install">Install app</button>` : ""}
-            <button class="icon-button" data-action="refresh" aria-label="Refresh live data" ${state.refreshing ? "disabled" : ""}>${state.refreshing ? "◌" : "↻"}</button>
+            <button class="icon-button" data-action="updates" aria-label="View updates">${icon("bell")}</button>
+            <button class="icon-button ${state.refreshing ? "is-spinning" : ""}" data-action="refresh" aria-label="Refresh live data" ${state.refreshing ? "disabled" : ""}>${icon("route")}</button>
             <button class="profile-button" data-action="nav" data-tab="profile" aria-label="Open profile">${escapeHTML(profile?.initials || "?")}</button>
           </div>
         </header>
@@ -227,7 +260,7 @@ function renderShell() {
 }
 
 function navButton(tab) {
-  return `<button class="nav-item ${state.tab === tab ? "active" : ""}" data-action="nav" data-tab="${tab}" aria-current="${state.tab === tab ? "page" : "false"}"><span aria-hidden="true">${icons[tab]}</span><b>${titleCase(tab)}</b></button>`;
+  return `<button class="nav-item ${state.tab === tab ? "active" : ""}" data-action="nav" data-tab="${tab}" aria-current="${state.tab === tab ? "page" : "false"}"><span>${icon(tab)}</span><b>${titleCase(tab)}</b></button>`;
 }
 
 function renderPage() {
@@ -243,26 +276,32 @@ function renderPage() {
 function renderHome() {
   const { profile, runs, nearby, requests } = state.data;
   const active = requests.filter(item => !["completed", "cancelled", "expired"].includes(item.status));
+  const openCount = nearby.length;
+  const communityCount = memberGroups().length;
   return `
     <div class="page page-wide">
-      ${pageHeader("GOOD TO SEE YOU", `Hi, ${(profile.display_name || "there").split(" ")[0]}.`, "What can your community help move today?", `<button class="primary-button compact" data-action="nav" data-tab="request">＋ Make a request</button>`)}
+      <section class="welcome-band">
+        <div><p class="eyebrow">GOOD TO SEE YOU</p><h1>Hi, ${escapeHTML((profile.display_name || "there").split(" ")[0])}.</h1><p>What can your community help move today?</p></div>
+        <div class="pulse-stats"><span><b>${openCount}</b> open nearby</span><span><b>${runs.length}</b> live runs</span><span><b>${communityCount}</b> communities</span></div>
+        <button class="primary-button compact" data-action="nav" data-tab="request">${icon("request")} Make a request</button>
+      </section>
       <section class="quick-grid">
-        <button class="quick-card request-card" data-action="nav" data-tab="request"><span>Request</span><h2>Get something<br />you need.</h2><p>Post clear details and a fair reward.</p><b>Start a request →</b></button>
-        <button class="quick-card earn-card" data-action="nav" data-tab="earn"><span>Earn</span><h2>Help along<br />your route.</h2><p>See tasks nearby before making another trip.</p><b>Find a task →</b></button>
+        <button class="quick-card request-card" data-action="nav" data-tab="request"><span class="quick-icon">${icon("bag")}</span><span class="category-pill">REQUEST</span><h2>Get something<br />you need.</h2><p>Post it in under a minute. A nearby friend can pick it up.</p><b>Start a request ${icon("arrow")}</b></button>
+        <button class="quick-card earn-card" data-action="nav" data-tab="earn"><span class="quick-icon">${icon("route")}</span><span class="category-pill">HELP & EARN</span><h2>Make your route<br />count.</h2><p>Help with a request that already fits where you’re going.</p><b>Browse tasks ${icon("arrow")}</b></button>
       </section>
       <div class="content-grid">
         <section>
           <div class="section-heading"><div><p class="eyebrow">LIVE NOW</p><h2>Store runs</h2></div><button data-action="open-run-form">Announce a run</button></div>
-          ${runs.length ? `<div class="card-list">${runs.slice(0, 4).map(renderRunCard).join("")}</div>` : emptyState("🛍", "No live runs yet", "Be the first to announce a trip you’re already taking.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
+          ${runs.length ? `<div class="card-list">${runs.slice(0, 4).map(renderRunCard).join("")}</div>` : emptyState("bag", "No live runs yet", "Be the first to announce a trip you’re already taking.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
         </section>
         <aside>
           <div class="section-heading"><div><p class="eyebrow">YOUR DAY</p><h2>Active activity</h2></div><button data-action="nav" data-tab="activity">See all</button></div>
-          ${active.length ? `<div class="mini-list">${active.slice(0, 4).map(renderMiniRequest).join("")}</div>` : emptyState("✓", "You’re all clear", "Requests you post or accept will appear here.")}
+          ${active.length ? `<div class="mini-list">${active.slice(0, 4).map(renderMiniRequest).join("")}</div>` : emptyState("check", "You’re all clear", "Requests you post or accept will appear here.")}
         </aside>
       </div>
       <section>
         <div class="section-heading"><div><p class="eyebrow">NEARBY</p><h2>Tasks that could fit</h2></div><button data-action="locate">${state.coords ? "Using your location" : "Use my location"}</button></div>
-        ${nearby.length ? `<div class="task-grid">${nearby.slice(0, 6).map(renderRequestCard).join("")}</div>` : emptyState("↗", "Nothing open nearby", "New tasks will appear here as your community posts them.")}
+        ${nearby.length ? `<div class="task-grid">${nearby.slice(0, 6).map(renderRequestCard).join("")}</div>` : emptyState("route", "Nothing open nearby", "New tasks will appear here as your community posts them.")}
       </section>
     </div>`;
 }
@@ -302,7 +341,7 @@ function renderGroups() {
   }
   return `<div class="page">
     ${pageHeader("PRIVATE SPACES", "Your groups", "Coordinate lists, runs, and conversations with people you trust.", `<button class="primary-button compact" data-action="group-tools">＋ Add group</button>`)}
-    ${joined.length ? `<div class="group-grid">${joined.map(group => renderGroupCard(group, members)).join("")}</div>` : emptyState("◎", "No groups yet", "Create a friend group or join one with an invite code.", `<button class="secondary-button compact" data-action="group-tools">Create or join</button>`)}
+    ${joined.length ? `<div class="group-grid">${joined.map(group => renderGroupCard(group, members)).join("")}</div>` : emptyState("users", "No groups yet", "Create a friend group or join one with an invite code.", `<button class="secondary-button compact" data-action="group-tools">Create or join</button>`)}
     ${discoverable.length ? `<section class="subsection"><div class="section-heading"><div><p class="eyebrow">YOUR CAMPUS</p><h2>Building communities</h2></div></div><div class="group-grid">${discoverable.map(group => `<article class="group-card"><span class="group-icon">⌂</span><div><span class="category-pill">Building</span><h3>${escapeHTML(group.name)}</h3><p>Join your neighbors for shared errands.</p></div><button class="secondary-button compact" data-action="join-building" data-id="${group.id}">Join building</button></article>`).join("")}</div></section>` : ""}
   </div>`;
 }
@@ -366,13 +405,24 @@ function renderRequestForm() {
 }
 
 function renderEarn() {
-  const { nearby, earnings } = state.data;
+  const { earnings } = state.data;
+  const nearby = sortedEarnRequests();
   return `<div class="page">
     ${pageHeader("HELP ON YOUR ROUTE", "Earn with Grab", "Accept only the requests that fit where you’re already going.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
     <section class="earnings-strip"><div><span>Recorded earnings</span><strong>${money(earnings.earned_cents)}</strong></div><div><span>Completed</span><strong>${earnings.completed_count}</strong></div><div><span>Active</span><strong>${earnings.active_count}</strong></div><p>Payments are not processed yet.</p></section>
-    <div class="section-heading"><div><p class="eyebrow">OPEN REQUESTS</p><h2>Available tasks</h2></div><button data-action="locate">${state.coords ? "Location on" : "Sort near me"}</button></div>
-    ${nearby.length ? `<div class="task-grid">${nearby.map(renderRequestCard).join("")}</div>` : emptyState("↗", "No tasks available", "Try again soon or announce a store run so neighbors can request items.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
+    <div class="section-heading stacked-mobile"><div><p class="eyebrow">OPEN REQUESTS</p><h2>Available tasks</h2></div><button data-action="locate">${state.coords ? "Location on" : "Use my location"}</button></div>
+    <div class="filter-row" role="group" aria-label="Sort open requests">
+      ${[["soonest", "Soonest"], ["closest", "Closest"], ["reward", "Top reward"]].map(([value, label]) => `<button class="filter-chip ${state.earnSort === value ? "active" : ""}" data-action="earn-sort" data-sort="${value}">${label}</button>`).join("")}
+    </div>
+    ${nearby.length ? `<div class="task-grid">${nearby.map(renderRequestCard).join("")}</div>` : emptyState("route", "No tasks available", "Try again soon or announce a store run so neighbors can request items.", `<button class="secondary-button compact" data-action="open-run-form">Announce a run</button>`)}
   </div>`;
+}
+
+function sortedEarnRequests() {
+  const requests = [...state.data.nearby];
+  if (state.earnSort === "reward") return requests.sort((a, b) => Number(b.reward_cents) - Number(a.reward_cents));
+  if (state.earnSort === "closest") return requests.sort((a, b) => Number(a.est_minutes ?? 9999) - Number(b.est_minutes ?? 9999));
+  return requests.sort((a, b) => new Date(a.deliver_by) - new Date(b.deliver_by));
 }
 
 function renderActivity() {
@@ -381,8 +431,8 @@ function renderActivity() {
   return `<div class="page">
     ${pageHeader("LIVE STATUS", "Activity", "Track every request you posted or agreed to help with.")}
     <div class="activity-columns">
-      <section><div class="section-heading"><div><p class="eyebrow">REQUESTING</p><h2>Your requests</h2></div></div>${mine.length ? `<div class="activity-list">${mine.map(renderActivityCard).join("")}</div>` : emptyState("＋", "No requests yet", "Post your first request and it will appear here.", `<button class="secondary-button compact" data-action="nav" data-tab="request">Make a request</button>`)}</section>
-      <section><div class="section-heading"><div><p class="eyebrow">HELPING</p><h2>Your deliveries</h2></div></div>${helping.length ? `<div class="activity-list">${helping.map(renderActivityCard).join("")}</div>` : emptyState("↗", "No accepted tasks", "Browse open requests and pick one that fits your route.", `<button class="secondary-button compact" data-action="nav" data-tab="earn">Browse tasks</button>`)}</section>
+      <section><div class="section-heading"><div><p class="eyebrow">REQUESTING</p><h2>Your requests</h2></div></div>${mine.length ? `<div class="activity-list">${mine.map(renderActivityCard).join("")}</div>` : emptyState("request", "No requests yet", "Post your first request and it will appear here.", `<button class="secondary-button compact" data-action="nav" data-tab="request">Make a request</button>`)}</section>
+      <section><div class="section-heading"><div><p class="eyebrow">HELPING</p><h2>Your deliveries</h2></div></div>${helping.length ? `<div class="activity-list">${helping.map(renderActivityCard).join("")}</div>` : emptyState("route", "No accepted tasks", "Browse open requests and pick one that fits your route.", `<button class="secondary-button compact" data-action="nav" data-tab="earn">Browse tasks</button>`)}</section>
     </div>
   </div>`;
 }
@@ -402,7 +452,7 @@ function renderProfile() {
       <section class="panel"><p class="eyebrow">IDENTITY</p><h2>Display name</h2><form id="profile-form" class="form-stack"><label><span>Name shown to members</span><input name="displayName" value="${escapeHTML(profile.display_name)}" minlength="1" maxlength="60" required /></label><button class="secondary-button" type="submit">Save name</button></form></section>
       <section class="panel"><p class="eyebrow">HOME</p><h2>Building community</h2><form id="home-form" class="form-stack"><label><span>Home building</span><select name="placeId"><option value="">No home selected</option>${placeOptions(residences, profile.home_place_id)}</select></label><button class="secondary-button" type="submit">Update home</button></form></section>
       <section class="panel"><p class="eyebrow">PHONE</p><h2>Install Grab</h2><p>Use Grab from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Grab is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
-      <section class="panel"><p class="eyebrow">ACCOUNT</p><h2>Security & data</h2><div class="settings-actions"><button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
+      <section class="panel"><p class="eyebrow">ACCOUNT</p><h2>Security & data</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
     </div>
     <footer class="app-footer"><button data-action="legal" data-document="privacy">Privacy</button><button data-action="legal" data-document="terms">Terms</button><span>Grab web v1.0</span></footer>
   </div>`;
@@ -428,6 +478,10 @@ function renderModal() {
 
 function modalBody() {
   const modal = state.modal;
+  if (modal.type === "search") return searchModal();
+  if (modal.type === "updates") return updatesModal();
+  if (modal.type === "feedback") return feedbackModal();
+  if (modal.type === "onboarding") return onboardingModal();
   if (modal.type === "install") return installModal();
   if (modal.type === "run-form") return runFormModal();
   if (modal.type === "run") return runModal(modal.id);
@@ -437,6 +491,51 @@ function modalBody() {
   if (modal.type === "legal") return legalModal(modal.document);
   if (modal.type === "password") return passwordModal();
   return "";
+}
+
+function searchModal() {
+  return `<div class="search-modal"><p class="eyebrow">DISCOVER</p><h2 id="modal-title">Search Grab</h2><label class="search-field">${icon("search")}<span class="sr-only">Search requests, runs, and groups</span><input id="global-search" value="${escapeHTML(state.searchQuery)}" placeholder="Try “Target”, “oat milk”, or a group" autocomplete="off" autofocus /></label><div id="search-results">${searchResultsMarkup()}</div></div>`;
+}
+
+function searchResultsMarkup() {
+  const query = state.searchQuery.trim().toLowerCase();
+  const requests = [...state.data.nearby, ...state.data.requests]
+    .filter((item, index, all) => all.findIndex(other => other.id === item.id) === index)
+    .filter(item => !query || [item.title, item.details, item.pickup_label, item.destination_label].some(value => String(value || "").toLowerCase().includes(query)))
+    .slice(0, 5);
+  const runs = state.data.runs
+    .filter(item => !query || [item.store_label, item.destination_label, item.runner?.display_name].some(value => String(value || "").toLowerCase().includes(query)))
+    .slice(0, 4);
+  const groups = state.data.groups
+    .filter(item => !query || item.name.toLowerCase().includes(query))
+    .slice(0, 4);
+  if (query.length === 1) return `<div class="search-empty">Keep typing to search your community.</div>`;
+  if (!requests.length && !runs.length && !groups.length) return `<div class="search-empty">${icon("search")}<strong>No matches yet</strong><span>Try a store, item, destination, or group name.</span></div>`;
+  return `<div class="search-groups">
+    ${runs.length ? `<section><span class="result-label">LIVE RUNS</span>${runs.map(run => `<button class="search-result" data-action="open-run" data-id="${run.id}"><span class="result-icon">${icon("bag")}</span><span><strong>${escapeHTML(run.store_label)}</strong><small>${escapeHTML(run.destination_label)} · ${escapeHTML(run.runner?.display_name || "Grab runner")}</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
+    ${requests.length ? `<section><span class="result-label">REQUESTS</span>${requests.map(request => `<button class="search-result" data-action="open-request" data-id="${request.id}"><span class="result-icon">${icon("route")}</span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(request.pickup_label)} → ${escapeHTML(request.destination_label)}</small></span><b>${money(request.reward_cents)}</b></button>`).join("")}</section>` : ""}
+    ${groups.length ? `<section><span class="result-label">GROUPS</span>${groups.map(group => `<button class="search-result" data-action="search-group" data-id="${group.id}"><span class="result-icon">${icon("users")}</span><span><strong>${escapeHTML(group.name)}</strong><small>${escapeHTML(titleCase(group.kind))} community</small></span>${icon("arrow")}</button>`).join("")}</section>` : ""}
+  </div>`;
+}
+
+function updatesModal() {
+  const active = state.data.requests.filter(item => !["completed", "cancelled", "expired"].includes(item.status)).slice(0, 6);
+  const runs = state.data.runs.slice(0, 3);
+  return `<p class="eyebrow">LIVE ACTIVITY</p><h2 id="modal-title">Your updates</h2><p>Everything that needs your attention, in one place.</p><div class="update-list">${active.map(request => `<button class="update-row" data-action="open-request" data-id="${request.id}"><span class="update-dot"></span><span><strong>${escapeHTML(request.title)}</strong><small>${escapeHTML(titleCase(request.status))} · ${escapeHTML(relativeTime(request.updated_at || request.created_at))}</small></span>${statusPill(request.status)}</button>`).join("")}${runs.map(run => `<button class="update-row" data-action="open-run" data-id="${run.id}"><span class="update-dot lime"></span><span><strong>${escapeHTML(run.store_label)}</strong><small>Run closes ${escapeHTML(relativeTime(run.closes_at))}</small></span>${icon("arrow")}</button>`).join("")}${!active.length && !runs.length ? `<div class="search-empty">${icon("check")}<strong>You’re all caught up</strong><span>New request and run activity will appear here.</span></div>` : ""}</div>`;
+}
+
+function feedbackModal() {
+  return `<p class="eyebrow">FRIENDS & FAMILY</p><h2 id="modal-title">Help shape Grab</h2><p>Tell us what felt confusing, broken, or surprisingly useful.</p><form id="feedback-form" class="form-stack"><label><span>Feedback type</span><select name="category"><option value="idea">Idea</option><option value="bug">Something is broken</option><option value="confusing">Something is confusing</option><option value="love">Something I love</option></select></label><label><span>Your feedback</span><textarea name="message" minlength="3" maxlength="2000" rows="5" required placeholder="What happened, and what did you expect?"></textarea></label><label class="check-row"><input name="contactOk" type="checkbox" /><span>You may follow up with me at my account email.</span></label><button class="primary-button" type="submit" ${state.working ? "disabled" : ""}>Send feedback</button></form>`;
+}
+
+function onboardingModal() {
+  const slides = [
+    { icon: "bag", eyebrow: "WELCOME TO GRAB", title: "One less trip.", body: "Ask someone already heading out to bring back what you need." },
+    { icon: "route", eyebrow: "HELP ON YOUR WAY", title: "Make your route count.", body: "Accept a nearby request or announce a store run—only when it fits your plans." },
+    { icon: "users", eyebrow: "PEOPLE YOU TRUST", title: "Start with your circle.", body: "Create a private group, join your building, and coordinate handoffs in real time." }
+  ];
+  const slide = slides[state.onboardingStep] || slides[0];
+  return `<div class="onboarding"><span class="onboarding-icon">${icon(slide.icon)}</span><p class="eyebrow">${slide.eyebrow}</p><h2 id="modal-title">${slide.title}</h2><p>${slide.body}</p><div class="onboarding-dots">${slides.map((_, index) => `<i class="${index === state.onboardingStep ? "active" : ""}"></i>`).join("")}</div><div class="onboarding-actions">${state.onboardingStep ? `<button class="secondary-button" data-action="onboarding-back">Back</button>` : `<button class="text-button" data-action="onboarding-skip">Skip</button>`}<button class="primary-button" data-action="${state.onboardingStep === slides.length - 1 ? "onboarding-complete" : "onboarding-next"}">${state.onboardingStep === slides.length - 1 ? "Start using Grab" : "Continue"}</button></div></div>`;
 }
 
 function installModal() {
@@ -523,13 +622,17 @@ async function loadData({ quiet = false } = {}) {
     if (version === state.loadVersion) {
       state.loading = false;
       state.refreshing = false;
+      if (state.data && !state.modal && localStorage.getItem("grab:onboarded:v1") !== "true") {
+        state.onboardingStep = 0;
+        state.modal = { type: "onboarding" };
+      }
       render();
     }
   }
 }
 
 async function work(action, success, options = {}) {
-  if (state.working) return;
+  if (state.working) return false;
   state.working = true;
   render();
   try {
@@ -541,22 +644,24 @@ async function work(action, success, options = {}) {
     showToast(errorMessage(error), "error");
     state.working = false;
     render();
-    return;
+    return false;
   }
   state.working = false;
   render();
+  return true;
 }
 
 document.addEventListener("click", async event => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
-  const { action, id, tab, mode, status, document: documentName } = button.dataset;
+  const { action, id, tab, mode, status, sort, document: documentName } = button.dataset;
 
   if (action === "nav") {
     state.tab = tab;
     state.groupId = null;
     state.modal = null;
     setUrlTab(tab);
+    track("page_viewed", { tab });
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   } else if (action === "auth-mode") {
@@ -564,6 +669,39 @@ document.addEventListener("click", async event => {
     render();
   } else if (action === "refresh") {
     await loadData({ quiet: true });
+  } else if (action === "search") {
+    state.searchQuery = "";
+    state.modal = { type: "search" };
+    renderModal();
+    document.querySelector("#global-search")?.focus();
+  } else if (action === "updates") {
+    state.modal = { type: "updates" };
+    renderModal();
+  } else if (action === "feedback") {
+    state.modal = { type: "feedback" };
+    renderModal();
+  } else if (action === "earn-sort") {
+    state.earnSort = sort;
+    track("earn_sorted", { sort });
+    render();
+  } else if (action === "search-group") {
+    state.tab = "groups";
+    state.groupId = id;
+    state.modal = null;
+    setUrlTab("groups");
+    track("search_result_opened", { type: "group" });
+    render();
+  } else if (action === "onboarding-next") {
+    state.onboardingStep = Math.min(2, state.onboardingStep + 1);
+    renderModal();
+  } else if (action === "onboarding-back") {
+    state.onboardingStep = Math.max(0, state.onboardingStep - 1);
+    renderModal();
+  } else if (action === "onboarding-skip" || action === "onboarding-complete") {
+    localStorage.setItem("grab:onboarded:v1", "true");
+    state.modal = null;
+    track(action === "onboarding-complete" ? "onboarding_completed" : "onboarding_skipped");
+    renderModal();
   } else if (action === "signout") {
     await work(() => signOut(), "Signed out", { close: false });
   } else if (action === "install") {
@@ -632,6 +770,13 @@ document.addEventListener("click", async event => {
   }
 });
 
+document.addEventListener("input", event => {
+  if (event.target.id !== "global-search") return;
+  state.searchQuery = event.target.value;
+  const results = document.querySelector("#search-results");
+  if (results) results.innerHTML = searchResultsMarkup();
+});
+
 document.addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.target;
@@ -688,9 +833,12 @@ document.addEventListener("submit", async event => {
       reward_cents: Math.round(Number(values.reward || 0) * 100),
       merchandise_budget_cents: values.budget === "" ? null : Math.round(Number(values.budget) * 100)
     };
-    await work(() => createRequest(payload), "Request posted");
-    state.tab = "activity";
-    setUrlTab("activity");
+    if (await work(() => createRequest(payload), "Request posted")) {
+      state.tab = "activity";
+      setUrlTab("activity");
+      track("request_created", { audience: payload.group_id ? "group" : "campus" });
+      render();
+    }
   } else if (form.id === "run-form") {
     const store = state.data.places.find(place => place.id === values.storePlaceId);
     const destination = state.data.places.find(place => place.id === values.destinationPlaceId);
@@ -738,6 +886,11 @@ document.addEventListener("submit", async event => {
     if (values.password !== values.confirmation) { showToast("The passwords don’t match", "error"); return; }
     await work(() => updatePassword(values.password), "Password updated");
     state.recovery = false;
+  } else if (form.id === "feedback-form") {
+    const category = values.category;
+    const message = values.message.trim();
+    const sent = await work(() => submitFeedback({ category, message, contactOk: values.contactOk === "on", page: state.tab }), "Thanks—your feedback was sent");
+    if (sent) track("feedback_submitted", { category, page: state.tab });
   }
 });
 
@@ -774,7 +927,18 @@ window.addEventListener("beforeinstallprompt", event => {
 window.addEventListener("appinstalled", () => { state.installPrompt = null; render(); showToast("Grab installed"); });
 window.addEventListener("online", () => { state.online = true; render(); if (state.session) loadData({ quiet: true }); });
 window.addEventListener("offline", () => { state.online = false; render(); });
-window.addEventListener("keydown", event => { if (event.key === "Escape" && state.modal) { state.modal = null; renderModal(); } });
+window.addEventListener("keydown", event => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && state.session) {
+    event.preventDefault();
+    state.searchQuery = "";
+    state.modal = { type: "search" };
+    renderModal();
+    document.querySelector("#global-search")?.focus();
+  } else if (event.key === "Escape" && state.modal) {
+    state.modal = null;
+    renderModal();
+  }
+});
 modalRoot.addEventListener("click", event => { if (event.target.classList.contains("modal-backdrop")) { state.modal = null; renderModal(); } });
 
 async function initialize() {

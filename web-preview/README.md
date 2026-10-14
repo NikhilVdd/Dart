@@ -3,6 +3,11 @@
 Production PWA for Grab. It uses the same hosted Supabase Auth, Postgres, realtime subscriptions,
 row-level security policies, and lifecycle RPCs as the native iOS app.
 
+The Friends & Family build uses a black-and-lime responsive design system and includes guided
+onboarding, global search, request sorting, live activity updates, install prompts, and an in-app
+feedback channel. Every product surface reads and writes real Supabase data; there is no mock mode
+in the production web bundle.
+
 ## Local development
 
 ```sh
@@ -25,6 +30,10 @@ by Supabase row-level security. Never add a service-role key to this project.
 The built static app is emitted to `dist/`. `.openai/hosting.json` connects that directory to the
 existing Grab Site. The production origin must be added to Supabase Auth's allowed redirect URLs if
 email confirmation or password recovery is enabled.
+
+The hosted project currently permits immediate email/password signup. Password-reset delivery to
+arbitrary Friends & Family addresses requires custom SMTP in Supabase; the default mail service is
+only suitable for project-team testing.
 
 ## Current product boundary
 

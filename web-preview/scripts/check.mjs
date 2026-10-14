@@ -26,4 +26,13 @@ const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 if (!index.includes("manifest.webmanifest")) throw new Error("Manifest is not linked");
 if (!index.includes("Content-Security-Policy")) throw new Error("CSP is not configured");
 
+const main = fs.readFileSync(path.join(root, "src/main.js"), "utf8");
+for (const launchFeature of ["Search Grab", "Share feedback", "Start using Grab", "Top reward"]) {
+  if (!main.includes(launchFeature)) throw new Error(`Missing Friends & Family feature: ${launchFeature}`);
+}
+
+const api = fs.readFileSync(path.join(root, "src/api.js"), "utf8");
+if (!api.includes('from("launch_feedback")')) throw new Error("Feedback is not connected to Supabase");
+if (!api.includes('from("product_events")')) throw new Error("Product events are not connected to Supabase");
+
 console.log("Grab web checks passed");

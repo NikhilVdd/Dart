@@ -1,4 +1,4 @@
-const CACHE = "grab-shell-v1";
+const CACHE = "grab-shell-v2";
 const SHELL = ["./", "./manifest.webmanifest", "./offline.html", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", event => {

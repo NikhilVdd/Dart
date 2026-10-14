@@ -125,6 +125,14 @@ check('campus run visible to others on campus', (await as('maya', `select 1 from
 await rejects('anon cannot call lifecycle RPCs', 'anon', `select accept_request('10000000-0000-0000-0000-000000000001')`);
 await rejects('anon cannot call matching RPCs', 'anon', `select * from open_requests_nearby()`);
 
+// --- friends & family launch feedback + telemetry --------------------------------------------
+await as('nikhil', `insert into launch_feedback (category, message, contact_ok, page) values ('idea', 'Make saved places easier to reach', true, 'profile')`);
+await as('nikhil', `insert into product_events (event_name, context) values ('smoke_test', '{"surface":"pglite"}')`);
+check('members can submit append-only feedback and telemetry', (await as(null, `select count(*)::int n from launch_feedback`))[0].n === 1 && (await as(null, `select count(*)::int n from product_events`))[0].n === 1);
+await rejects('anon cannot submit launch feedback', 'anon', `insert into launch_feedback (category, message) values ('bug', 'no access')`);
+await rejects('members cannot read private launch feedback', 'nikhil', `select * from launch_feedback`);
+await rejects('members cannot spoof feedback authors', 'nikhil', `insert into launch_feedback (user_id, category, message) values ('${U.jordan}', 'bug', 'spoof')`);
+
 // --- delivered -> confirmation, expiry, housekeeping ---------------------------------------
 const q2 = await as('jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, reward_cents) values ('Snacks', 'Any store', 'Unit 2', now() + interval '1 hour', 500) returning id`);
 await as('maya', `select accept_request($1)`, [q2[0].id]);
