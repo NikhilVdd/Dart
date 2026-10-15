@@ -198,7 +198,9 @@ check('same name far away is a different place', twin[0].id !== np[0].id);
 await rejects('places far from campus are refused', 'nikhil', `select create_place('Times Square', 'other', 40.7580, -73.9855)`);
 await rejects('blank names are refused', 'nikhil', `select create_place('  ', 'store', 37.87, -122.26)`);
 await rejects('anon cannot add places', 'anon', `select create_place('X', 'store', 37.87, -122.26)`);
-await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000aa', 'pat@gmail.com', '{}')`);
+// A profile whose campus was removed (new accounts always get one; see the registration tests).
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000aa', 'pat@berkeley.edu', '{}')`);
+await as(null, `update profiles set campus_id = null where id = '00000000-0000-0000-0000-0000000000aa'`);
 U.pat = '00000000-0000-0000-0000-0000000000aa';
 check('any email gets the default campus', (await as('pat', `select campus_id is not null as assigned from profiles where id = auth.uid()`))[0].assigned);
 check('standard account can add places', (await as('pat', `select id from create_place('Corner store', 'store', 37.87, -122.26)`)).length === 1);
@@ -247,6 +249,7 @@ await as('nikhil', `select advance_request($1, 'delivered')`, [cq[0].id]).catch(
 await as('jordan', `select advance_request($1, 'completed')`, [cq[0].id]).catch(() => {});
 await rejects('chat closes when the request is finished', 'jordan', `insert into request_messages (request_id, body) values ($1, 'late')`, [cq[0].id]);
 
+<<<<<<< Updated upstream
 // --- web push --------------------------------------------------------------------------------
 const KEY = 'B' + 'x'.repeat(86), AUTH = 'a'.repeat(22);
 const EP = { jordan: 'https://web.push.apple.com/QJordanDevice', nikhil: 'https://fcm.googleapis.com/fcm/send/nikhil-device' };
@@ -348,6 +351,38 @@ await as(null, `select retry_push()`);
 check('stale unsent pushes are retired', (await as(null, `select last_error from notification_outbox where title = 'stale'`))[0].last_error.includes('gave up'));
 const burst = (await as(null, `select * from claim_push_batch(100)`)).filter(r => r.tag === 'chat-x');
 check('a burst on one tag still sends only the newest', burst.length === 1, JSON.stringify(burst.length));
+=======
+// --- registration and sign-in hardening ---------------------------------------------------------
+check('seeded accounts (created with a name) are already registered', (await as(null, `select count(*)::int n from profiles where onboarded_at is null and id in ('${U.jordan}', '${U.devon}', '${U.nikhil}')`))[0].n === 0);
+await rejects('non-campus emails cannot create accounts', null, `insert into auth.users (id, email, raw_user_meta_data) values (gen_random_uuid(), 'someone@gmail.com', '{}')`);
+await rejects('lookalike domains cannot create accounts', null, `insert into auth.users (id, email, raw_user_meta_data) values (gen_random_uuid(), 'x@notberkeley.edu', '{}')`);
+await rejects('accounts need an email', null, `insert into auth.users (id, email, raw_user_meta_data) values (gen_random_uuid(), null, '{}')`);
+check('no profile left behind by a rejected sign-up', (await as(null, `select count(*)::int n from auth.users where email in ('someone@gmail.com', 'x@notberkeley.edu')`))[0].n === 0);
+U.riley = '00000000-0000-0000-0000-0000000000bb';
+await as(null, `insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values ('${U.riley}', 'Riley.Ng@EECS.Berkeley.edu', 'hash-from-signup', '{}')`);
+const riley = (await as(null, `select display_name, campus_id, onboarded_at from profiles where id = '${U.riley}'`))[0];
+check('subdomain email gets the campus, a placeholder name, and is not yet registered', riley.campus_id === 'c0000000-0000-0000-0000-000000000001' && riley.display_name === 'Riley Ng' && riley.onboarded_at === null, JSON.stringify(riley));
+check('passwords are stripped at sign-up', (await as(null, `select encrypted_password p from auth.users where id = '${U.riley}'`))[0].p === '');
+await as(null, `update auth.users set encrypted_password = 'set-later' where id = '${U.riley}'`);
+check('…and when set later', (await as(null, `select encrypted_password p from auth.users where id = '${U.riley}'`))[0].p === '');
+check('seeded passwords were cleared', (await as(null, `select count(*)::int n from auth.users where coalesce(encrypted_password, '') <> ''`))[0].n === 0);
+await rejects('blank names are refused at registration', 'riley', `select complete_registration('   ')`);
+await rejects('names need more than digits and punctuation', 'riley', `select complete_registration('123 !!')`);
+await rejects('names are capped at 60 characters', 'riley', `select complete_registration(repeat('a', 61))`);
+await rejects('anon cannot register', 'anon', `select complete_registration('Someone')`);
+const reg = await as('riley', `select display_name, initials, onboarded_at from complete_registration('  Riley   Ng-Okafor ')`);
+check('registration tidies the name and marks the account registered', reg[0].display_name === 'Riley Ng-Okafor' && reg[0].initials === 'RN' && reg[0].onboarded_at !== null, JSON.stringify(reg));
+const regAgain = await as('riley', `select display_name, onboarded_at from complete_registration('Zoë 李')`);
+check('non-Latin names are accepted, first registration time kept', regAgain[0].display_name === 'Zoë 李' && String(regAgain[0].onboarded_at) === String(reg[0].onboarded_at));
+await rejects('clients cannot set onboarded_at directly', 'riley', `update profiles set onboarded_at = null where id = auth.uid()`);
+await rejects('clients cannot call the campus lookup', 'riley', `select campus_for_email('a@berkeley.edu')`);
+await rejects('email cannot move off a campus domain', null, `update auth.users set email = 'riley@gmail.com' where id = '${U.riley}'`);
+await as(null, `update profiles set home_place_id = 'a0000000-0000-0000-0000-000000000008' where id = '${U.riley}'`);
+await as(null, `update auth.users set email = 'riley@berkeley.edu' where id = '${U.riley}'`);
+check('changing to another address on the same campus keeps campus and home', (await as(null, `select home_place_id from profiles where id = '${U.riley}'`))[0].home_place_id === 'a0000000-0000-0000-0000-000000000008');
+await as(null, `update auth.users set email_confirmed_at = now(), email = email, encrypted_password = encrypted_password where id = '${U.riley}'`);
+check('full-row auth updates (as at sign-in) still work', (await as(null, `select email_confirmed_at is not null c from auth.users where id = '${U.riley}'`))[0].c);
+>>>>>>> Stashed changes
 
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

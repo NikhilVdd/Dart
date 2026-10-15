@@ -36,6 +36,19 @@ rejected before an email is sent, rather than creating an account with no campus
 
 Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
 
+### Sign-up and sign-in
+- [ ] Signed out: Profile → **Sign in with campus email**. *Email me a code* stays disabled for `alex@`, `alex@berkeley`, and `alex @berkeley.edu`
+- [ ] Enter `someone@gmail.com` → *Email me a code*: an inline error says the email isn't on a supported campus, and no email is sent
+- [ ] Mint a code for a brand-new address **without a name**: `node supabase/dev/accounts.mjs code riley@berkeley.edu`.
+      Enter the email → **I already have a code** → type the code. The app shows **Welcome to Grab** with
+      *UC Berkeley · verified by your campus email*
+- [ ] *Continue* stays disabled for a blank name or `123`. Enter "Riley Ng" → Continue. The main interface loads; Profile shows *Riley Ng*, initials **RN**
+- [ ] Quit and relaunch: it goes straight to the signed-in interface (no sign-in, no name prompt)
+- [ ] Enter a wrong code: an inline error says the code is incorrect or expired, and the field clears
+- [ ] On the code step, **Resend code** counts down from 60 s before it can be tapped again
+- [ ] Profile → **Sign out** with Wi-Fi off: you're still signed out on this device
+- [ ] Profile → **Delete account** for Riley: you return to the signed-out interface. `node supabase/dev/accounts.mjs list` no longer shows Riley
+
 ### Profile and groups
 - [ ] A and B: Profile shows the right name, initials, campus *UC Berkeley*, and **Signed in**
 - [ ] A: Profile → **Edit name** → change it; the header updates

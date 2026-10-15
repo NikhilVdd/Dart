@@ -55,8 +55,13 @@ The app has three modes:
 | Mode | When | What you see |
 | --- | --- | --- |
 | Preview | Placeholders in `Supabase.plist` | The Section 1 sample data; actions explain what they would do |
+<<<<<<< Updated upstream:DartApp/README.md
 | Signed out | Backend configured, no session | Main app with sample data and an in-app sign-in/account creation prompt |
 | Live | Signed in with email and password | Real requests, runs, groups, chat, shopping lists and earnings, refreshed in realtime |
+=======
+| Signed out | Backend configured, no session | The main interface on sample data, with campus email sign-in on Home and Profile |
+| Live | Signed in with a 6-digit email code | Real requests, runs, groups, chat, shopping lists and earnings, refreshed in realtime |
+>>>>>>> Stashed changes:GrabApp/README.md
 
 What works when live:
 
@@ -69,9 +74,20 @@ What works when live:
   and follow picking up → on the way → delivered → completed. APNs keeps it current when the app is closed
   after the production credentials described in [`docs/ios-live-status.md`](../docs/ios-live-status.md) are installed.
 
+<<<<<<< Updated upstream:DartApp/README.md
 Authentication uses standard email/password accounts and accepts any valid email address. The backend
 assigns accounts to the launch campus when their email does not match a configured campus domain.
 Signing out or deleting an account returns to the launch screen; an existing session enters the app directly.
+=======
+Sign-in and sign-up are one flow: enter a campus email, then the 6-digit code from the email. The first
+verified code creates the account, linked to the campus for that email domain. A new account is then asked
+for its name (`RegistrationView`) before any live data shows. The app checks the email format and the
+campus domain list before sending a code. The database also refuses accounts on any other domain
+(migration `20261011000010`), so calling the Auth API directly doesn't get around it. Grab has no passwords.
+
+Signing out or deleting an account returns to the signed-out interface. An existing session enters the app
+directly. If the account was deleted elsewhere, the app signs out with an explanation.
+>>>>>>> Stashed changes:GrabApp/README.md
 
 ## What to try
 

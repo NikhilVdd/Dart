@@ -149,6 +149,16 @@ Row level security is on for every table:
   all other standard accounts are assigned to the first configured campus.
 - Signed-out clients can read only the campus list.
 
+Accounts (migration `20261011000010`):
+
+- An auth user can only be created, or change their email, with an address on a supported campus domain
+  (`campuses.email_domains`, subdomains included). This applies to every route, including the Auth API
+  called directly.
+- Grab signs in with one-time email codes only. Passwords are stripped from auth users, so nobody can
+  register someone else's address with a password before its owner signs up.
+- `profiles.onboarded_at` stays empty until the user confirms their name with `complete_registration()`.
+  Accounts created with a `display_name` in their metadata (seed, demo and test accounts) start registered.
+
 ## Setup
 
 ### Option A: hosted project (no Docker needed)

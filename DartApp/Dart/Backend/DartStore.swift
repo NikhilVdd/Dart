@@ -14,6 +14,8 @@ final class GrabStore: ObservableObject {
     @Published private(set) var phase: Phase
     @Published private(set) var isLoading = false
     @Published private(set) var profile: ProfileRecord?
+    /// The signed-in user's profile couldn't be loaded (e.g. offline at launch).
+    @Published private(set) var profileLoadFailed = false
     @Published private(set) var places: [PlaceRow] = []
     @Published private(set) var earnings: EarningsRow?
     @Published private(set) var discoverableGroups: [GrabGroup] = []
@@ -57,6 +59,21 @@ final class GrabStore: ObservableObject {
     }
 
     var isLive: Bool { phase == .live }
+
+    /// What the signed-in user should see before the main interface.
+    enum AccountState: Equatable {
+        case none               // preview or signed out: the main interface with sample data
+        case loading            // signed in, profile not loaded yet
+        case unavailable        // signed in, profile failed to load
+        case needsRegistration  // first sign-in: confirm a name
+        case ready
+    }
+
+    var accountState: AccountState {
+        guard isLive else { return .none }
+        guard let profile else { return profileLoadFailed ? .unavailable : .loading }
+        return profile.isRegistered ? .ready : .needsRegistration
+    }
     var isConfigured: Bool { backend != nil }
     var userID: UUID? { profile?.id ?? backend?.currentUserID }
 
@@ -151,7 +168,11 @@ final class GrabStore: ObservableObject {
     }
 
     // MARK: Auth
+    //
+    // These return a user-facing error message, or nil on success. They don't touch `lastError`,
+    // so the sign-in screens show their own errors without the app-wide alert also appearing.
 
+<<<<<<< Updated upstream:DartApp/Dart/Backend/DartStore.swift
     enum AccountCreationResult {
         case signedIn
         case confirmationRequired
@@ -159,6 +180,20 @@ final class GrabStore: ObservableObject {
 
     func signIn(email: String, password: String) async -> Bool {
         await perform { try await $0.signIn(email: email, password: password) }
+=======
+    func sendCode(to email: String) async -> String? {
+        await authAttempt { try await $0.sendCode(to: email) }
+    }
+
+    func verify(email: String, code: String) async -> String? {
+        await authAttempt { try await $0.verify(email: email, code: code) }
+    }
+
+    func completeRegistration(name: String) async -> String? {
+        let error = await authAttempt { try await $0.completeRegistration(name: name) }
+        if error == nil { await refresh() }
+        return error
+>>>>>>> Stashed changes:GrabApp/Grab/Backend/GrabStore.swift
     }
 
     func createAccount(email: String, password: String, displayName: String) async -> AccountCreationResult? {
@@ -171,13 +206,17 @@ final class GrabStore: ObservableObject {
             )
             return signedIn ? .signedIn : .confirmationRequired
         } catch {
+<<<<<<< Updated upstream:DartApp/Dart/Backend/DartStore.swift
             report(error)
             return nil
+=======
+            lastError = GrabBackend.authMessage(for: error) ?? "That sign-in link has expired. Request a new code in the app."
+>>>>>>> Stashed changes:GrabApp/Grab/Backend/GrabStore.swift
         }
     }
 
     func signOut() async {
-        _ = await perform { try await $0.signOut() }
+        await backend?.signOut()
     }
 
     /// Permanently deletes the account and its data, then returns to the signed-out state.
@@ -186,9 +225,26 @@ final class GrabStore: ObservableObject {
     }
 
     func updateDisplayName(_ name: String) async {
-        guard let userID else { return }
-        _ = await perform { try await $0.updateDisplayName(name, userID: userID) }
+        if let error = await completeRegistration(name: name) { lastError = error }
+    }
+
+    /// Retries loading the account after a failure (shown on the "couldn't load" screen).
+    func retryProfile() async {
+        profileLoadFailed = false
         await refresh()
+    }
+
+    private func authAttempt(_ work: (GrabBackend) async throws -> Void) async -> String? {
+        guard let backend else { return "Grab isn’t connected to a server in this build." }
+        do {
+            try await work(backend)
+            return nil
+        } catch is CancellationError {
+            return nil
+        } catch {
+            if let error = error as? PostgrestError { return error.message }
+            return GrabBackend.authMessage(for: error) ?? error.localizedDescription
+        }
     }
 
     private func observeAuth() {
@@ -241,7 +297,13 @@ final class GrabStore: ObservableObject {
 
             async let requestMessageRows = backend.latestRequestMessages()
 
-            let profile = try await profileRow
+            guard let profile = try await profileRow else {
+                // The account was deleted elsewhere; the session is no longer any use.
+                await backend.signOutLocally()
+                lastError = GrabBackendError.accountMissing.errorDescription
+                return
+            }
+            profileLoadFailed = false
             let origin = nearbyOrigin(profile: profile)
             async let nearbyRows = backend.openRequestsNearby(lat: origin?.lat, lng: origin?.lng)
 
@@ -255,7 +317,12 @@ final class GrabStore: ObservableObject {
             for groupID in openConversations { await loadConversation(groupID: groupID) }
             for requestID in openRequestChats { await loadRequestChat(requestID: requestID) }
         } catch {
-            report(error)
+            // Before the first load the account screen explains the failure and offers a retry.
+            if profile == nil {
+                if !(error is CancellationError) { profileLoadFailed = true }
+            } else {
+                report(error)
+            }
         }
     }
 
@@ -414,6 +481,7 @@ final class GrabStore: ObservableObject {
 
     private func clear() {
         seen = nil
+        profileLoadFailed = false
         requestChats = [:]
         profile = nil
         places = []
