@@ -1,0 +1,21 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Local configuration and backend data
+Config/Local.xcconfig
+backend/.env
+backend/.data/
+.DS_Store
+
+# Local tool logs and build output
+.server_logs/
+.pnpm-store/
+backend/node_modules/
+backend/dist/
+backend/coverage/
+.build/

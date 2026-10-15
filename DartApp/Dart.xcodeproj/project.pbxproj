@@ -1,0 +1,186 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 = {isa = PBXBuildFile; fileRef = B00000000000000000000001; };
+		A00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000002; };
+		A00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000003; };
+		A00000000000000000000004 = {isa = PBXBuildFile; fileRef = B00000000000000000000004; };
+		A00000000000000000000005 = {isa = PBXBuildFile; fileRef = B00000000000000000000005; };
+		A00000000000000000000006 = {isa = PBXBuildFile; fileRef = B00000000000000000000006; };
+		A00000000000000000000007 = {isa = PBXBuildFile; fileRef = B00000000000000000000007; };
+		A00000000000000000000008 = {isa = PBXBuildFile; fileRef = B00000000000000000000008; };
+		A00000000000000000000009 = {isa = PBXBuildFile; fileRef = B00000000000000000000009; };
+		A0000000000000000000000A = {isa = PBXBuildFile; fileRef = B0000000000000000000000A; };
+		A0000000000000000000000B = {isa = PBXBuildFile; fileRef = B0000000000000000000000B; };
+		A0000000000000000000000C = {isa = PBXBuildFile; fileRef = B0000000000000000000000C; };
+		A0000000000000000000000D = {isa = PBXBuildFile; fileRef = B0000000000000000000000D; };
+		A0000000000000000000000E = {isa = PBXBuildFile; fileRef = B0000000000000000000000E; };
+		A0000000000000000000000F = {isa = PBXBuildFile; fileRef = B00000000000000000000010; };
+		A00000000000000000000010 = {isa = PBXBuildFile; fileRef = B00000000000000000000011; };
+		A00000000000000000000011 = {isa = PBXBuildFile; fileRef = B00000000000000000000012; };
+		A00000000000000000000012 = {isa = PBXBuildFile; fileRef = B00000000000000000000013; };
+		A00000000000000000000013 = {isa = PBXBuildFile; fileRef = B00000000000000000000014; };
+		A00000000000000000000014 = {isa = PBXBuildFile; fileRef = B00000000000000000000015; };
+		A00000000000000000000015 = {isa = PBXBuildFile; fileRef = B00000000000000000000016; };
+		A00000000000000000000016 = {isa = PBXBuildFile; productRef = 900000000000000000000001; };
+		A00000000000000000000017 = {isa = PBXBuildFile; fileRef = B00000000000000000000017; };
+		A00000000000000000000018 = {isa = PBXBuildFile; fileRef = B00000000000000000000018; };
+		A00000000000000000000019 = {isa = PBXBuildFile; fileRef = B00000000000000000000019; };
+		A0000000000000000000001A = {isa = PBXBuildFile; fileRef = B0000000000000000000001A; };
+		A0000000000000000000001B = {isa = PBXBuildFile; fileRef = B0000000000000000000001B; };
+		A0000000000000000000001C = {isa = PBXBuildFile; fileRef = B0000000000000000000001C; };
+		A0000000000000000000001D = {isa = PBXBuildFile; fileRef = B0000000000000000000001D; };
+		A0000000000000000000001E = {isa = PBXBuildFile; fileRef = B0000000000000000000001E; };
+		A0000000000000000000001F = {isa = PBXBuildFile; fileRef = B0000000000000000000001F; };
+		A00000000000000000000020 = {isa = PBXBuildFile; fileRef = B00000000000000000000020; };
+		A00000000000000000000021 = {isa = PBXBuildFile; fileRef = B0000000000000000000001E; };
+		A00000000000000000000022 = {isa = PBXBuildFile; fileRef = B00000000000000000000022; };
+		A00000000000000000000023 = {isa = PBXBuildFile; fileRef = B0000000000000000000001E; };
+		A00000000000000000000024 = {isa = PBXBuildFile; fileRef = B00000000000000000000020; };
+		A00000000000000000000025 = {isa = PBXBuildFile; fileRef = B0000000000000000000001E; };
+		A00000000000000000000026 = {isa = PBXBuildFile; fileRef = B00000000000000000000021; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
+		A00000000000000000000027 = {isa = PBXBuildFile; fileRef = B00000000000000000000023; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
+		A00000000000000000000028 = {isa = PBXBuildFile; fileRef = B00000000000000000000024; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
+		A00000000000000000000029 = {isa = PBXBuildFile; fileRef = B00000000000000000000016; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		700000000000000000000001 = {isa = PBXContainerItemProxy; containerPortal = E00000000000000000000002; proxyType = 1; remoteGlobalIDString = E00000000000000000000003; remoteInfo = GrabLiveActivity; };
+		700000000000000000000002 = {isa = PBXContainerItemProxy; containerPortal = E00000000000000000000002; proxyType = 1; remoteGlobalIDString = E00000000000000000000005; remoteInfo = GrabClip; };
+		700000000000000000000003 = {isa = PBXContainerItemProxy; containerPortal = E00000000000000000000002; proxyType = 1; remoteGlobalIDString = E00000000000000000000004; remoteInfo = GrabClipLiveActivity; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C0000000000000000000000D = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (A00000000000000000000026); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+		C0000000000000000000000E = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = "$(CONTENTS_FOLDER_PATH)/AppClips"; dstSubfolderSpec = 16; files = (A00000000000000000000027); name = "Embed App Clips"; runOnlyForDeploymentPostprocessing = 0; };
+		C0000000000000000000000F = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (A00000000000000000000028); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/DartApp.swift; sourceTree = "<group>"; };
+		B00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppState.swift; sourceTree = "<group>"; };
+		B00000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/RootShellView.swift; sourceTree = "<group>"; };
+		B00000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Models.swift; sourceTree = "<group>"; };
+		B00000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem/DartTheme.swift; sourceTree = "<group>"; };
+		B00000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem/DartCards.swift; sourceTree = "<group>"; };
+		B00000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Home/HomeView.swift; sourceTree = "<group>"; };
+		B00000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Groups/GroupsView.swift; sourceTree = "<group>"; };
+		B00000000000000000000009 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Activity/ActivityView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/ProfileView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Shared/ItemDetailView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Shared/CreateFlowView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Gallery/ComponentGalleryView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000E = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		B0000000000000000000000F = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/SupabaseConfig.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/BackendRows.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/DartBackend.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/DartStore.swift; sourceTree = "<group>"; };
+		B00000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Account/SignInView.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Shared/CreateForms.swift; sourceTree = "<group>"; };
+		B00000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Resources/Supabase.plist; sourceTree = "<group>"; };
+		B00000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Places/PlacePicker.swift; sourceTree = "<group>"; };
+		B00000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Map/FeedMap.swift; sourceTree = "<group>"; };
+		B00000000000000000000019 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Map/RouteMap.swift; sourceTree = "<group>"; };
+		B0000000000000000000001A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/Notifier.swift; sourceTree = "<group>"; };
+		B0000000000000000000001B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/LocationProvider.swift; sourceTree = "<group>"; };
+		B0000000000000000000001C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Shared/RequestChat.swift; sourceTree = "<group>"; };
+		B0000000000000000000001D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend/PushAppDelegate.swift; sourceTree = "<group>"; };
+		B0000000000000000000001E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivity/DartDeliveryActivity.swift; sourceTree = "<group>"; };
+		B0000000000000000000001F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivity/LiveActivityCoordinator.swift; sourceTree = "<group>"; };
+		B00000000000000000000020 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DartLiveActivityWidget.swift; sourceTree = "<group>"; };
+		B00000000000000000000021 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GrabLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000022 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DartClipApp.swift; sourceTree = "<group>"; };
+		B00000000000000000000023 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrabClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000024 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GrabClipLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000025 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B00000000000000000000026 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B00000000000000000000027 = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DartClip.entitlements; sourceTree = "<group>"; };
+		B00000000000000000000028 = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Resources/Dart.entitlements; sourceTree = "<group>"; };
+		B00000000000000000000029 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B0000000000000000000002A = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DartClipLiveActivity.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C00000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000016); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000004 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000005 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D00000000000000000000001 = {isa = PBXGroup; children = (D00000000000000000000002, D00000000000000000000004, D00000000000000000000005, D00000000000000000000006, D00000000000000000000003); sourceTree = "<group>"; };
+		D00000000000000000000002 = {isa = PBXGroup; children = (B00000000000000000000001, B00000000000000000000002, B00000000000000000000003, B00000000000000000000004, B00000000000000000000005, B00000000000000000000006, B00000000000000000000007, B00000000000000000000008, B00000000000000000000009, B0000000000000000000000A, B0000000000000000000000B, B0000000000000000000000C, B0000000000000000000000D, B0000000000000000000000E, B00000000000000000000010, B00000000000000000000011, B00000000000000000000012, B00000000000000000000013, B00000000000000000000014, B00000000000000000000015, B00000000000000000000016, B00000000000000000000017, B00000000000000000000018, B00000000000000000000019, B0000000000000000000001A, B0000000000000000000001B, B0000000000000000000001C, B0000000000000000000001D, B0000000000000000000001E, B0000000000000000000001F, B00000000000000000000028); path = Dart; sourceTree = "<group>"; };
+		D00000000000000000000003 = {isa = PBXGroup; children = (B0000000000000000000000F, B00000000000000000000021, B00000000000000000000023, B00000000000000000000024); name = Products; sourceTree = "<group>"; };
+		D00000000000000000000004 = {isa = PBXGroup; children = (B00000000000000000000020, B00000000000000000000025); path = DartLiveActivity; sourceTree = "<group>"; };
+		D00000000000000000000005 = {isa = PBXGroup; children = (B00000000000000000000022, B00000000000000000000026, B00000000000000000000027); path = DartClip; sourceTree = "<group>"; };
+		D00000000000000000000006 = {isa = PBXGroup; children = (B00000000000000000000029, B0000000000000000000002A); path = DartClipLiveActivity; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E00000000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000002; buildPhases = (C00000000000000000000003, C00000000000000000000001, C00000000000000000000002, C0000000000000000000000D, C0000000000000000000000E); buildRules = (); dependencies = (710000000000000000000001, 710000000000000000000002); name = Grab; packageProductDependencies = (900000000000000000000001); productName = Grab; productReference = B0000000000000000000000F; productType = "com.apple.product-type.application"; };
+		E00000000000000000000005 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000004; buildPhases = (C0000000000000000000000B, C00000000000000000000005, C00000000000000000000008, C0000000000000000000000F); buildRules = (); dependencies = (710000000000000000000003); name = GrabClip; packageProductDependencies = (); productName = GrabClip; productReference = B00000000000000000000023; productType = "com.apple.product-type.application.on-demand-install-capable"; };
+		E00000000000000000000003 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000003; buildPhases = (C0000000000000000000000A, C00000000000000000000004, C00000000000000000000007); buildRules = (); dependencies = (); name = GrabLiveActivity; packageProductDependencies = (); productName = GrabLiveActivity; productReference = B00000000000000000000021; productType = "com.apple.product-type.app-extension"; };
+		E00000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000005; buildPhases = (C0000000000000000000000C, C00000000000000000000006, C00000000000000000000009); buildRules = (); dependencies = (); name = GrabClipLiveActivity; packageProductDependencies = (); productName = GrabClipLiveActivity; productReference = B00000000000000000000024; productType = "com.apple.product-type.app-extension"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E00000000000000000000002 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {E00000000000000000000001 = {CreatedOnToolsVersion = 16.0; }; E00000000000000000000003 = {CreatedOnToolsVersion = 16.0; }; E00000000000000000000004 = {CreatedOnToolsVersion = 16.0; }; E00000000000000000000005 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = F00000000000000000000001; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = D00000000000000000000001; packageReferences = (910000000000000000000001); productRefGroup = D00000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (E00000000000000000000001, E00000000000000000000005, E00000000000000000000003, E00000000000000000000004); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C00000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000015); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000008 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000029); runOnlyForDeploymentPostprocessing = 0; };
+		C00000000000000000000009 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C00000000000000000000003 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000001, A00000000000000000000002, A00000000000000000000003, A00000000000000000000004, A00000000000000000000005, A00000000000000000000006, A00000000000000000000007, A00000000000000000000008, A00000000000000000000009, A0000000000000000000000A, A0000000000000000000000B, A0000000000000000000000C, A0000000000000000000000D, A0000000000000000000000F, A00000000000000000000010, A00000000000000000000011, A00000000000000000000012, A00000000000000000000013, A00000000000000000000014, A00000000000000000000017, A00000000000000000000018, A00000000000000000000019, A0000000000000000000001A, A0000000000000000000001B, A0000000000000000000001C, A0000000000000000000001D, A0000000000000000000001E, A0000000000000000000001F); runOnlyForDeploymentPostprocessing = 0; };
+		C0000000000000000000000A = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000020, A00000000000000000000021); runOnlyForDeploymentPostprocessing = 0; };
+		C0000000000000000000000B = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000022, A00000000000000000000023); runOnlyForDeploymentPostprocessing = 0; };
+		C0000000000000000000000C = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000024, A00000000000000000000025); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		710000000000000000000001 = {isa = PBXTargetDependency; target = E00000000000000000000003; targetProxy = 700000000000000000000001; };
+		710000000000000000000002 = {isa = PBXTargetDependency; target = E00000000000000000000005; targetProxy = 700000000000000000000002; };
+		710000000000000000000003 = {isa = PBXTargetDependency; target = E00000000000000000000004; targetProxy = 700000000000000000000003; };
+/* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		910000000000000000000001 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/supabase/supabase-swift.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 2.55.0; }; };
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		900000000000000000000001 = {isa = XCSwiftPackageProductDependency; package = 910000000000000000000001; productName = Supabase; };
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCBuildConfiguration section */
+		F10000000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
+		F10000000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0; }; name = Release; };
+		F10000000000000000000003 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_ENTITLEMENTS = Dart/Resources/Dart.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_ASSET_PATHS = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Dart/Resources/Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		F10000000000000000000004 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_ENTITLEMENTS = Dart/Resources/Dart.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; ENABLE_PREVIEWS = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Dart/Resources/Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart; PRODUCT_NAME = "$(TARGET_NAME)"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1; VALIDATE_PRODUCT = YES; }; name = Release; };
+		F10000000000000000000005 = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = DartLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart.LiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		F10000000000000000000006 = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = DartLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart.LiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+		F10000000000000000000007 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_ENTITLEMENTS = DartClip/DartClip.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = DartClip/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart.Clip; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		F10000000000000000000008 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_ENTITLEMENTS = DartClip/DartClip.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = DartClip/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart.Clip; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+		F10000000000000000000009 = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = DartClipLiveActivity/DartClipLiveActivity.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = DartClipLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart.Clip.LiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		F1000000000000000000000A = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = DartClipLiveActivity/DartClipLiveActivity.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = DartClipLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.grab.preview.restart.Clip.LiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F00000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000001, F10000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000003, F10000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00000000000000000000003 = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000005, F10000000000000000000006); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00000000000000000000004 = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000007, F10000000000000000000008); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00000000000000000000005 = {isa = XCConfigurationList; buildConfigurations = (F10000000000000000000009, F1000000000000000000000A); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = E00000000000000000000002;
+}

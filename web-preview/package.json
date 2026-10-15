@@ -1,0 +1,19 @@
+{
+  "name": "grab-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "node scripts/check.mjs",
+    "smoke:live": "node scripts/live-smoke.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.76.1"
+  },
+  "devDependencies": {
+    "vite": "7.1.10"
+  }
+}
