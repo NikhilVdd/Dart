@@ -6,20 +6,6 @@ struct RootShellView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Group {
-            switch store.accountState {
-            case .loading: AccountStatusView(failed: false)
-            case .unavailable: AccountStatusView(failed: true)
-            case .needsRegistration: RegistrationView()
-            case .none, .ready: shell
-            }
-        }
-        .alert("Something went wrong", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
-            Button("OK", role: .cancel) { store.lastError = nil }
-        } message: { Text(store.lastError ?? "") }
-    }
-
-    private var shell: some View {
         ZStack(alignment: .bottom) {
             Group {
                 switch state.selectedTab {
@@ -43,6 +29,9 @@ struct RootShellView: View {
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.85), value: state.resetConfirmation)
+        .alert("Something went wrong", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
+            Button("OK", role: .cancel) { store.lastError = nil }
+        } message: { Text(store.lastError ?? "") }
     }
 }
 

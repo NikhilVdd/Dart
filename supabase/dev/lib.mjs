@@ -84,15 +84,16 @@ export async function mintCode(email, displayName) {
   return code;
 }
 
-/** Creates (or recreates) a user and signs them in with a minted code. Returns { id, token }. */
+/** Creates (or recreates) a user with a throwaway password and returns { id, token }. */
 export async function createSession(email, displayName) {
   const existing = await findUser(email);
   if (existing) await api('DELETE', `/auth/v1/admin/users/${existing.id}`);
-  // Grab has no passwords (migration 20261011000010), so sign in the way the app does: with a code.
-  const code = await mintCode(email, displayName);
-  const session = await request('POST', '/auth/v1/verify', { type: 'email', email, token: code });
-  if (!session?.access_token || !session.user?.id) fail(`Could not sign in as ${email}.`);
-  return { id: session.user.id, token: session.access_token };
+  const password = randomUUID();
+  const user = await api('POST', '/auth/v1/admin/users', {
+    email, password, email_confirm: true, user_metadata: { display_name: displayName },
+  });
+  const session = await request('POST', '/auth/v1/token?grant_type=password', { email, password });
+  return { id: user.id, token: session.access_token };
 }
 
 /** Ensures the launch building group for The Durant exists and returns it. */

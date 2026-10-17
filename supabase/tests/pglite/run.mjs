@@ -189,18 +189,16 @@ check('her messages remain with author cleared', (await as(null, `select count(*
 
 
 // --- adding places -----------------------------------------------------------------------------
-const np = await as('nikhil', `select id, name, kind, campus_id, created_by from create_place('Walgreens', 'store', 37.8679, -122.2590, 'Telegraph Avenue', '2310 Telegraph Ave')`);
+const np = await as('nikhil', `select id, name, kind, campus_id, created_by from create_place('Kilovolt Coffee', 'store', 37.8679, -122.2590, 'Telegraph Avenue', '2311 Telegraph Ave')`);
 check('signed-in user adds a place on their campus', np[0].kind === 'store' && np[0].created_by === U.nikhil && !!np[0].campus_id);
-const dup = await as('jordan', `select id from create_place('walgreens', 'store', 37.8680, -122.2591)`);
+const dup = await as('jordan', `select id from create_place('kilovolt coffee', 'store', 37.8680, -122.2591)`);
 check('same name within 150 m returns the existing place', dup[0].id === np[0].id);
-const twin = await as('jordan', `select id from create_place('Walgreens', 'store', 37.8790, -122.2690)`);
+const twin = await as('jordan', `select id from create_place('Kilovolt Coffee', 'store', 37.8790, -122.2690)`);
 check('same name far away is a different place', twin[0].id !== np[0].id);
 await rejects('places far from campus are refused', 'nikhil', `select create_place('Times Square', 'other', 40.7580, -73.9855)`);
 await rejects('blank names are refused', 'nikhil', `select create_place('  ', 'store', 37.87, -122.26)`);
 await rejects('anon cannot add places', 'anon', `select create_place('X', 'store', 37.87, -122.26)`);
-// A profile whose campus was removed (new accounts always get one; see the registration tests).
-await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000aa', 'pat@berkeley.edu', '{}')`);
-await as(null, `update profiles set campus_id = null where id = '00000000-0000-0000-0000-0000000000aa'`);
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000aa', 'pat@gmail.com', '{}')`);
 U.pat = '00000000-0000-0000-0000-0000000000aa';
 check('any email gets the default campus', (await as('pat', `select campus_id is not null as assigned from profiles where id = auth.uid()`))[0].assigned);
 check('standard account can add places', (await as('pat', `select id from create_place('Corner store', 'store', 37.87, -122.26)`)).length === 1);
@@ -209,7 +207,7 @@ await as(null, `insert into places (campus_id, name, kind, lat, lng, created_by)
 await rejects('25 new places per user per day', 'jordan', `select create_place('One too many', 'other', 37.871, -122.261)`);
 const cvs = await as('nikhil', `select id from create_place('CVS Pharmacy', 'store', 37.86750, -122.26800)`);
 check('"CVS Pharmacy" from Apple Maps matches the seeded "CVS"', cvs[0].id === 'a0000000-0000-0000-0000-000000000003');
-check('new places are visible to everyone signed in', (await as('devon', `select 1 from places where name = 'Walgreens'`)).length === 2);
+check('new places are visible to everyone signed in', (await as('devon', `select 1 from places where name = 'Kilovolt Coffee'`)).length === 2);
 
 // --- home building, leaving groups, request chat ----------------------------------------------
 const UNIT2 = 'a0000000-0000-0000-0000-000000000008', DURANT = 'a0000000-0000-0000-0000-000000000007';
@@ -249,7 +247,6 @@ await as('nikhil', `select advance_request($1, 'delivered')`, [cq[0].id]).catch(
 await as('jordan', `select advance_request($1, 'completed')`, [cq[0].id]).catch(() => {});
 await rejects('chat closes when the request is finished', 'jordan', `insert into request_messages (request_id, body) values ($1, 'late')`, [cq[0].id]);
 
-<<<<<<< Updated upstream
 // --- web push --------------------------------------------------------------------------------
 const KEY = 'B' + 'x'.repeat(86), AUTH = 'a'.repeat(22);
 const EP = { jordan: 'https://web.push.apple.com/QJordanDevice', nikhil: 'https://fcm.googleapis.com/fcm/send/nikhil-device' };
@@ -351,38 +348,84 @@ await as(null, `select retry_push()`);
 check('stale unsent pushes are retired', (await as(null, `select last_error from notification_outbox where title = 'stale'`))[0].last_error.includes('gave up'));
 const burst = (await as(null, `select * from claim_push_batch(100)`)).filter(r => r.tag === 'chat-x');
 check('a burst on one tag still sends only the newest', burst.length === 1, JSON.stringify(burst.length));
-=======
-// --- registration and sign-in hardening ---------------------------------------------------------
-check('seeded accounts (created with a name) are already registered', (await as(null, `select count(*)::int n from profiles where onboarded_at is null and id in ('${U.jordan}', '${U.devon}', '${U.nikhil}')`))[0].n === 0);
-await rejects('non-campus emails cannot create accounts', null, `insert into auth.users (id, email, raw_user_meta_data) values (gen_random_uuid(), 'someone@gmail.com', '{}')`);
-await rejects('lookalike domains cannot create accounts', null, `insert into auth.users (id, email, raw_user_meta_data) values (gen_random_uuid(), 'x@notberkeley.edu', '{}')`);
-await rejects('accounts need an email', null, `insert into auth.users (id, email, raw_user_meta_data) values (gen_random_uuid(), null, '{}')`);
-check('no profile left behind by a rejected sign-up', (await as(null, `select count(*)::int n from auth.users where email in ('someone@gmail.com', 'x@notberkeley.edu')`))[0].n === 0);
-U.riley = '00000000-0000-0000-0000-0000000000bb';
-await as(null, `insert into auth.users (id, email, encrypted_password, raw_user_meta_data) values ('${U.riley}', 'Riley.Ng@EECS.Berkeley.edu', 'hash-from-signup', '{}')`);
-const riley = (await as(null, `select display_name, campus_id, onboarded_at from profiles where id = '${U.riley}'`))[0];
-check('subdomain email gets the campus, a placeholder name, and is not yet registered', riley.campus_id === 'c0000000-0000-0000-0000-000000000001' && riley.display_name === 'Riley Ng' && riley.onboarded_at === null, JSON.stringify(riley));
-check('passwords are stripped at sign-up', (await as(null, `select encrypted_password p from auth.users where id = '${U.riley}'`))[0].p === '');
-await as(null, `update auth.users set encrypted_password = 'set-later' where id = '${U.riley}'`);
-check('…and when set later', (await as(null, `select encrypted_password p from auth.users where id = '${U.riley}'`))[0].p === '');
-check('seeded passwords were cleared', (await as(null, `select count(*)::int n from auth.users where coalesce(encrypted_password, '') <> ''`))[0].n === 0);
-await rejects('blank names are refused at registration', 'riley', `select complete_registration('   ')`);
-await rejects('names need more than digits and punctuation', 'riley', `select complete_registration('123 !!')`);
-await rejects('names are capped at 60 characters', 'riley', `select complete_registration(repeat('a', 61))`);
-await rejects('anon cannot register', 'anon', `select complete_registration('Someone')`);
-const reg = await as('riley', `select display_name, initials, onboarded_at from complete_registration('  Riley   Ng-Okafor ')`);
-check('registration tidies the name and marks the account registered', reg[0].display_name === 'Riley Ng-Okafor' && reg[0].initials === 'RN' && reg[0].onboarded_at !== null, JSON.stringify(reg));
-const regAgain = await as('riley', `select display_name, onboarded_at from complete_registration('Zoë 李')`);
-check('non-Latin names are accepted, first registration time kept', regAgain[0].display_name === 'Zoë 李' && String(regAgain[0].onboarded_at) === String(reg[0].onboarded_at));
-await rejects('clients cannot set onboarded_at directly', 'riley', `update profiles set onboarded_at = null where id = auth.uid()`);
-await rejects('clients cannot call the campus lookup', 'riley', `select campus_for_email('a@berkeley.edu')`);
-await rejects('email cannot move off a campus domain', null, `update auth.users set email = 'riley@gmail.com' where id = '${U.riley}'`);
-await as(null, `update profiles set home_place_id = 'a0000000-0000-0000-0000-000000000008' where id = '${U.riley}'`);
-await as(null, `update auth.users set email = 'riley@berkeley.edu' where id = '${U.riley}'`);
-check('changing to another address on the same campus keeps campus and home', (await as(null, `select home_place_id from profiles where id = '${U.riley}'`))[0].home_place_id === 'a0000000-0000-0000-0000-000000000008');
-await as(null, `update auth.users set email_confirmed_at = now(), email = email, encrypted_password = encrypted_password where id = '${U.riley}'`);
-check('full-row auth updates (as at sign-in) still work', (await as(null, `select email_confirmed_at is not null c from auth.users where id = '${U.riley}'`))[0].c);
->>>>>>> Stashed changes
+
+// --- payments --------------------------------------------------------------------------------
+// The payments Edge Function's Stripe side is simulated by writing holds as the service role.
+const hold = async (pi, user, status = 'authorized', budget = 2000) => as(null,
+  `insert into payment_holds (payment_intent_id, user_id, budget_cents, fee_cents, authorized_cents, status) values ($1, $2, $3, 250, 2400, $4)`,
+  [pi, U[user], budget, status]);
+const postPaid = (user, pi, extra = '') => as(user,
+  `insert into requests (title, pickup_label, destination_label, deliver_by, reward_cents, merchandise_budget_cents, payment_intent_id) values ('Paid ${pi}', 'Target', 'Unit 2', now() + interval '2 hours' ${extra}, 0, 999999, $1) returning id, reward_cents, merchandise_budget_cents, payment_status`, [pi]);
+const jobs = async pi => (await as(null, `select kind from payment_jobs where payment_intent_id = $1 order by id`, [pi])).map(r => r.kind);
+
+check('payments are off until switched on', (await as('jordan', `select required from payment_settings`))[0].required === false);
+await as(null, `update payment_settings set required = true`);
+await rejects('with payments on, unpaid requests are refused', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Free', 'Target', 'Unit 2', now() + interval '1 hour')`);
+const freeRun = await as('devon', `insert into runs (audience, store_label, destination_label, closes_at) values ('campus', 'Safeway', 'Unit 2', now() + interval '1 hour') returning id`);
+await rejects('…including requests added to a run', 'jordan', `select request_from_run($1, 'Bread')`, [freeRun[0].id]);
+await rejects('clients cannot read card holds', 'jordan', `select * from payment_holds`);
+await rejects('clients cannot create card holds', 'jordan', `insert into payment_holds (payment_intent_id, user_id, budget_cents, fee_cents, authorized_cents, status) values ('pi_fake', '${U.jordan}', 100, 0, 100, 'authorized')`);
+await rejects('clients cannot claim payment jobs', 'jordan', `select * from claim_payment_jobs()`);
+
+await hold('pi_pending', 'jordan', 'pending');
+await rejects('a hold that is not yet authorized cannot be used', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, payment_intent_id) values ('x', 'Target', 'Unit 2', now() + interval '1 hour', 'pi_pending')`);
+await hold('pi_devon', 'devon');
+await rejects('someone else’s hold cannot be used', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, payment_intent_id) values ('x', 'Target', 'Unit 2', now() + interval '1 hour', 'pi_devon')`);
+await hold('pi_far', 'jordan');
+await rejects('paid requests must fit inside the card hold window', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, payment_intent_id) values ('x', 'Target', 'Unit 2', now() + interval '8 days', 'pi_far')`);
+
+await hold('pi_one', 'jordan');
+const paid = (await postPaid('jordan', 'pi_one'))[0];
+check('amounts on a paid request come from the hold, not the client', paid.reward_cents === 250 && paid.merchandise_budget_cents === 2000 && paid.payment_status === 'authorized', JSON.stringify(paid));
+check('the hold is linked to its request', (await as(null, `select request_id from payment_holds where payment_intent_id = 'pi_one'`))[0].request_id === paid.id);
+await rejects('a hold pays for one request only', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, payment_intent_id) values ('again', 'Target', 'Unit 2', now() + interval '1 hour', 'pi_one')`);
+await rejects('the requester cannot raise the amount afterwards', 'jordan', `update requests set merchandise_budget_cents = 5000 where id = $1`, [paid.id]);
+await rejects('clients cannot set the payment status', 'jordan', `update requests set payment_status = 'paid_out' where id = $1`, [paid.id]);
+
+await rejects('runners without payouts cannot accept paid requests', 'nikhil', `select accept_request($1)`, [paid.id]);
+await as(null, `insert into payout_accounts (user_id, stripe_account_id, transfers_active) values ($1, 'acct_nikhil', false)`, [U.nikhil]);
+await rejects('…nor while Stripe is still verifying them', 'nikhil', `select accept_request($1)`, [paid.id]);
+await as(null, `update payout_accounts set transfers_active = true where user_id = $1`, [U.nikhil]);
+check('runners see only their own payout account', (await as('nikhil', `select stripe_account_id from payout_accounts`)).length === 1 && (await as('jordan', `select * from payout_accounts`)).length === 0);
+await as('nikhil', `select accept_request($1)`, [paid.id]);
+check('accepting records where the money goes', (await as(null, `select destination_account from payment_holds where payment_intent_id = 'pi_one'`))[0].destination_account === 'acct_nikhil');
+await as('nikhil', `select advance_request($1, 'picking_up')`, [paid.id]);
+await as('nikhil', `select advance_request($1, 'on_the_way')`, [paid.id]);
+await rejects('delivery needs the receipt total first', 'nikhil', `select advance_request($1, 'delivered')`, [paid.id]);
+await rejects('…and so does the requester confirming early', 'jordan', `select advance_request($1, 'completed')`, [paid.id]);
+await rejects('the receipt total cannot exceed the budget', 'nikhil', `select set_item_cost($1, 2001)`, [paid.id]);
+await rejects('only the helper sets the receipt total', 'jordan', `select set_item_cost($1, 1500)`, [paid.id]);
+await as('nikhil', `select set_item_cost($1, 1730)`, [paid.id]);
+await as('nikhil', `select advance_request($1, 'delivered')`, [paid.id]);
+await rejects('the receipt total is fixed once delivered', 'nikhil', `select set_item_cost($1, 100)`, [paid.id]);
+check('no money moves before the requester confirms', (await jobs('pi_one')).length === 0);
+await as('jordan', `select advance_request($1, 'completed')`, [paid.id]);
+check('confirming receipt queues the capture with the receipt total', JSON.stringify(await jobs('pi_one')) === '["capture"]' && (await as(null, `select item_cost_cents from payment_holds where payment_intent_id = 'pi_one'`))[0].item_cost_cents === 1730);
+const claimedJobs = await as(null, `select * from claim_payment_jobs(10)`);
+check('the Edge Function claims queued jobs once', claimedJobs.some(j => j.payment_intent_id === 'pi_one') && (await as(null, `select * from claim_payment_jobs(10)`)).length === 0);
+await as(null, `select finish_payment_job($1, 'card declined')`, [claimedJobs.find(j => j.payment_intent_id === 'pi_one').id]);
+check('a failed job is retried', (await as(null, `select * from claim_payment_jobs(10)`)).some(j => j.payment_intent_id === 'pi_one'));
+
+await hold('pi_two', 'jordan');
+const toCancel = (await postPaid('jordan', 'pi_two'))[0];
+await as('jordan', `select cancel_request($1)`, [toCancel.id]);
+check('cancelling releases the hold', JSON.stringify(await jobs('pi_two')) === '["cancel"]');
+await hold('pi_three', 'jordan');
+const toRelease = (await postPaid('jordan', 'pi_three'))[0];
+await as('nikhil', `select accept_request($1)`, [toRelease.id]);
+await as('nikhil', `select release_request($1)`, [toRelease.id]);
+check('a runner releasing the task keeps the hold for the next runner', (await jobs('pi_three')).length === 0 && (await as('jordan', `select status from requests where id = $1`, [toRelease.id]))[0].status === 'open');
+await as(null, `update requests set deliver_by = now() - interval '1 minute' where id = $1`, [toRelease.id]);
+await as(null, `select expire_stale()`);
+check('expiring releases the hold', JSON.stringify(await jobs('pi_three')) === '["cancel"]');
+await as(null, `update payment_holds set created_at = now() - interval '1 hour' where payment_intent_id = 'pi_far'`);
+await as(null, `select retry_payment_jobs()`);
+check('holds never turned into a request are released', JSON.stringify(await jobs('pi_far')) === '["cancel"]' && (await jobs('pi_devon')).length === 0);
+
+await hold('pi_run', 'jordan');
+const runPaid = await as('jordan', `select id, reward_cents, payment_status from request_from_run($1, 'Bread', '', null, 'pi_run')`, [freeRun[0].id]);
+check('requests added to a run carry the hold too', runPaid[0].payment_status === 'authorized' && runPaid[0].reward_cents === 250, JSON.stringify(runPaid));
+await as(null, `update payment_settings set required = false`);
 
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

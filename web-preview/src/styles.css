@@ -351,3 +351,7 @@ button.group-card { cursor: pointer; transition: .16s ease; } button.group-card:
   .stepper span { font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
+
+/* Payments */
+.detail-grid .wide { grid-column: 1 / -1; }
+.stripe-embed { min-height: 120px; margin: 4px 0 8px; }

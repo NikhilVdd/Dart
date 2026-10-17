@@ -4,6 +4,7 @@ import {
   addListItem,
   advanceRequest,
   cancelRequest,
+  confirmPayment,
   createGroup,
   createRequest,
   createRun,
@@ -14,6 +15,8 @@ import {
   leaveGroup,
   loadAppData,
   loadRequestMessages,
+  openPayoutDashboard,
+  refreshPayoutStatus,
   releaseRequest,
   requestFromRun,
   sendGroupMessage,
@@ -21,10 +24,13 @@ import {
   sendRequestMessage,
   submitFeedback,
   setHomePlace,
+  setItemCost,
   setListItem,
   signIn,
   signOut,
   signUp,
+  startPayment,
+  startPayoutOnboarding,
   subscribeToChanges,
   supabase,
   trackProductEvent,
@@ -32,6 +38,7 @@ import {
   updatePassword,
   updateRunStatus
 } from "./api.js";
+import { authorizeCard, formatCents, mountOnboarding, mountPaymentElement } from "./payments.js";
 import { disablePush, enablePush, pushEnabled, pushStatus, setBadge, syncPush } from "./push.js";
 
 const app = document.querySelector("#app");
@@ -425,6 +432,33 @@ function isActive(request) {
   return ACTIVE_STATUSES.includes(request.status);
 }
 
+function paymentsOn() {
+  return Boolean(state.data?.payments?.required);
+}
+
+function isPaid(request) {
+  return Boolean(request.payment_status) && request.payment_status !== "none";
+}
+
+// A paid request can't be confirmed until the helper has entered the receipt total.
+function canConfirm(request) {
+  return ["on_the_way", "delivered"].includes(request.status) && (!isPaid(request) || request.item_cost_cents !== null);
+}
+
+function parseCents(value) {
+  const amount = Number(String(value ?? "").replace(/[$,\s]/g, ""));
+  return Number.isFinite(amount) && String(value ?? "").trim() !== "" ? Math.round(amount * 100) : null;
+}
+
+function paymentLine(request, forHelper) {
+  const fee = request.reward_cents;
+  if (request.payment_status === "paid_out") return forHelper ? `${formatCents(request.item_cost_cents + fee)} · paid` : "Paid";
+  if (request.payment_status === "canceled") return "Hold released";
+  if (request.payment_status === "failed") return "Payment failed";
+  if (request.item_cost_cents !== null) return forHelper ? formatCents(request.item_cost_cents + fee) : `${formatCents(request.item_cost_cents)} + ${formatCents(fee)} delivery`;
+  return forHelper ? `Receipt + ${formatCents(fee)}` : `Up to ${formatCents(request.merchandise_budget_cents)} + ${formatCents(fee)} delivery`;
+}
+
 function attentionCount() {
   const me = userId();
   return state.data.requests.filter(request =>
@@ -468,10 +502,14 @@ function progressSteps(status) {
 
 function quickAction(request) {
   const me = userId();
-  if (request.requester_id === me && ["on_the_way", "delivered"].includes(request.status)) {
+  if (request.requester_id === me && canConfirm(request)) {
     return `<button class="primary-button compact" data-action="advance-request" data-id="${request.id}" data-status="completed">Confirm received</button>`;
   }
   const next = helperTransitions[request.status];
+  // Delivering a paid request needs the receipt total, which is entered in the request sheet.
+  if (request.helper_id === me && next === "delivered" && isPaid(request)) {
+    return `<button class="secondary-button compact" data-action="open-request" data-id="${request.id}">Mark Delivered</button>`;
+  }
   if (request.helper_id === me && next) {
     return `<button class="secondary-button compact" data-action="advance-request" data-id="${request.id}" data-status="${next}">Mark ${escapeHTML(titleCase(next))}</button>`;
   }
@@ -533,6 +571,7 @@ function startDraft(title, overrides = {}) {
     when: "60",
     customWhen: "",
     groupId: memberGroups().some(group => group.id === prefs.groupId) ? prefs.groupId : null,
+    budget: "",
     ...overrides
   };
   if (draft.pickupId && !storePlaces().some(place => place.id === draft.pickupId)) draft.pickupId = null;
@@ -592,6 +631,7 @@ function draftRows(draft) {
     { field: "pickupId", label: "From", value: draft.pickupId ? placeName(draft.pickupId, "Any store") : "Any store" },
     { field: "destinationId", label: "Drop-off", value: draft.destinationId ? placeName(draft.destinationId, "Choose a spot") : "Choose a spot", missing: !draft.destinationId },
     { field: "when", label: "By", value: whenLabel(draft) },
+    ...(paymentsOn() ? [{ field: "budget", label: "Item budget", value: parseCents(draft.budget) ? `Up to ${formatCents(parseCents(draft.budget))}` : "Set a budget", missing: !parseCents(draft.budget) }] : []),
     { field: "groupId", label: "Who sees it", value: group ? group.name : "Everyone on campus" },
     { field: "details", label: "Note", value: draft.details.trim() || "Brand, size, substitutions…", placeholder: !draft.details.trim() }
   ];
@@ -621,6 +661,11 @@ function pickerBody(field) {
   }
   if (field === "groupId") {
     return `<div class="choices">${choice(field, "", "Everyone on campus", !draft.groupId)}${memberGroups().map(group => choice(field, group.id, group.name, draft.groupId === group.id)).join("")}</div>`;
+  }
+  if (field === "budget") {
+    const { delivery_fee_cents: fee, max_budget_cents: max } = state.data.payments;
+    return `<label class="picker-input"><span>Most the items should cost</span><input id="draft-budget" type="number" inputmode="decimal" min="1" max="${max / 100}" step="0.01" placeholder="20.00" value="${escapeHTML(draft.budget)}" /></label>
+      <p class="picker-note">Your card is held for this plus ${formatCents(fee)} delivery and card processing. You’re only charged the receipt total.</p><button class="text-button picker-done" data-action="draft-picker" data-field="budget">Done</button>`;
   }
   if (field === "details") {
     return `<textarea id="draft-details" maxlength="1000" rows="3" placeholder="Any brand, unsweetened, one carton" aria-label="Note for your helper">${escapeHTML(draft.details)}</textarea><button class="text-button picker-done" data-action="draft-picker" data-field="details">Done</button>`;
@@ -833,6 +878,7 @@ function renderProfile() {
     <div class="settings-grid">
       <section class="panel"><h2>Display name</h2><form id="profile-form" class="form-stack"><label><span>Name shown to members</span><input name="displayName" value="${escapeHTML(profile.display_name)}" minlength="1" maxlength="60" required /></label><button class="secondary-button" type="submit">Save name</button></form></section>
       <section class="panel"><h2>Home building</h2><form id="home-form" class="form-stack"><label><span>Used as your default drop-off</span><select name="placeId"><option value="">No home selected</option>${placeOptions(residences, profile.home_place_id)}</select></label><button class="secondary-button" type="submit">Update home</button></form></section>
+      ${paymentsOn() ? `<section class="panel"><h2>Payouts</h2><p>${state.data.payout?.transfers_active ? "Payouts are on. What you earn from deliveries goes to your bank." : "Set up payouts to help with paid requests. Stripe verifies your identity and bank account."}</p>${state.data.payout?.transfers_active ? `<button class="secondary-button" data-action="payout-dashboard">View earnings and payouts</button>` : `<button class="secondary-button" data-action="payouts">Set up payouts</button>`}</section>` : ""}
       <section class="panel"><h2>Install Dart</h2><p>Use Dart from your Home Screen in a full-screen app window.</p>${isInstalled() ? `<div class="success-note">✓ Dart is installed on this device.</div>` : `<button class="secondary-button" data-action="install">Install on this device</button>`}</section>
       <section class="panel"><h2>Account</h2><div class="settings-actions"><button data-action="feedback">Share feedback</button><button data-action="replay-intro">Replay the intro</button>${pushButton()}<button data-action="password-reset">Email password reset</button><button data-action="signout">Sign out</button><button class="danger-link" data-action="delete-account">Delete account</button></div></section>
     </div>
@@ -854,8 +900,12 @@ function memberGroups() {
 function renderModal() {
   if (!state.modal) {
     modalRoot.innerHTML = "";
+    modalRoot.dataset.key = "";
     return;
   }
+  // Payment sheets hold Stripe iframes; re-rendering would wipe what the user has typed.
+  if (state.modal.key && modalRoot.dataset.key === state.modal.key) return;
+  modalRoot.dataset.key = state.modal.key ?? "";
   const body = modalBody();
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-close" data-action="close-modal" aria-label="Close">×</button>${body}</section></div>`;
 }
@@ -874,6 +924,8 @@ function modalBody() {
   if (modal.type === "delete-account") return confirmDeleteModal();
   if (modal.type === "legal") return legalModal(modal.document);
   if (modal.type === "password") return passwordModal();
+  if (modal.type === "pay") return payModal();
+  if (modal.type === "payouts") return payoutsModal();
   return "";
 }
 
@@ -949,7 +1001,7 @@ function runModal(id) {
   return `<p class="eyebrow">${escapeHTML(titleCase(run.audience))} RUN</p><div class="modal-title-row"><div><h2 id="modal-title">${escapeHTML(run.store_label)}</h2><p>Heading to ${escapeHTML(run.destination_label)}</p></div>${statusPill(run.status)}</div>
     <div class="detail-person">${avatar(run.runner)}<div><strong>${escapeHTML(run.runner?.display_name || "Dart runner")}</strong><span>${own ? "You announced this run" : `Accepting requests · closes ${relativeTime(run.closes_at)}`}</span></div></div>
     ${run.note ? `<div class="notice"><b>Runner note</b><p>${escapeHTML(run.note)}</p></div>` : ""}
-    ${own ? `<dl class="detail-grid"><div><dt>Closes</dt><dd>${escapeHTML(shortDate(run.closes_at))}</dd></div><div><dt>Capacity</dt><dd>${run.capacity} requests</dd></div><div><dt>Max detour</dt><dd>${run.max_added_minutes} min</dd></div></dl><div class="modal-actions">${run.status === "open" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="shopping">Start shopping</button>` : ""}${run.status === "shopping" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="returning">Head back</button>` : ""}${run.status === "returning" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="completed">Finish run</button>` : ""}<button class="quiet-danger" data-action="run-status" data-id="${run.id}" data-status="cancelled">Cancel run</button></div>` : `<form id="request-from-run-form" class="form-stack"><input type="hidden" name="runId" value="${run.id}" /><label><span>What should they grab?</span><input name="title" required maxlength="120" placeholder="One carton of oat milk" /></label><label><span>Details (optional)</span><textarea name="details" maxlength="1000" rows="2" placeholder="Brand or substitution notes"></textarea></label><button class="primary-button" type="submit">Add to ${escapeHTML(firstName(run.runner?.display_name) || "this")}’s run</button></form><p class="modal-note">Capacity ${run.capacity} requests · up to ${run.max_added_minutes} min detour · closes ${escapeHTML(shortDate(run.closes_at))}</p>`}`;
+    ${own ? `<dl class="detail-grid"><div><dt>Closes</dt><dd>${escapeHTML(shortDate(run.closes_at))}</dd></div><div><dt>Capacity</dt><dd>${run.capacity} requests</dd></div><div><dt>Max detour</dt><dd>${run.max_added_minutes} min</dd></div></dl><div class="modal-actions">${run.status === "open" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="shopping">Start shopping</button>` : ""}${run.status === "shopping" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="returning">Head back</button>` : ""}${run.status === "returning" ? `<button class="primary-button" data-action="run-status" data-id="${run.id}" data-status="completed">Finish run</button>` : ""}<button class="quiet-danger" data-action="run-status" data-id="${run.id}" data-status="cancelled">Cancel run</button></div>` : `<form id="request-from-run-form" class="form-stack"><input type="hidden" name="runId" value="${run.id}" /><label><span>What should they grab?</span><input name="title" required maxlength="120" placeholder="One carton of oat milk" /></label><label><span>Details (optional)</span><textarea name="details" maxlength="1000" rows="2" placeholder="Brand or substitution notes"></textarea></label>${paymentsOn() ? `<label><span>Item budget (plus ${formatCents(state.data.payments.delivery_fee_cents)} delivery)</span><input name="budget" type="number" inputmode="decimal" min="1" max="${state.data.payments.max_budget_cents / 100}" step="0.01" required placeholder="20.00" /></label>` : ""}<button class="primary-button" type="submit">Add to ${escapeHTML(firstName(run.runner?.display_name) || "this")}’s run</button></form><p class="modal-note">Capacity ${run.capacity} requests · up to ${run.max_added_minutes} min detour · closes ${escapeHTML(shortDate(run.closes_at))}</p>`}`;
 }
 
 function requestModal(id) {
@@ -961,8 +1013,9 @@ function requestModal(id) {
   const next = helperTransitions[request.status];
   let actions = "";
   if (request.status === "open" && !isRequester) actions += `<button class="primary-button" data-action="accept-request" data-id="${request.id}">Accept request</button>`;
-  if (isHelper && next) actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="${next}">Mark ${escapeHTML(titleCase(next))}</button>`;
-  if (isRequester && ["on_the_way", "delivered"].includes(request.status)) actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="completed">Confirm received</button>`;
+  const needsReceipt = isHelper && next === "delivered" && isPaid(request);
+  if (isHelper && next && !needsReceipt) actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="${next}">Mark ${escapeHTML(titleCase(next))}</button>`;
+  if (isRequester && canConfirm(request)) actions += `<button class="primary-button" data-action="advance-request" data-id="${request.id}" data-status="completed">Confirm received</button>`;
   if (isHelper && ["accepted", "picking_up"].includes(request.status)) actions += `<button class="secondary-button" data-action="release-request" data-id="${request.id}">Release task</button>`;
   if (isRequester && !isActive(request)) actions += `<button class="secondary-button" data-action="draft-again" data-id="${request.id}">Ask for this again</button>`;
   if (isRequester && ["open", "accepted"].includes(request.status)) actions += `<button class="quiet-danger" data-action="cancel-request" data-id="${request.id}">Cancel request</button>`;
@@ -972,9 +1025,70 @@ function requestModal(id) {
     <p class="status-headline status-text-${escapeHTML(request.status)}">${escapeHTML(statusLine(request))}</p>
     ${progressSteps(request.status)}
     ${request.details ? `<div class="notice"><b>Note</b><p>${escapeHTML(request.details)}</p></div>` : ""}
-    <dl class="detail-grid"><div><dt>From</dt><dd>${escapeHTML(request.pickup_label)}</dd></div><div><dt>Drop-off</dt><dd>${escapeHTML(request.destination_label)}</dd></div><div><dt>By</dt><dd>${escapeHTML(shortDate(request.deliver_by))}</dd></div><div><dt>${isRequester ? "Helper" : "Posted by"}</dt><dd>${escapeHTML(isRequester ? helperName || "Not yet" : request.requester?.display_name || "Dart member")}</dd></div></dl>
+    <dl class="detail-grid"><div><dt>From</dt><dd>${escapeHTML(request.pickup_label)}</dd></div><div><dt>Drop-off</dt><dd>${escapeHTML(request.destination_label)}</dd></div><div><dt>By</dt><dd>${escapeHTML(shortDate(request.deliver_by))}</dd></div><div><dt>${isRequester ? "Helper" : "Posted by"}</dt><dd>${escapeHTML(isRequester ? helperName || "Not yet" : request.requester?.display_name || "Dart member")}</dd></div>${isPaid(request) ? `<div class="wide"><dt>${isRequester ? "Payment" : "You get"}</dt><dd>${escapeHTML(paymentLine(request, !isRequester))}</dd></div>` : ""}</dl>
+    ${needsReceipt ? `<form id="deliver-form" class="inline-form"><input type="hidden" name="requestId" value="${request.id}" /><input name="receipt" type="number" inputmode="decimal" min="0" max="${request.merchandise_budget_cents / 100}" step="0.01" required placeholder="Receipt total (up to ${escapeHTML(formatCents(request.merchandise_budget_cents))})" aria-label="Receipt total" /><button type="submit" aria-label="Mark delivered">${icon("check")}</button></form>` : ""}
     ${actions ? `<div class="modal-actions">${actions}</div>` : ""}
     ${canChat && request.helper_id ? `<section class="request-chat"><div class="section-heading"><h3>Chat with ${escapeHTML(firstName(isRequester ? helperName : request.requester?.display_name) || "them")}</h3></div><div class="chat-feed compact-chat">${state.requestMessages.length ? state.requestMessages.map(message => `<div class="chat-message ${message.sender_id === userId() ? "mine" : ""}"><strong>${escapeHTML(message.sender?.display_name || "Member")}</strong><p>${escapeHTML(message.body)}</p></div>`).join("") : `<p class="empty-copy">No messages yet. Say hi or share handoff details.</p>`}</div>${isActive(request) ? `<form id="request-message-form" class="inline-form"><input type="hidden" name="requestId" value="${request.id}" /><input name="body" required maxlength="2000" placeholder="Message privately" aria-label="Message privately" autocomplete="off" /><button type="submit" aria-label="Send">${icon("send")}</button></form>` : ""}</section>` : ""}`;
+}
+
+function payModal() {
+  return `<p class="eyebrow">SECURE PAYMENT</p><h2 id="modal-title">Hold your payment</h2><p>You’re only charged the receipt total plus delivery, after you confirm you got it. If nobody picks it up, the hold is released.</p>
+    <dl id="pay-summary" class="detail-grid"><div class="wide"><dt>Hold up to</dt><dd>Loading…</dd></div></dl>
+    <form id="pay-form" class="form-stack"><div id="payment-element" class="stripe-embed"></div><button class="primary-button" type="submit" disabled>Hold payment</button></form>`;
+}
+
+function paySummary(hold) {
+  return `<div><dt>Items, up to</dt><dd>${formatCents(hold.budget_cents)}</dd></div><div><dt>Delivery</dt><dd>${formatCents(hold.fee_cents)}</dd></div><div><dt>Card processing</dt><dd>${formatCents(hold.processing_cents)}</dd></div><div><dt>Hold up to</dt><dd>${formatCents(hold.total_cents)}</dd></div>`;
+}
+
+function payoutsModal() {
+  return `<p class="eyebrow">GET PAID</p><h2 id="modal-title">Set up payouts</h2><p>Stripe verifies who you are and where to send your earnings. Dart never sees your bank details.</p><div id="connect-onboarding" class="stripe-embed"><p class="empty-copy">Loading…</p></div>`;
+}
+
+// Holds the requester's card, then runs finish(paymentIntentId) to post the request.
+async function openPayment(budgetCents, finish, success) {
+  const modal = { type: "pay", key: `pay-${Date.now()}`, finish, success, hold: null, stripe: null, authorized: false };
+  state.modal = modal;
+  renderModal();
+  try {
+    modal.hold = await startPayment(budgetCents);
+    if (state.modal !== modal) return;
+    document.querySelector("#pay-summary").innerHTML = paySummary(modal.hold);
+    modal.stripe = await mountPaymentElement(document.querySelector("#payment-element"), modal.hold);
+    const button = document.querySelector("#pay-form button[type=submit]");
+    button.textContent = `Hold ${formatCents(modal.hold.total_cents)}`;
+    button.disabled = false;
+  } catch (error) {
+    showToast(errorMessage(error), "error");
+    if (state.modal === modal) closeModal();
+  }
+}
+
+async function openPayouts() {
+  const modal = { type: "payouts", key: `payouts-${Date.now()}` };
+  state.modal = modal;
+  renderModal();
+  try {
+    const first = await startPayoutOnboarding();
+    if (state.modal !== modal) return;
+    let reused = false;
+    mountOnboarding(document.querySelector("#connect-onboarding"), {
+      publishableKey: first.publishable_key,
+      fetchClientSecret: async () => {
+        if (!reused) { reused = true; return first.client_secret; }
+        return (await startPayoutOnboarding()).client_secret;
+      },
+      onExit: async () => {
+        const status = await refreshPayoutStatus().catch(() => null);
+        if (state.modal === modal) closeModal();
+        await loadData({ quiet: true });
+        showToast(status?.transfers_active ? "Payouts are on. You can help with paid requests." : "Thanks! Stripe is reviewing your details.");
+      }
+    });
+  } catch (error) {
+    showToast(errorMessage(error), "error");
+    if (state.modal === modal) closeModal();
+  }
 }
 
 function groupToolsModal() {
@@ -1104,6 +1218,13 @@ async function postDraft() {
     showToast("Pick a time at least 30 minutes from now", "error");
     return;
   }
+  const budgetCents = parseCents(draft.budget);
+  if (paymentsOn() && (!budgetCents || budgetCents < 100 || budgetCents > state.data.payments.max_budget_cents)) {
+    state.picker = "budget";
+    render();
+    showToast(`Set an item budget between $1 and ${formatCents(state.data.payments.max_budget_cents)}`, "error");
+    return;
+  }
   const pickup = state.data.places.find(place => place.id === draft.pickupId);
   const destination = state.data.places.find(place => place.id === draft.destinationId);
   const payload = {
@@ -1118,13 +1239,16 @@ async function postDraft() {
     reward_cents: 0,
     merchandise_budget_cents: null
   };
-  const posted = await work(async () => {
-    await createRequest(payload);
+  const submit = async paymentIntentId => {
+    await createRequest(paymentIntentId ? { ...payload, merchandise_budget_cents: budgetCents, payment_intent_id: paymentIntentId } : payload);
     writeStorage(PREFS_KEY, JSON.stringify({ destinationId: draft.destinationId, groupId: payload.group_id }));
     state.draft = null;
     state.picker = null;
-  }, "Posted! We’ll let you know when someone’s on it.");
-  if (posted) track("request_created", { audience: payload.group_id ? "group" : "campus", flow: "ask" });
+    track("request_created", { audience: payload.group_id ? "group" : "campus", flow: "ask", paid: Boolean(paymentIntentId) });
+  };
+  const success = "Posted! We’ll let you know when someone’s on it.";
+  if (paymentsOn()) await openPayment(budgetCents, submit, success);
+  else await work(() => submit(null), success);
 }
 
 document.addEventListener("click", async event => {
@@ -1152,7 +1276,8 @@ document.addEventListener("click", async event => {
       details: source.details || "",
       pickupId: source.pickup_place_id,
       destinationId: source.destination_place_id,
-      groupId: source.group_id
+      groupId: source.group_id,
+      budget: source.merchandise_budget_cents ? (source.merchandise_budget_cents / 100).toFixed(2) : ""
     });
     track("request_repeated");
     if (state.tab !== "home" || state.modal) goTo("home");
@@ -1271,7 +1396,29 @@ document.addEventListener("click", async event => {
   } else if (action === "delete-list") {
     await work(() => deleteListItem(id), "Item removed", { close: false });
   } else if (action === "accept-request") {
+    const request = allRequests().find(item => item.id === id);
+    if (request && isPaid(request) && !state.data.payout?.transfers_active) {
+      const status = await refreshPayoutStatus().catch(() => null);
+      if (!status?.transfers_active) {
+        showToast("Set up payouts to help with paid requests");
+        await openPayouts();
+        return;
+      }
+    }
     await work(() => acceptRequest(id), "Request accepted");
+  } else if (action === "payouts") {
+    await openPayouts();
+  } else if (action === "payout-dashboard") {
+    // Open the window during the tap so it isn't treated as a popup.
+    const tab = window.open("", "_blank");
+    try {
+      const { url } = await openPayoutDashboard();
+      if (tab) tab.location = url;
+      else location.href = url;
+    } catch (error) {
+      tab?.close();
+      showToast(errorMessage(error), "error");
+    }
   } else if (action === "advance-request") {
     await work(() => advanceRequest(id, status), status === "completed" ? "Marked as received. Thanks!" : `Request marked ${titleCase(status)}`);
   } else if (action === "release-request") {
@@ -1307,6 +1454,8 @@ document.addEventListener("input", event => {
     state.draft.title = target.value;
   } else if (target.id === "draft-details") {
     state.draft.details = target.value;
+  } else if (target.id === "draft-budget") {
+    state.draft.budget = target.value;
   } else if (target.id === "draft-when-custom") {
     state.draft.customWhen = target.value;
     refreshDraftLabels();
@@ -1320,7 +1469,7 @@ document.addEventListener("input", event => {
 
 document.addEventListener("keydown", event => {
   if (event.key !== "Enter" || event.shiftKey) return;
-  if (event.target.id === "draft-title") {
+  if (event.target.id === "draft-title" || event.target.id === "draft-budget") {
     event.preventDefault();
     state.picker = null;
     render();
@@ -1400,7 +1549,41 @@ document.addEventListener("submit", async event => {
       capacity: Number(values.capacity)
     }), "Run announced");
   } else if (form.id === "request-from-run-form") {
-    ok = await work(() => requestFromRun(values.runId, values.title.trim(), values.details.trim(), null), "Added to the run. We’ll keep you posted.");
+    const success = "Added to the run. We’ll keep you posted.";
+    if (paymentsOn()) {
+      const budgetCents = parseCents(values.budget);
+      if (!budgetCents || budgetCents < 100 || budgetCents > state.data.payments.max_budget_cents) {
+        showToast(`Set an item budget between $1 and ${formatCents(state.data.payments.max_budget_cents)}`, "error");
+        return;
+      }
+      await openPayment(budgetCents, paymentIntentId => requestFromRun(values.runId, values.title.trim(), values.details.trim(), budgetCents, paymentIntentId), success);
+      return;
+    }
+    ok = await work(() => requestFromRun(values.runId, values.title.trim(), values.details.trim(), null), success);
+  } else if (form.id === "pay-form") {
+    const modal = state.modal;
+    if (modal?.type !== "pay" || !modal.stripe) return;
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    ok = await work(async () => {
+      // If posting failed after the card was held, retrying reuses the same hold.
+      if (!modal.authorized) {
+        await authorizeCard(modal.stripe);
+        const { status } = await confirmPayment(modal.hold.payment_intent_id);
+        if (status !== "authorized") throw new Error("Your card wasn’t approved. Try another payment method.");
+        modal.authorized = true;
+      }
+      await modal.finish(modal.hold.payment_intent_id);
+    }, modal.success);
+    if (!ok && state.modal === modal) button.disabled = false;
+    return;
+  } else if (form.id === "deliver-form") {
+    const cents = parseCents(values.receipt);
+    if (cents === null) return;
+    ok = await work(async () => {
+      await setItemCost(values.requestId, cents);
+      await advanceRequest(values.requestId, "delivered");
+    }, "Marked delivered. You’ll be paid once they confirm.");
   } else if (form.id === "create-group-form") {
     ok = await work(() => createGroup(values.name.trim()), "Group created");
   } else if (form.id === "join-group-form") {

@@ -18,7 +18,7 @@ Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no s
 | `request_tracking_links`, `clip_push_tokens` | Capability-secured App Clip tracking links and private APNs destinations. |
 | `push_events` | Durable notification outbox populated by request and message triggers. |
 
-Money is integer cents. Payments are **recorded, not charged**: Stripe Connect is a later section.
+Money is integer cents. Requests are paid through Stripe Connect when payments are switched on (see **Payments** below).
 
 ### The matching engine
 
@@ -139,6 +139,61 @@ the newest one, and the push `Topic` header does the same at the push service fo
 
 Rotating the VAPID keys invalidates every device; each one re-registers the next time Grab is opened.
 
+### Payments (Stripe Connect, migration 15)
+
+Dart is a Connect **marketplace** using **separate charges and transfers**: Dart is the merchant of
+record, runners are connected accounts (Accounts v2, `recipient` configuration, Express Dashboard), and
+the requester's card is only held until they confirm delivery. Dart keeps nothing: the requester pays
+the receipt total + the delivery fee (`payment_settings.delivery_fee_cents`, $2.50) + Stripe's card fee
+(2.9% + 30¢, grossed up), and the runner receives receipt total + delivery fee.
+
+```
+post ─▶ payments{start} ─▶ Payment Element (manual capture hold) ─▶ payments{confirm} ─▶ insert request (payment_intent_id)
+accept ─▶ needs payout_accounts.transfers_active (embedded onboarding: payments{onboard})
+on the way ─▶ set_item_cost(receipt total ≤ budget) ─▶ delivered ─▶ requester confirms (or 24 h auto-complete)
+completed ─▶ payment_jobs 'capture' ─pg_net─▶ payments{settle}: capture, then transfer to the runner
+cancelled / expired / requester account deleted / hold never used (30 min) ─▶ 'cancel' ─▶ hold released
+```
+
+- `payment_holds` (no client access) is the source of truth for each card hold; amounts on a paid request
+  come from its hold and can't be changed by the client. `requests.payment_status` mirrors it for the UI.
+- `payout_accounts` maps a runner to their Stripe account; readable only by that runner.
+- Card holds last 7 days, so paid requests must be due within 6 days of posting.
+- Stripe calls only happen in `functions/payments` (the secret key never reaches the browser).
+  `functions/stripe-webhook` backs up hold confirmation and records holds Stripe cancels or expires.
+- Dart pays Connect's own fees (per active account per month, per payout); those aren't covered by the
+  requester's card fee.
+
+#### Turning it on
+
+Use a Stripe **sandbox** (test keys) until the whole flow has been tried end to end.
+
+1. Stripe Dashboard: Connect → finish the platform profile and **accept loss liability** (the platform is
+   responsible for negative balances). Set onboarding branding under Connect settings. Turn on Radar.
+2. Apply the migration (`npx supabase db push`). Payments stay **off** until step 6.
+3. Pick a long random job secret, then set secrets and deploy:
+   ```sh
+   npx supabase secrets set STRIPE_SECRET_KEY=sk_test_… STRIPE_PUBLISHABLE_KEY=pk_test_… \
+     PAYMENTS_WEBHOOK_SECRET=<job secret>
+   npx supabase functions deploy payments --no-verify-jwt
+   ```
+4. Tell Postgres where to send settlement jobs (SQL editor):
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/payments', 'dart_payments_url');
+   select vault.create_secret('<job secret>', 'dart_payments_secret');
+   ```
+5. Stripe Dashboard → Developers → Webhooks: add `https://<project-ref>.supabase.co/functions/v1/stripe-webhook`
+   for `payment_intent.amount_capturable_updated`, `payment_intent.canceled` and `charge.dispute.created`, then
+   ```sh
+   npx supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_…
+   npx supabase functions deploy stripe-webhook --no-verify-jwt
+   ```
+   For Apple Pay, register the web app's domain under Settings → Payment method domains.
+6. Switch payments on: `update public.payment_settings set required = true;`
+
+`select * from payment_jobs order by id desc` shows queued captures/releases and why any failed
+(`last_error`; failed jobs retry every minute, up to 20 attempts).
+
 ### Security
 
 Row level security is on for every table:
@@ -148,16 +203,6 @@ Row level security is on for every table:
 - Users can edit only their own profile name and building. A matching email domain selects a campus;
   all other standard accounts are assigned to the first configured campus.
 - Signed-out clients can read only the campus list.
-
-Accounts (migration `20261011000010`):
-
-- An auth user can only be created, or change their email, with an address on a supported campus domain
-  (`campuses.email_domains`, subdomains included). This applies to every route, including the Auth API
-  called directly.
-- Grab signs in with one-time email codes only. Passwords are stripped from auth users, so nobody can
-  register someone else's address with a password before its owner signs up.
-- `profiles.onboarded_at` stays empty until the user confirms their name with `complete_registration()`.
-  Accounts created with a `display_name` in their metadata (seed, demo and test accounts) start registered.
 
 ## Setup
 

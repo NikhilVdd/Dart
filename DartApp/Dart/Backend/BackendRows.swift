@@ -22,12 +22,8 @@ struct ProfileRecord: Decodable, Hashable {
     let homePlaceID: UUID?
     let campus: CampusRow?
     let homePlace: PlaceRow?
-    /// Set once the user has confirmed their name after their first sign-in.
-    let onboardedAt: Date?
 
-    var isRegistered: Bool { onboardedAt != nil }
-
-    static let select = "id, display_name, initials, campus_id, home_place_id, onboarded_at, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
+    static let select = "id, display_name, initials, campus_id, home_place_id, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
 
     enum CodingKeys: String, CodingKey {
         case id, initials, campus
@@ -35,7 +31,6 @@ struct ProfileRecord: Decodable, Hashable {
         case campusID = "campus_id"
         case homePlaceID = "home_place_id"
         case homePlace = "home_place"
-        case onboardedAt = "onboarded_at"
     }
 }
 

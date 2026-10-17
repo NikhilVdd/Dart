@@ -1,52 +1,6 @@
 import Foundation
 import Supabase
 
-<<<<<<< Updated upstream:DartApp/Dart/Backend/DartBackend.swift
-=======
-enum GrabBackendError: LocalizedError {
-    case invalidEmail
-    case unsupportedCampus
-    case accountMissing
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidEmail:
-            "Enter a valid email address, like you@berkeley.edu."
-        case .unsupportedCampus:
-            "That email is not connected to a supported campus yet. For this launch, use an @berkeley.edu address."
-        case .accountMissing:
-            "This account no longer exists. Sign in again to create a new one."
-        }
-    }
-}
-
-/// Email rules shared by the sign-in screen and the backend.
-enum EmailAddress {
-    /// Trimmed and lowercased, which is how Supabase Auth stores addresses.
-    static func normalized(_ raw: String) -> String {
-        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
-    /// A practical check for a deliverable address: one @, a local part, and a dotted domain.
-    static func isValid(_ email: String) -> Bool {
-        let parts = email.split(separator: "@", omittingEmptySubsequences: false)
-        guard parts.count == 2, email.count <= 254,
-              !email.contains(where: { $0.isWhitespace || $0.isNewline }) else { return false }
-        let local = parts[0], domain = parts[1]
-        guard (1...64).contains(local.count) else { return false }
-        let labels = domain.split(separator: ".", omittingEmptySubsequences: false)
-        return labels.count >= 2 && labels.allSatisfy { label in
-            !label.isEmpty && label.count <= 63 && !label.hasPrefix("-") && !label.hasSuffix("-")
-                && label.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" }
-        }
-    }
-
-    static func domain(of email: String) -> String {
-        email.split(separator: "@").last.map(String.init)?.lowercased() ?? ""
-    }
-}
-
->>>>>>> Stashed changes:GrabApp/Grab/Backend/GrabBackend.swift
 /// Thin, typed wrapper over the Supabase client. Every call is subject to row level security,
 /// and request status changes go through the lifecycle functions defined in the migrations.
 final class GrabBackend {
@@ -62,7 +16,6 @@ final class GrabBackend {
 
     var currentUserID: UUID? { client.auth.currentUser?.id }
 
-<<<<<<< Updated upstream:DartApp/Dart/Backend/DartBackend.swift
     // MARK: Auth (email and password)
 
     func signIn(email: String, password: String) async throws {
@@ -73,136 +26,28 @@ final class GrabBackend {
     /// enabled, the account is created but the user must confirm it before the first sign-in.
     func createAccount(email: String, password: String, displayName: String) async throws -> Bool {
         let response = try await client.auth.signUp(
-=======
-    // MARK: Auth (6-digit email code)
-    //
-    // Signing in and signing up are the same step: the first verified code creates the account,
-    // and the database links it to the campus for its email domain (migration 20261011000010
-    // refuses any other domain). The app then asks for a name before showing live data.
-
-    /// Emails a sign-in code. Checks the campus first so unsupported addresses get a clear answer
-    /// without an email being sent.
-    func sendCode(to email: String) async throws {
-        guard EmailAddress.isValid(email) else { throw GrabBackendError.invalidEmail }
-        guard try await isCampusEmail(email) else { throw GrabBackendError.unsupportedCampus }
-        try await client.auth.signInWithOTP(
->>>>>>> Stashed changes:GrabApp/Grab/Backend/GrabBackend.swift
             email: email,
             password: password,
             data: ["display_name": .string(displayName)]
         )
-<<<<<<< Updated upstream:DartApp/Dart/Backend/DartBackend.swift
         return response.session != nil
-=======
     }
 
-    func verify(email: String, code: String) async throws {
-        guard EmailAddress.isValid(email) else { throw GrabBackendError.invalidEmail }
-        try await client.auth.verifyOTP(email: email, token: code, type: .email)
-    }
-
-    private func isCampusEmail(_ email: String) async throws -> Bool {
-        let domain = EmailAddress.domain(of: email)
-        let campuses: [CampusAccessRow] = try await client.from("campuses")
-            .select("name, email_domains")
-            .execute().value
-        return campuses.contains { campus in
-            campus.emailDomains.contains { supported in
-                domain == supported || domain.hasSuffix(".\(supported)")
-            }
-        }
-    }
-
-    /// Completes Supabase's magic-link/PKCE flow when the email opens the app directly.
-    func completeSignIn(from url: URL) async throws {
-        _ = try await client.auth.session(from: url)
->>>>>>> Stashed changes:GrabApp/Grab/Backend/GrabBackend.swift
-    }
-
-    /// Never fails: the library drops the local session before telling the server, so you are
-    /// signed out on this device even when the network call doesn't go through.
-    func signOut() async {
-        try? await client.auth.signOut()
-    }
-
-    /// Drops this device's session without contacting the server (for accounts that are gone).
-    func signOutLocally() async {
-        try? await client.auth.signOut(scope: .local)
+    func signOut() async throws {
+        try await client.auth.signOut()
     }
 
     func deleteAccount() async throws {
         try await client.rpc("delete_my_account").execute()
         // The server session is gone with the user; just drop the local one.
-        await signOutLocally()
-    }
-
-    /// Sets the user's name and marks the account registered. Also used for later name changes:
-    /// the server tidies whitespace and applies the same rules either way.
-    func completeRegistration(name: String) async throws {
-        try await client.rpc("complete_registration", params: ["p_display_name": name]).execute()
-    }
-
-    /// A user-facing explanation for auth and network failures; nil for anything else.
-    static func authMessage(for error: Error) -> String? {
-        if let error = error as? GrabBackendError { return error.errorDescription }
-        if let error = error as? URLError {
-            switch error.code {
-            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed:
-                return "You’re offline. Check your connection and try again."
-            case .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
-                return "Grab can’t reach its server right now. Try again in a moment."
-            default:
-                return nil
-            }
-        }
-        guard let error = error as? AuthError else { return nil }
-        switch error {
-        case let .api(message, code, _, _):
-            switch code.rawValue {
-            case "otp_expired":
-                return "That code is incorrect or has expired. Check your latest email, or tap Resend code."
-            case "over_email_send_rate_limit":
-                if let seconds = message.split(whereSeparator: { !$0.isNumber }).first {
-                    return "You can request another code in \(seconds) seconds."
-                }
-                return "Too many codes were requested. Wait a few minutes and try again."
-            case "over_request_rate_limit":
-                return "Too many attempts. Wait a few minutes and try again."
-            case "signup_disabled", "otp_disabled", "email_provider_disabled":
-                return "Sign-ups are paused right now. Please try again later."
-            case "user_banned":
-                return "This account has been suspended."
-            case "email_address_invalid", "validation_failed":
-                return GrabBackendError.invalidEmail.errorDescription
-            case "email_address_not_authorized":
-                return "We can’t send email to that address yet. Please try again later."
-            default:
-                // The database refuses accounts outside a supported campus (migration 20261011000010).
-                if message.localizedCaseInsensitiveContains("saving new user") {
-                    return GrabBackendError.unsupportedCampus.errorDescription
-                }
-                if message.localizedCaseInsensitiveContains("sending") {
-                    return "We couldn’t send the email right now. Try again in a few minutes."
-                }
-                return message
-            }
-        case .sessionMissing:
-            return "You’ve been signed out. Sign in again to continue."
-        default:
-            return error.localizedDescription
-        }
-    }
-
-    // MARK: Profile
-
-    /// Nil when the account has been deleted (the profile cascades with the auth user).
-    func profile(id: UUID) async throws -> ProfileRecord? {
-        let rows: [ProfileRecord] = try await client.from("profiles").select(ProfileRecord.select)
-            .eq("id", value: id).limit(1).execute().value
-        return rows.first
+        try await client.auth.signOut(scope: .local)
     }
 
     // MARK: Reads
+
+    func profile(id: UUID) async throws -> ProfileRecord {
+        try await client.from("profiles").select(ProfileRecord.select).eq("id", value: id).single().execute().value
+    }
 
     func places() async throws -> [PlaceRow] {
         try await client.from("places").select().order("name").execute().value
@@ -293,6 +138,10 @@ final class GrabBackend {
     }
 
     // MARK: Writes
+
+    func updateDisplayName(_ name: String, userID: UUID) async throws {
+        try await client.from("profiles").update(["display_name": name]).eq("id", value: userID).execute()
+    }
 
     func postRequest(_ request: NewRequest) async throws -> RequestRow {
         try await client.from("requests").insert(request).select(RequestRow.select).single().execute().value

@@ -6,7 +6,7 @@
 -- Demo accounts (sign in with the email code from Mailpit at http://127.0.0.1:54324):
 --   nikhil@berkeley.edu   – the app's default persona
 --   maya@berkeley.edu, jordan@berkeley.edu, devon@berkeley.edu
--- Grab has no passwords (migration 20261011000010 strips them); sign in with a code.
+-- Each also has the password "grab-demo" for quick API testing.
 
 -- ---------------------------------------------------------------------------
 -- Demo users (the on_auth_user_created trigger creates their profiles)
@@ -19,7 +19,7 @@ insert into auth.users (
 )
 select
   '00000000-0000-0000-0000-000000000000', u.id, 'authenticated', 'authenticated', u.email,
-  '', now(),
+  extensions.crypt('grab-demo', extensions.gen_salt('bf')), now(),
   '{"provider":"email","providers":["email"]}', jsonb_build_object('display_name', u.name), now(), now(),
   '', '', '', ''
 from (values

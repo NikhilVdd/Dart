@@ -430,3 +430,11 @@ enabled = true
 # Called by Postgres (pg_net) with a shared secret, not by signed-in users.
 [functions.send-push]
 verify_jwt = false
+
+# Authenticates users itself (JWT) and Postgres via the shared payments secret.
+[functions.payments]
+verify_jwt = false
+
+# Stripe signs its own requests.
+[functions.stripe-webhook]
+verify_jwt = false

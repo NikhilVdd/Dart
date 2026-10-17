@@ -54,7 +54,7 @@ export async function loadAppData(userId, coords = null) {
     p_lat: coords?.latitude ?? null,
     p_lng: coords?.longitude ?? null
   };
-  const [profile, places, groups, members, runs, requests, nearby, listItems, messages, earnings] = await Promise.all([
+  const [profile, places, groups, members, runs, requests, nearby, listItems, messages, earnings, payments, payout] = await Promise.all([
     supabase.from("profiles").select(PROFILE_SELECT).eq("id", userId).single(),
     supabase.from("places").select("*").order("name"),
     supabase.from("groups").select("id, name, kind, invite_code, place_id").order("name"),
@@ -64,9 +64,12 @@ export async function loadAppData(userId, coords = null) {
     supabase.rpc("open_requests_nearby", nearbyParams).select(REQUEST_SELECT).limit(50),
     supabase.from("list_items").select("*").order("created_at"),
     supabase.from("messages").select("id, group_id, sender_id, body, created_at, sender:profiles!sender_id(display_name)").order("created_at", { ascending: false }).limit(200),
-    supabase.rpc("my_earnings")
+    supabase.rpc("my_earnings"),
+    supabase.from("payment_settings").select("required, delivery_fee_cents, max_budget_cents").maybeSingle(),
+    supabase.from("payout_accounts").select("transfers_active").eq("user_id", userId).maybeSingle()
   ]);
 
+  // Payment tables are optional: if they're missing (migration not applied yet), payments stay off.
   const results = { profile, places, groups, members, runs, requests, nearby, listItems, messages, earnings };
   for (const [name, result] of Object.entries(results)) {
     if (result.error) throw new Error(`${name}: ${result.error.message}`);
@@ -81,7 +84,9 @@ export async function loadAppData(userId, coords = null) {
     nearby: nearby.data ?? [],
     listItems: listItems.data ?? [],
     messages: messages.data ?? [],
-    earnings: earnings.data?.[0] ?? { completed_count: 0, earned_cents: 0, active_count: 0 }
+    earnings: earnings.data?.[0] ?? { completed_count: 0, earned_cents: 0, active_count: 0 },
+    payments: payments.data ?? { required: false, delivery_fee_cents: 0, max_budget_cents: 0 },
+    payout: payout.data
   };
 }
 
@@ -109,14 +114,35 @@ export async function cancelRequest(requestId) {
   return one(await supabase.rpc("cancel_request", { p_request_id: requestId }));
 }
 
-export async function requestFromRun(runId, title, details, budgetCents) {
+export async function requestFromRun(runId, title, details, budgetCents, paymentIntentId = null) {
   return one(await supabase.rpc("request_from_run", {
     p_run_id: runId,
     p_title: title,
     p_details: details,
-    p_merchandise_budget_cents: budgetCents
+    p_merchandise_budget_cents: budgetCents,
+    p_payment_intent_id: paymentIntentId
   }));
 }
+
+export async function setItemCost(requestId, cents) {
+  return one(await supabase.rpc("set_item_cost", { p_request_id: requestId, p_item_cents: cents }));
+}
+
+// Stripe calls go through the payments Edge Function; the secret key never reaches the browser.
+async function payments(action, body = {}) {
+  const { data, error } = await supabase.functions.invoke("payments", { body: { action, ...body } });
+  if (error) {
+    const detail = await error.context?.json?.().catch(() => null);
+    throw new Error(detail?.error || error.message);
+  }
+  return data;
+}
+
+export const startPayment = budgetCents => payments("start", { budget_cents: budgetCents });
+export const confirmPayment = paymentIntentId => payments("confirm", { payment_intent_id: paymentIntentId });
+export const startPayoutOnboarding = () => payments("onboard");
+export const refreshPayoutStatus = () => payments("payout_status");
+export const openPayoutDashboard = () => payments("dashboard");
 
 export async function updateRunStatus(runId, status) {
   return one(await supabase.from("runs").update({ status }).eq("id", runId));
