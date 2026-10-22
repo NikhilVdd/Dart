@@ -1,0 +1,12 @@
+{
+  "name": "dart-matching",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Detour-based runner matching prototype for Dart (no dependencies, no network)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "match": "node bin/run-matching.mjs"
+  }
+}

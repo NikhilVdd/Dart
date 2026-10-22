@@ -1,0 +1,73 @@
+{
+  "name": "Berkeley, weekday 5 PM",
+  "description": "Coordinates come from supabase/migrations/20261011000004 and 20261015000014 (Apple Maps aligned). People are fictional.",
+  "now": "2026-10-21T17:00:00-07:00",
+  "places": {
+    "bart": { "label": "Downtown Berkeley BART", "lat": 37.8701, "lng": -122.2681 },
+    "moffitt": { "label": "Moffitt Library", "lat": 37.8726, "lng": -122.2607 },
+    "doe": { "label": "Doe Library", "lat": 37.87219, "lng": -122.25951 },
+    "sather": { "label": "Sather Gate", "lat": 37.8703, "lng": -122.2595 },
+    "haas": { "label": "Haas Business Library", "lat": 37.87148, "lng": -122.25374 },
+    "durant": { "label": "The Durant", "lat": 37.8679, "lng": -122.2589 },
+    "blackwell": { "label": "Blackwell Hall", "lat": 37.8672, "lng": -122.2593 },
+    "unit2": { "label": "Unit 2 · Cunningham Hall", "lat": 37.8660, "lng": -122.2555 },
+    "idasproul": { "label": "Ida Sproul Hall", "lat": 37.8675, "lng": -122.2547 },
+    "bowditch": { "label": "Channing-Bowditch Apartments", "lat": 37.86737, "lng": -122.25730 },
+    "evans": { "label": "Evans Manor", "lat": 37.86508, "lng": -122.26234 },
+    "ihouse": { "label": "International House", "lat": 37.86970, "lng": -122.25150 },
+    "clarkkerr": { "label": "Clark Kerr Campus", "lat": 37.86432, "lng": -122.24666 },
+    "foothill": { "label": "Foothill", "lat": 37.87525, "lng": -122.25600 },
+    "rumi": { "label": "Rumi (MLK Jr Way)", "lat": 37.87089, "lng": -122.27266 }
+  },
+  "stores": [
+    { "id": "TARGET", "name": "Target (Shattuck Ave)", "lat": 37.8701, "lng": -122.2682 },
+    { "id": "CVS", "name": "CVS (Shattuck Ave)", "lat": 37.8676, "lng": -122.2679 },
+    { "id": "TRADERJOES", "name": "Trader Joe's", "lat": 37.8716, "lng": -122.2730 },
+    { "id": "WALGREENS", "name": "Walgreens (Telegraph Ave)", "lat": 37.86838, "lng": -122.25924 },
+    { "id": "SEVENELEVEN", "name": "7-Eleven (Telegraph Ave)", "lat": 37.86302, "lng": -122.25842 },
+    { "id": "ASUC", "name": "Cal Student Store (ASUC)", "lat": 37.86892, "lng": -122.25945 },
+    { "id": "BEARMARKET", "name": "Bear Market (Unit 3)", "lat": 37.86734, "lng": -122.26008 }
+  ],
+  "runners": [
+    { "id": "R1", "name": "Maya", "start": "bart", "destination": "durant",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T18:00:00-07:00", "maxDetourMinutes": 10 },
+    { "id": "R2", "name": "Jordan", "start": "moffitt", "destination": "clarkkerr",
+      "departsAt": "2026-10-21T17:05:00-07:00", "availableUntil": "2026-10-21T18:30:00-07:00", "maxDetourMinutes": 10 },
+    { "id": "R3", "name": "Devon", "start": "TARGET", "destination": "unit2",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T17:50:00-07:00", "maxDetourMinutes": 12 },
+    { "id": "R4", "name": "Priya", "start": "sather", "destination": "idasproul",
+      "departsAt": "2026-10-21T17:10:00-07:00", "availableUntil": "2026-10-21T18:00:00-07:00", "maxDetourMinutes": 6 },
+    { "id": "R5", "name": "Sam", "start": "rumi", "destination": "unit2",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T18:15:00-07:00", "maxDetourMinutes": 15 },
+    { "id": "R6", "name": "Alex", "start": "doe", "destination": "foothill",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T17:45:00-07:00", "maxDetourMinutes": 5 },
+    { "id": "R7", "name": "Noor", "start": "evans", "destination": "ihouse",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T18:00:00-07:00", "maxDetourMinutes": 10,
+      "status": "offline" },
+    { "id": "R8", "name": "Theo", "start": "TRADERJOES", "destination": "bowditch",
+      "departsAt": "2026-10-21T17:15:00-07:00", "availableUntil": "2026-10-21T18:45:00-07:00", "maxDetourMinutes": 15 },
+    { "id": "R9", "name": "Riley", "start": "haas", "destination": "bart",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T17:40:00-07:00", "maxDetourMinutes": 15 },
+    { "id": "R10", "name": "Jamie", "start": "clarkkerr", "destination": "moffitt",
+      "departsAt": "2026-10-21T18:20:00-07:00", "availableUntil": "2026-10-21T19:30:00-07:00", "maxDetourMinutes": 10 },
+    { "id": "R11", "name": "Kai", "start": "blackwell", "destination": "moffitt",
+      "departsAt": "2026-10-21T17:00:00-07:00", "availableUntil": "2026-10-21T18:30:00-07:00", "maxDetourMinutes": 10,
+      "commitments": [
+        { "requestId": "Q0 (earlier textbook run)", "pickupAt": "2026-10-21T17:05:00-07:00", "dropoffAt": "2026-10-21T17:30:00-07:00" }
+      ] }
+  ],
+  "requests": [
+    { "id": "Q1", "item": "USB-C charger", "storeOptions": ["TARGET", "CVS", "WALGREENS"], "dropoff": "unit2",
+      "deliverBy": "2026-10-21T17:45:00-07:00" },
+    { "id": "Q2", "item": "Tylenol", "storeOptions": ["CVS", "WALGREENS"], "dropoff": "idasproul",
+      "deliverBy": "2026-10-21T17:40:00-07:00" },
+    { "id": "Q3", "item": "Trader Joe's groceries", "storeOptions": ["TRADERJOES"], "dropoff": "evans",
+      "deliverBy": "2026-10-21T18:15:00-07:00" },
+    { "id": "Q4", "item": "Exam blue books", "storeOptions": ["ASUC"], "dropoff": "moffitt",
+      "deliverBy": "2026-10-21T17:30:00-07:00" },
+    { "id": "Q5", "item": "Late-night snacks", "storeOptions": ["BEARMARKET", "SEVENELEVEN"], "dropoff": "clarkkerr",
+      "deliverBy": "2026-10-21T18:00:00-07:00" },
+    { "id": "Q6", "item": "HDMI cable", "storeOptions": ["TARGET"], "dropoff": "foothill",
+      "deliverBy": "2026-10-21T17:15:00-07:00" }
+  ]
+}
