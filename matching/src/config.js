@@ -5,7 +5,8 @@ export const DEFAULT_CONFIG = Object.freeze({
   // straight-line metres × 1.3 street-grid factor, at 80 m/min (≈ 4.8 km/h).
   travel: Object.freeze({
     roadFactor: 1.3,
-    metersPerMinute: 80
+    metersPerMinute: 80,
+    bikeMetersPerMinute: 250  // ≈ 15 km/h, used when the simulated provider runs in "bike" mode
   }),
 
   // Fixed time spent at each stop, also matching detour_minutes() in SQL.

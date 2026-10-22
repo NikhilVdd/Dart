@@ -1,8 +1,12 @@
 #!/usr/bin/env node
-// Runs batch matching on a scenario with the simulated detour provider and prints the result.
+// Runs batch matching on a scenario and prints the result. Matching code is the same for every
+// provider; only the detour provider passed to matchRequests() changes.
 //
 // Usage (from matching/):
-//   node bin/run-matching.mjs                         # scenarios/berkeley.json
+//   node bin/run-matching.mjs                         # scenarios/berkeley.json, simulated provider
+//   node bin/run-matching.mjs --provider osrm         # real OSRM walking routes (network)
+//   node bin/run-matching.mjs --provider osrm --replay test/fixtures/osrm-berkeley-foot.json   # recorded, offline
+//   node bin/run-matching.mjs --mode bike             # cycling (simulated or osrm)
 //   node bin/run-matching.mjs --decline Q1:R3         # then R3 declines Q1 (repeatable)
 //   node bin/run-matching.mjs --offline R1            # then R1 goes offline (repeatable)
 //   node bin/run-matching.mjs --scenario other.json --json
@@ -12,7 +16,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
-  createSimulatedProvider, declineAssignment, DEFAULT_CONFIG, markRunnerOffline, matchRequests, resolveScenario
+  createOsrmProvider, createReplayFetch, createSimulatedProvider, declineAssignment, DEFAULT_CONFIG,
+  markRunnerOffline, matchRequests, resolveScenario
 } from "../src/index.js";
 import { fmtClock, fmtMin } from "../src/time.js";
 
@@ -20,6 +25,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const { values: args } = parseArgs({
   options: {
     scenario: { type: "string", default: path.join(here, "../scenarios/berkeley.json") },
+    provider: { type: "string", default: "simulated" },
+    mode: { type: "string", default: "foot" },
+    replay: { type: "string" },
     decline: { type: "string", multiple: true, default: [] },
     offline: { type: "string", multiple: true, default: [] },
     json: { type: "boolean", default: false },
@@ -28,12 +36,32 @@ const { values: args } = parseArgs({
 });
 
 if (args.help) {
-  console.log("Usage: node bin/run-matching.mjs [--scenario file.json] [--decline REQ:RUNNER]... [--offline RUNNER]... [--json]");
+  console.log("Usage: node bin/run-matching.mjs [--scenario file.json] [--provider simulated|osrm] [--mode foot|bike]\n"
+    + "                                [--replay recording.json] [--decline REQ:RUNNER]... [--offline RUNNER]... [--json]");
   process.exit(0);
 }
 
+function makeProvider() {
+  if (args.provider === "simulated") {
+    if (args.replay) throw new Error("--replay only applies to --provider osrm");
+    return createSimulatedProvider({ mode: args.mode });
+  }
+  if (args.provider === "osrm") {
+    if (!args.replay) {
+      return createOsrmProvider({ mode: args.mode, headers: { "User-Agent": "dart-matching-prototype" } });
+    }
+    const recording = JSON.parse(fs.readFileSync(args.replay, "utf8"));
+    if (recording.mode && recording.mode !== args.mode) {
+      throw new Error(`${args.replay} was recorded for --mode ${recording.mode}, not ${args.mode}`);
+    }
+    // Replayed responses need no throttling.
+    return createOsrmProvider({ mode: args.mode, baseUrl: recording.baseUrl, fetch: createReplayFetch(recording), minIntervalMs: 0, concurrency: 8 });
+  }
+  throw new Error(`--provider must be simulated or osrm, got "${args.provider}"`);
+}
+
 const scenario = resolveScenario(JSON.parse(fs.readFileSync(args.scenario, "utf8")));
-const provider = createSimulatedProvider();
+const provider = makeProvider();
 const clock = iso => fmtClock(iso, DEFAULT_CONFIG.timeZone);
 
 let result = await matchRequests({ ...scenario, provider });
@@ -61,7 +89,7 @@ const name = id => (runnersById.get(id)?.name ? `${id} ${runnersById.get(id).nam
 const pad = (s, n) => String(s).padEnd(n);
 
 console.log(`Dart matching · ${scenario.name} · now ${clock(scenario.now)}`);
-console.log(`Provider: ${provider.name} (${provider.description})`);
+console.log(`Provider: ${provider.name} (${provider.description})${args.replay ? `, replaying ${path.basename(args.replay)}` : ""}`);
 console.log(`${scenario.runners.length} runners · ${scenario.requests.length} requests · ${scenario.stores.length} stores`);
 
 function printStep({ title, result }, index) {
@@ -99,7 +127,12 @@ function printStep({ title, result }, index) {
       console.log(`  ${pad(label, 26)}${pad("—", 14)}${r.reasonCode}`);
     }
   }
-  if (result.errors.length) console.log(`\nRouting errors: ${result.errors.length}`);
+  if (result.errors.length) {
+    console.log(`\nRouting errors: ${result.errors.length} pairs could not be routed (shown as ROUTING_ERROR above)`);
+  }
 }
 
 steps.forEach(printStep);
+if (provider.stats) {
+  console.log(`\nRouting calls: ${provider.stats.requests} requests, ${provider.stats.cacheHits} cache hits, ${provider.stats.failures} failures`);
+}

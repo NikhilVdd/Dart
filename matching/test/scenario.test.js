@@ -58,6 +58,22 @@ describe("simulated provider", () => {
     }
   });
 
+  test("bike mode uses the cycling speed", async () => {
+    const leg = await straightLineRoute({ roadFactor: 1.3, metersPerMinute: 250 })(place("moffitt"), place("idasproul"));
+    const bike = createSimulatedProvider({ mode: "bike" });
+    assert.match(bike.description, /250 m\/min/);
+    assert.equal(bike.mode, "bike");
+    assert.ok(leg.durationMin < 5);
+    assert.throws(() => createSimulatedProvider({ mode: "car" }), /Unknown travel mode/);
+  });
+
+  test("parseLatLng accepts typed coordinates and rejects anything else", async () => {
+    const { parseLatLng } = await import("../src/geo.js");
+    assert.deepEqual(parseLatLng("37.8726, -122.2607"), { lat: 37.8726, lng: -122.2607 });
+    assert.deepEqual(parseLatLng("  37.8726 -122.2607 "), { lat: 37.8726, lng: -122.2607 });
+    for (const bad of ["", "37.87", "north, west", "91, 0", "0, 181", "1, 2, 3", null]) assert.equal(parseLatLng(bad), null, String(bad));
+  });
+
   test("config changes the travel model", async () => {
     const fast = createSimulatedProvider({ config: { ...DEFAULT_CONFIG, travel: { roadFactor: 1, metersPerMinute: 100 } } });
     assert.match(fast.description, /× 1 at 100 m\/min/);

@@ -20,13 +20,16 @@ export function straightLineRoute({ roadFactor, metersPerMinute } = DEFAULT_CONF
   };
 }
 
-/** @param {{ config?: typeof DEFAULT_CONFIG }} [options] */
-export function createSimulatedProvider({ config = DEFAULT_CONFIG } = {}) {
-  const { roadFactor, metersPerMinute } = config.travel;
-  return createDetourProvider({
+/** @param {{ config?: typeof DEFAULT_CONFIG, mode?: "foot" | "bike" }} [options] */
+export function createSimulatedProvider({ config = DEFAULT_CONFIG, mode = "foot" } = {}) {
+  if (mode !== "foot" && mode !== "bike") throw new RangeError(`Unknown travel mode "${mode}" (use foot or bike)`);
+  const { roadFactor } = config.travel;
+  const metersPerMinute = mode === "bike" ? config.travel.bikeMetersPerMinute : config.travel.metersPerMinute;
+  const provider = createDetourProvider({
     name: "simulated",
     description: `straight line × ${roadFactor} at ${metersPerMinute} m/min`,
-    route: straightLineRoute(config.travel),
+    route: straightLineRoute({ roadFactor, metersPerMinute }),
     config
   });
+  return Object.assign(provider, { mode });
 }

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#080a08" />
+    <!-- Dev-only prototype: not part of the production build (only index.html is built). -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' ws://127.0.0.1:* ws://localhost:* https://routing.openstreetmap.de; base-uri 'self'; form-action 'self'" />
+    <title>Dart matching lab</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  </head>
+  <body>
+    <header class="lab-top">
+      <div class="brand"><img src="./icons/icon-192.png" alt="" width="28" height="28" /><span>Dart</span><b>Matching lab</b></div>
+      <span class="dev-badge">Dev prototype · not in the live app</span>
+    </header>
+
+    <main class="lab">
+      <aside class="panel" aria-label="Controls and results">
+        <div class="tabs" role="tablist" aria-label="View">
+          <button role="tab" id="tab-detour" aria-controls="view-detour" aria-selected="true">One detour</button>
+          <button role="tab" id="tab-match" aria-controls="view-match" aria-selected="false" tabindex="-1">Full matching</button>
+        </div>
+
+        <section id="view-detour" role="tabpanel" aria-labelledby="tab-detour">
+          <div class="row two">
+            <label class="field">Travel
+              <select id="mode">
+                <option value="foot">Walking</option>
+                <option value="bike">Cycling</option>
+              </select>
+            </label>
+            <label class="field">Routing
+              <select id="routing">
+                <option value="osrm">Real streets (OSM)</option>
+                <option value="simulated">Simulated (straight line)</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="loc" data-point="start">
+            <div class="loc-head"><span class="pin pin-start" aria-hidden="true">S</span><h2>Runner starts at</h2></div>
+            <div class="loc-controls">
+              <select class="loc-preset" aria-label="Runner start preset"></select>
+              <button type="button" class="ghost" data-action="geolocate">Use my location</button>
+              <button type="button" class="ghost" data-action="pick">Pick on map</button>
+            </div>
+            <form class="loc-manual" data-action="manual"><input aria-label="Runner start coordinates" placeholder="lat, lng" inputmode="decimal" /><button class="ghost">Set</button></form>
+            <p class="loc-value" aria-live="polite"></p>
+          </div>
+
+          <div class="loc" data-point="destination">
+            <div class="loc-head"><span class="pin pin-dest" aria-hidden="true">E</span><h2>Runner is heading to</h2></div>
+            <div class="loc-controls">
+              <select class="loc-preset" aria-label="Runner destination preset"></select>
+              <button type="button" class="ghost" data-action="pick">Pick on map</button>
+            </div>
+            <form class="loc-manual" data-action="manual"><input aria-label="Runner destination coordinates" placeholder="lat, lng" inputmode="decimal" /><button class="ghost">Set</button></form>
+            <p class="loc-value" aria-live="polite"></p>
+          </div>
+
+          <div class="loc" data-point="dropoff">
+            <div class="loc-head"><span class="pin pin-drop" aria-hidden="true">D</span><h2>Deliver to</h2></div>
+            <div class="loc-controls">
+              <select class="loc-preset" aria-label="Drop-off preset"></select>
+              <button type="button" class="ghost" data-action="pick">Pick on map</button>
+            </div>
+            <form class="loc-manual" data-action="manual"><input aria-label="Drop-off coordinates" placeholder="lat, lng" inputmode="decimal" /><button class="ghost">Set</button></form>
+            <p class="loc-value" aria-live="polite"></p>
+          </div>
+
+          <fieldset class="stores">
+            <legend><span class="pin pin-store" aria-hidden="true">$</span>Stores that sell it</legend>
+            <div id="store-options"></div>
+          </fieldset>
+
+          <div class="row three">
+            <label class="field">Max detour<span class="unit"><input id="max-detour" type="number" min="0" max="120" value="10" /> min</span></label>
+            <label class="field">Deliver within<span class="unit"><input id="deliver-within" type="number" min="1" max="600" value="45" /> min</span></label>
+            <label class="field">Runner free for<span class="unit"><input id="available-for" type="number" min="1" max="600" value="60" /> min</span></label>
+          </div>
+
+          <button id="compute" class="primary">Compute detour</button>
+          <div id="detour-result" aria-live="polite"></div>
+        </section>
+
+        <section id="view-match" role="tabpanel" aria-labelledby="tab-match" hidden>
+          <p class="lede">Runs batch matching on <code>matching/scenarios/berkeley.json</code>: 11 runners, 6 requests, 7 stores, at 5:00 PM.</p>
+          <div class="row two">
+            <label class="field">Routing
+              <select id="match-routing">
+                <option value="recorded">Real streets, recorded (instant)</option>
+                <option value="osrm">Real streets, live (≈ 3 min)</option>
+                <option value="simulated">Simulated (instant)</option>
+              </select>
+            </label>
+            <label class="field">Travel
+              <select id="match-mode">
+                <option value="foot">Walking</option>
+                <option value="bike">Cycling</option>
+              </select>
+            </label>
+          </div>
+          <button id="run-match" class="primary">Run matching</button>
+          <p id="match-progress" class="progress-note" aria-live="polite"></p>
+          <div id="match-result"></div>
+        </section>
+      </aside>
+
+      <div class="map-wrap">
+        <div id="map" role="application" aria-label="Map of routes"></div>
+        <div id="pick-banner" class="pick-banner" hidden></div>
+        <div class="legend" id="legend" aria-label="Legend">
+          <span><i class="line line-original"></i>Original route</span>
+          <span><i class="line line-modified"></i>With pickup and drop-off</span>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="./prototype/matching-lab.js"></script>
+  </body>
+</html>

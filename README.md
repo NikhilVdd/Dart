@@ -7,5 +7,6 @@ it comes from and who is already heading that way.
 - `supabase/`: backend (Postgres schema, row level security, matching engine, auth, realtime). See `supabase/README.md`.
 - `web-preview/`: production installable web app (PWA) using the same Supabase accounts and data.
   See `web-preview/README.md`.
-- `matching/`: batch matching prototype (shared detour contract, simulated provider, assignment and
-  explanations; no dependencies). See `matching/README.md` and `matching/HANDOFF.md`.
+- `matching/`: batch matching prototype (shared detour contract, simulated and real OSM routing
+  providers, assignment and explanations; no dependencies). A dev-only map page lives at
+  `web-preview/matching.html`. See `matching/README.md` and `matching/HANDOFF.md`.

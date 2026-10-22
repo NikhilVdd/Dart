@@ -14,6 +14,7 @@
     "@supabase/supabase-js": "2.76.1"
   },
   "devDependencies": {
+    "leaflet": "1.9.4",
     "vite": "7.1.10"
   }
 }

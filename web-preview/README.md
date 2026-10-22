@@ -51,6 +51,15 @@ native app with ActivityKit and therefore an Apple Developer account.
 the right screen when one is tapped (`./?request=<id>`, `./?run=<id>`, `./?tab=groups&group=<id>`).
 The backend side (outbox, triggers, `send-push` Edge Function, setup steps) is in `supabase/README.md`.
 
+## Matching lab (dev only)
+
+`matching.html` and `prototype/` are a development-only map page for the matching prototype in
+`../matching` (one runner's detour on real streets, and full batch matching with explanations).
+Open it at `http://127.0.0.1:5173/matching.html` while `npm run dev` is running.
+
+It is not built or deployed: `vite build` only builds `index.html`, and Leaflet is a dev dependency.
+`vite.config.js` lets the dev server read `../matching`. Details are in `../matching/README.md`.
+
 ## Current product boundary
 
 Rewards and merchandise budgets are recorded by the backend, but payments are not charged. A

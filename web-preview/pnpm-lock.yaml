@@ -12,6 +12,9 @@ importers:
         specifier: 2.76.1
         version: 2.76.1
     devDependencies:
+      leaflet:
+        specifier: 1.9.4
+        version: 1.9.4
       vite:
         specifier: 7.1.10
         version: 7.1.10(@types/node@26.6.5)
@@ -372,6 +375,9 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  leaflet@1.9.4:
+    resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==}
+
   nanoid@3.3.20:
     resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
@@ -720,6 +726,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  leaflet@1.9.4: {}
 
   nanoid@3.3.20: {}
 

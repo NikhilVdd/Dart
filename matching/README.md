@@ -3,14 +3,59 @@
 Given delivery requests and runners who are already making a trip, decide which runner carries
 each request with the least disruption to their trip, and say why in plain English.
 
-Plain JavaScript (ES modules), no dependencies, no network. Matching only ever talks to a
-**detour provider** through one interface. This stage ships a deterministic simulated provider;
-the real routing provider plugs into the same interface (see [`HANDOFF.md`](HANDOFF.md)).
+Plain JavaScript (ES modules), no dependencies. Matching only ever talks to a **detour provider**
+through one interface, and there are two:
+- **simulated:** straight lines, deterministic, no network. Used for tests and development.
+- **osrm:** real walking or cycling routes from the free OpenStreetMap routing servers.
+
+A dev-only map page in `web-preview/matching.html` shows both (see [Map page](#map-page)).
+[`HANDOFF.md`](HANDOFF.md) summarises the current state and what's left.
 
 The Supabase matching in `supabase/migrations/20261011000003_rpc_and_matching.sql`
 (`detour_minutes`, `match_runs_for_request`) is unchanged. This prototype uses the same walking
 model and extends it with batch assignment, deadlines, availability, multi-store requests,
 declines and explanations.
+
+## How it meets the two project briefs
+
+**Matching prototype**
+
+| Requirement | Where |
+| --- | --- |
+| Inputs: requests (store, drop-off, delivery time); runners (start, destination, availability) | `DeliveryRequest` and `Runner` in `src/contract.js`; `scenarios/berkeley.json` |
+| Runner eligibility (availability, timing, feasibility) | `evaluatePair()` in `src/match.js`, `checkFeasibility()` in `src/detour.js`; each rejection has a reason code |
+| Ranking by detour and other factors, choosing the best runner | `src/scoring.js` (formula under [Ranking](#ranking)) |
+| Many requests at once, not one at a time | Optimal assignment over all pairs, `src/assignment.js` ([Many requests at once](#many-requests-at-once)) |
+| No suitable runner | Unmatched requests carry a reason (`NO_ELIGIBLE_RUNNER`, `RUNNERS_ASSIGNED_ELSEWHERE`, …) and a per-runner explanation |
+| Reassignment after a decline | `declineAssignment()`; `--decline Q1:R5` in the CLI; "declines" button on the map page |
+| No overlapping or conflicting assignments | One request per trip, plus the `OVERLAPPING_ASSIGNMENT` rule against existing commitments |
+| ≥ 10 runners, ≥ 5 requests | 11 runners, 6 requests, 7 stores |
+| Automated tests, normal and edge cases | 87 tests in `test/` (list under [Tests](#tests)) |
+| Run it and see who's selected and why | `npm run match` prints each choice with a plain-English explanation of every runner |
+
+**Routing and detour prototype**
+
+| Requirement | Where |
+| --- | --- |
+| Browser location with permission; enter or simulate a start instead | Map page: **Use my location**; if denied, preset, **Pick on map**, or typed `lat, lng` |
+| Original route from start to destination | `createDetourProvider()` routes start → destination with the chosen provider |
+| Modified route through the store and drop-off | start → store → drop-off → destination, with shopping and hand-off time |
+| Added time and distance | `addedDurationMin`, `addedDistanceM` (modified − original) |
+| Smallest-detour store when several sell the item | `chooseStore()`; every option is listed in `storeCandidates` |
+| Configurable max detour and a feasibility verdict | `Runner.maxDetourMinutes` (a field on the map page); `feasible` + `reasonCode` |
+| Structured output usable by matching | `DetourEstimate` — the same object matching consumes (shown under **Show the structured output** on the map page) |
+| Map or route visualisation | `web-preview/matching.html` (Leaflet + OpenStreetMap) |
+| ≥ 5 test scenarios | 26 in `test/osrm.test.js` plus 14 in `test/detour.test.js`, all offline |
+| Free mapping, no subscriptions; no live tracking | Free OSRM servers and OSM tiles; location is read once, on request |
+
+**"Use Dart's existing backend language where practical."** Dart's backend is Supabase:
+Postgres SQL plus Edge Functions on Deno. The matching logic needs optimal assignment,
+decline/re-solve state, and HTTP routing calls, and those don't fit well in SQL. So it's plain
+JavaScript with no dependencies, which runs unchanged in a Supabase Edge Function, the
+browser (the map page imports it directly) and Node/Bun. Deno 2.1, the runtime Edge Functions
+use, was checked to import it and produce the same matches. The walking model is the same as
+the existing SQL `detour_minutes()`, and the data model maps onto the existing tables (see
+[Data model](#data-model)).
 
 ## Commands
 
@@ -22,9 +67,18 @@ node --test --test-name-pattern "decline" test/*.test.js   # tests whose name ma
 npm run match                              # match scenarios/berkeley.json and print the result
 node bin/run-matching.mjs --decline Q1:R5 --offline R8     # then R5 declines Q1, then R8 goes offline
 node bin/run-matching.mjs --scenario my.json --json        # another scenario, JSON output
+
+# Real routes (OSRM)
+node bin/run-matching.mjs --provider osrm                  # live walking routes, ≈ 4 min (1 request/s)
+node bin/run-matching.mjs --provider osrm --mode bike      # live cycling routes
+node bin/run-matching.mjs --provider osrm --replay test/fixtures/osrm-berkeley-foot.json   # recorded, offline, instant
+node bin/run-matching.mjs --mode bike                      # simulated cycling (250 m/min)
+node bin/record-routes.mjs                                 # re-record the fixture (network, ≈ 4 min)
 ```
 
-With Bun: `bun test`, `bun test -t decline`, `bun bin/run-matching.mjs`.
+With Bun: `bun test`, `bun test -t decline`, `bun bin/run-matching.mjs`. Bun also runs the map
+page: `cd web-preview && bun --bun run dev`. That's useful on a Mac whose Node is an Intel build
+without Rosetta ("bad CPU type in executable").
 
 ## Layout
 
@@ -33,6 +87,10 @@ With Bun: `bun test`, `bun test -t decline`, `bun bin/run-matching.mjs`.
 | `src/contract.js` | The shared contract: `Runner`, `DeliveryRequest`, `Store`, `DetourEstimate`, `DetourProvider` (JSDoc), `REASON` codes, validators |
 | `src/detour.js` | Shared store selection and feasibility rules, and `createDetourProvider({ route })`, which every provider is built with |
 | `src/providers/simulated.js` | Straight-line provider for development and tests |
+| `src/providers/osrm.js` | Real provider: OSRM route function with caching, rate limiting, retries and clear errors |
+| `src/providers/recording.js` | Record live routing responses and replay them offline |
+| `test/fixtures/osrm-berkeley-foot.json` | Recorded real walking routes for every leg of the Berkeley scenario |
+| `bin/run-matching.mjs`, `bin/record-routes.mjs` | CLI for matching, and the fixture recorder |
 | `src/scoring.js` | Ranking score and tie-breaks |
 | `src/assignment.js` | Optimal assignment (Hungarian algorithm) |
 | `src/match.js` | `matchRequests()`, `declineAssignment()`, `markRunnerOffline()` |
@@ -63,6 +121,70 @@ Times are ISO strings; durations are minutes; distances are metres.
 - Handling: **3 min** shopping at the store and **2 min** hand-off at the drop-off, the same as `detour_minutes()`.
 - `pickupAt = max(departsAt, now) + leg 1 + 3`, `dropoffAt = pickupAt + leg 2 + 2`, `tripEndAt = dropoffAt + leg 3`.
 - Added time and distance = modified − original. Values are reported, and compared, at 0.1 precision.
+- `--mode bike` uses 250 m/min (≈ 15 km/h) with the same road factor.
+
+## Real routes (OSRM provider)
+
+`createOsrmProvider({ mode: "foot" | "bike" })` routes each leg with
+[OSRM](https://project-osrm.org/) on the free FOSSGIS servers at `routing.openstreetmap.de`
+(`routed-foot` / `routed-bike`, no API key). It supplies only the route function; store selection,
+feasibility and the estimate shape are the same shared code the simulated provider uses. So
+matching runs unchanged with either provider.
+
+- **Caching:** each distinct leg (from → to, by mode) is requested once per provider. Concurrent
+  identical requests share one call. A leg OSRM says it can't route (`NoRoute`) stays cached as
+  a failure for the run. A failure caused by service trouble isn't cached, so a later run can
+  retry it. Reuse one provider across runs to keep the cache. Cached legs are frozen, so no
+  caller can change them for everyone else.
+- **Being a good citizen:** a burst during development got this machine's IP blocked for a few
+  minutes. These limits keep that from happening again:
+  - One request at a time, at least 1 s apart (`minIntervalMs`), retries included.
+  - HTTP 429/502/503/504 are retried twice with backoff, honouring `Retry-After`. If the server asks
+    for more than 30 s, the leg fails instead of stalling the run.
+  - After **3 refusals in a row** (403, 429, 5xx, network errors, timeouts), all routing pauses
+    for 60 s. Every leg then fails fast with "routing paused…" instead of hammering a server that
+    is refusing us.
+  - Throttling settings are validated, so a typo can't switch throttling off.
+- **Failures:** any failure throws a `RoutingError` with the reason. That covers HTTP errors, `NoRoute`,
+  missing numbers, invalid JSON, network errors, and timeouts (15 s, covering the whole response,
+  not just its start). Matching turns it into `ROUTING_ERROR` for that pair only and lists it in
+  `result.errors`. A failure is never turned into a guessed route.
+- **Zero-length legs** (a runner who starts at the store) need no request.
+- **Geometry** is the full street polyline (`overview=full`) as `[{ lat, lng }]`.
+- **Offline tests:** `test/osrm.test.js` uses fake responses for every failure case, and the
+  recorded Berkeley routes for end-to-end matching. A replayed fetch throws for any URL that isn't
+  in the recording, so the tests can't reach the network.
+
+A full Berkeley run needs about 150 distinct legs, which takes about 4 minutes live and is instant
+replayed. On campus, real walking routes come out longer than the straight-line estimate. For
+example, Moffitt → Ida Sproul is 1,030 m and 13.7 min by OSRM, against 12.6 min simulated.
+
+## Map page
+
+`web-preview/matching.html` is a dev-only page served by web-preview's Vite dev server. It is not
+part of the production build (only `index.html` is built), and it never reaches the live site.
+
+```sh
+cd web-preview && npm install && npm run dev    # then open http://127.0.0.1:5173/matching.html
+```
+
+- **One detour:** set the runner's start with **Use my location**. If permission is denied, use a
+  preset, **Pick on map**, or typed `lat, lng`. Then set the destination and drop-off the same way,
+  tick the stores that sell the item, and pick walking or cycling and real or simulated routing.
+  - The map draws the original route (blue, dashed) and the route with the delivery (orange), with
+    markers for start, chosen store, other store options, drop-off and destination.
+  - The panel shows original, modified and added distance and time, the chosen store, every store
+    option, and feasible yes/no with the reason.
+- **Full matching:** runs `matchRequests()` on the Berkeley scenario with recorded real routes
+  (instant), live routes, or simulated routes. It shows which runner got which request, each with
+  its explanation. **Declines** and **goes offline** re-solve in place and highlight what changed.
+  Click a card or a route to see that delivery's routes in detail.
+
+The recorded routes are picked up when the dev server starts. After re-recording, restart
+`npm run dev`.
+
+Leaflet 1.9.4 draws the map, a dev dependency of web-preview, with tiles from
+`tile.openstreetmap.org`. The page has its own CSP, which allows only those tiles and the routing server.
 
 ## Store selection and feasibility
 
@@ -165,9 +287,24 @@ Unmatched requests get `NO_ELIGIBLE_RUNNER`, `RUNNERS_ASSIGNED_ELSEWHERE`, `ALL_
 `DEADLINE_PASSED`, `NO_STORE_OPTIONS`, or `ROUTING_ERROR` (every runner's routing failed, so it's
 an outage rather than a "no").
 
+## Tests
+
+87 tests, none of which use the network (`npm test`, or `bun test`):
+
+| File | Covers |
+| --- | --- |
+| `test/match.test.js` (28) | Simple match; several requests competing for one runner; no eligible runner; each rejection reason; decline → next runner; decline with no backup; a decline that moves another assignment only when needed; offline runner; overlapping commitments; multi-store; deadline already passed / too soon; ranking factors and tie-breaks; routing failures; every runner explained |
+| `test/detour.test.js` (14) | Route maths and times, multi-store choice, each feasibility rule and its order, the max-detour boundary, no stores |
+| `test/osrm.test.js` (26) | OSRM URLs and parsing, caching, retries, timeouts, the pause after repeated refusals, every failure type, the request limiter, and full matching on recorded real Berkeley routes. Also the CLI provider switch |
+| `test/assignment.test.js` (8) | The assignment solver against brute force on 300 random cases, plus edge cases |
+| `test/scenario.test.js` (11) | Scenario size and expected outcome, determinism, agreement with the SQL `detour_minutes()`, cycling mode, typed coordinates |
+
 ## Assumptions
 
-- Runners walk. Cycling is a config change (`travel.metersPerMinute`).
+- Runners walk by default; `--mode bike` (or `mode: "bike"`) switches either provider to cycling.
+  Shopping and hand-off take the same time either way.
+- OSRM durations are used as-is. They come from the foot/bike profiles' own speeds and aren't
+  calibrated against real Berkeley walkers.
 - The runner shops at the store; the item price and budget aren't modelled here.
 - A trip carries at most one request. Requests in a batch never share a runner.
 - `now` is passed in, which keeps scenarios and tests deterministic. Times in explanations are shown in `America/Los_Angeles`.
@@ -176,10 +313,12 @@ an outage rather than a "no").
 
 ## Known limitations
 
-- The straight-line estimate runs 10–17% faster than Apple walking routes (see
-  `DartApp/BUILD_PROGRESS.md`). The real routing provider replaces it.
+- The straight-line estimate runs faster than real walking routes (10–17% against Apple routes per
+  `DartApp/BUILD_PROGRESS.md`). Use `--provider osrm` when the numbers matter.
+- Live OSRM is slow for big batches (1 request/s on the free servers; about 150 legs for Berkeley).
+  Production would want its own OSRM instance or OSRM's `table` service for durations.
+- The free OSRM servers have no uptime guarantee. When they're down, every pair is `ROUTING_ERROR`
+  and nothing is matched; that's by design rather than a fallback to guesses.
 - No capacity above one per trip (Supabase `runs.capacity` allows up to 20).
 - Not wired to Supabase or the apps yet. It runs on scenario files.
-- Pair estimates are requested all at once (`Promise.all`). A rate-limited routing service may
-  need a concurrency limit in the provider.
 - Cost arithmetic is exact integer maths up to roughly 100 requests × 200 runners per batch.
