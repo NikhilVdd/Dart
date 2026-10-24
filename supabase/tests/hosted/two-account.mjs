@@ -156,7 +156,6 @@ try {
     destination_place_id: unit2.id,
     destination_label: 'Unit 2',
     deliver_by: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    audience: 'campus',
     reward_cents: 800,
     merchandise_budget_cents: 5000,
   }));

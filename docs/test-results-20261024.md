@@ -1,8 +1,7 @@
 # Test results — 2026-10-24
 
-These are local engineering results for branch `codex/native-production` at baseline `6b6f348` plus
-the unpushed checkpoint changes. They are not TestFlight, production, legal, or physical-device
-validation.
+These are engineering results for branch `codex/native-production` through the hosted smoke-test
+checkpoint. They are not TestFlight, production, legal, or physical-device validation.
 
 ## Passed
 
@@ -54,6 +53,22 @@ Result: Xcode resolved Supabase `2.55.3` and listed the `Dart`, `DartClip`, `Dar
 `DartClipLiveActivity` targets and schemes. Every plist/entitlement passed lint and the diff has no
 whitespace errors.
 
+### Hosted two-account flow
+
+```sh
+DART_ENVIRONMENT=development \
+SUPABASE_URL=<development-project-url> \
+SUPABASE_ANON_KEY=<development-publishable-key> \
+node supabase/tests/hosted/two-account.mjs
+```
+
+Result: `HOSTED TWO-ACCOUNT E2E PASSED (27 assertions)` against the configured Supabase development
+project after applying migrations `20261024000016` and `20261024000017`. The run exercised ordinary
+email/password signup and sign-in, onboarding, Berkeley places, friend-group creation and joining,
+group chat, shared lists, request creation and discovery, a campus run, acceptance, private request
+chat, the complete server-authoritative request lifecycle, earnings, and RLS denial cases. Three
+disposable accounts were deleted successfully in the test's cleanup block.
+
 ## Environment-blocked
 
 ```sh
@@ -71,13 +86,16 @@ iOS 26.5 is not installed. Please download and install the platform from Xcode >
 ```
 
 The active Xcode contains the iPhoneOS 26.5 SDK while CoreSimulator lists only iOS 17.0, 17.2, and
-17.5 runtimes. Install a compatible Xcode platform/runtime, rerun all four target builds in Debug and
-Release, then execute the UI and two-account suites.
+17.5 runtimes. The matching iOS 26.5 simulator runtime is an 8.52 GB download; installation was not
+continued with only about 12–13 GB free because expansion could exhaust the startup disk. Free space
+or remove obsolete simulator data, install the runtime, rerun all four target builds in Debug and
+Release, then execute the UI suites.
 
 ## Not yet executed
 
 - iOS unit and UI automation (test targets still need to be added).
-- Two-account hosted end-to-end scenarios in `docs/manual-testing.md`.
+- The remaining manual scenarios in `docs/manual-testing.md` beyond the automated 27-assertion hosted
+  two-account smoke test.
 - Simulator/device screenshot comparisons against `web-preview/`.
 - VoiceOver, largest Dynamic Type, Reduce Motion, Reduce Transparency, contrast, and keyboard audits.
 - Physical-device APNs sandbox, TestFlight production APNs, App Clip invocation, universal links, and
