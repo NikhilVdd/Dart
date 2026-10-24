@@ -7,6 +7,7 @@ BIN="$(swift build -c ${1:-debug} --show-bin-path)/Dart"
 APP=.build/Dart.app
 mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 cp "$BIN" $APP/Contents/MacOS/Dart
+cp AppInfo.plist $APP/Contents/Info.plist
 cp ../Dart/Resources/Supabase.plist $APP/Contents/Resources/
 codesign --force --sign - $APP
 echo "Built $PWD/$APP"

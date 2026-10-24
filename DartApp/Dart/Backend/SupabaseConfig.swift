@@ -19,11 +19,16 @@ struct SupabaseConfig {
         func value(_ key: String) -> String? {
             let raw = environment[key] ?? plist[key] as? String
             guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !trimmed.isEmpty, !trimmed.hasPrefix("YOUR_") else { return nil }
+                  !trimmed.isEmpty,
+                  !trimmed.hasPrefix("YOUR_"),
+                  !trimmed.contains("$(") else { return nil }
             return trimmed
         }
 
-        guard let urlString = value("SUPABASE_URL"), let url = URL(string: urlString),
+        guard let urlString = value("SUPABASE_URL"),
+              let url = URL(string: urlString),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil,
               let key = value("SUPABASE_ANON_KEY") else { return nil }
         return SupabaseConfig(url: url, anonKey: key)
     }

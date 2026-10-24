@@ -19,5 +19,8 @@ struct DartApp: App {
                     if url.scheme == "dart", url.host == "request" { state.selectedTab = 2 }
                 }
         }
+        #if os(macOS)
+        .defaultSize(width: 430, height: 860)
+        #endif
     }
 }
