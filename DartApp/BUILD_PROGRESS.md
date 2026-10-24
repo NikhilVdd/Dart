@@ -1,4 +1,4 @@
-# Grab restart build progress
+# Dart native build progress
 
 Updated: 2026-10-11
 
@@ -35,11 +35,11 @@ Updated: 2026-10-11
 - [x] Schema: campuses, places, profiles, friend/building groups, runs, requests, status events, chat, shopping lists
 - [x] Row level security on every table; status changes only via lifecycle RPCs
 - [x] Matching engine: detour-based fit between requests and trips already happening
-- [x] Email-code (OTP) auth; campus linked from email domain
+- [x] Standard email/password auth, recovery callback, and session restoration
 - [x] Realtime for requests, runs, chat and lists
 - [x] Berkeley reference data migration and demo seed mirroring the preview fixtures
 - [x] Database test suite (PGlite, no Docker): RLS, lifecycle, matching
-- [x] iOS: `supabase-swift` package, `GrabStore`, sign-in, live Home/Groups/Activity/Profile, create forms
+- [x] iOS: `supabase-swift` package, `DartStore`, sign-in, live Home/Groups/Activity/Profile, create forms
 - [x] macOS SwiftUI type check of the full app with the Supabase package
 - [x] Requester confirms delivery (helpers stop at "delivered"; auto-complete after 24 h)
 - [x] Expiry of overdue requests and finished runs via pg_cron (every minute)
@@ -61,11 +61,12 @@ Updated: 2026-10-11
 - [x] Deploy Web Push backend: migration `20261014000012`, `send-push` function + secrets, Vault URL/secret (steps in `supabase/README.md`)
 - [ ] Publish the web build with push to the live site and test on a real iPhone
 - [ ] Enable real-device delivery with the Apple Developer Team, APNs key, provisioning, App Store Connect App Clip experience, and website AASA file
-- [ ] Card payments (Stripe Connect); rewards are tracked, not charged
+- [x] Stripe Connect-compatible server architecture and test-mode models behind a disabled server flag
+- [ ] Validate Stripe test-mode payment and payout flows before considering activation
 - [ ] Calibrate matching walking pace (straight-line estimate runs 10–17% fast against Apple walking routes), or replace it with the travel-time table (maps step 3)
-- [ ] iOS Simulator build and hands-on run against a live project (no Xcode on the build machine)
+- [ ] iOS Simulator build and hands-on run against a live project (installed simulator runtime does not match the current Xcode SDK)
 - [ ] Wrap `auth.uid()` as `(select auth.uid())` in RLS policies (Supabase performance advisor)
-- [ ] Custom SMTP for sign-in emails before inviting real users
+- [ ] Custom SMTP for confirmation and password-recovery emails before inviting real users
 
 ## Later build order
 
@@ -75,6 +76,5 @@ Updated: 2026-10-11
 5. Location detection and push notifications (accounts and backend data are done).
 6. Payments, final testing, and iPhone release preparation.
 
-Section 1 intentionally stops before any action can accept a request, create a
-transaction, send a message, edit a list, complete a delivery, or imply a real
-notification or payment.
+This file is historical progress context. Current verified work and remaining launch gates are tracked
+in `docs/release-readiness.md`; no production-readiness claim should be inferred from checked boxes here.

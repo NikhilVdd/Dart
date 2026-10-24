@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ActivityView: View {
     @EnvironmentObject private var state: AppState
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     @State private var selectedRecord: ActivityRecord?
 
     private var records: [ActivityRecord] { store.activities(for: state.activityMode) }
@@ -27,11 +27,11 @@ struct ActivityView: View {
                         .buttonStyle(PressableStyle())
                     }
                 }
-                .padding(.horizontal, GrabTheme.pageInset)
+                .padding(.horizontal, DartTheme.pageInset)
                 .padding(.top, 18)
                 .padding(.bottom, 116)
             }
-            .background(GrabBackdrop())
+            .background(DartBackdrop())
             .refreshable { await store.refresh() }
             .sheet(item: $selectedRecord) { ActivityTimelineView(record: $0) }
         }
@@ -50,19 +50,19 @@ private struct ActivityCard: View {
                 }
                 Spacer()
                 if let reward = record.item.reward {
-                    Text("$\(reward)").font(.headline).foregroundStyle(GrabTheme.gold)
+                    Text("$\(reward)").font(.headline).foregroundStyle(DartTheme.gold)
                 }
             }
             HStack {
                 StatusChip(status: record.currentStatus)
                 Spacer()
-                Text("View timeline").font(.caption.weight(.semibold)).foregroundStyle(GrabTheme.blue)
-                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(GrabTheme.blue)
+                Text("View timeline").font(.caption.weight(.semibold)).foregroundStyle(DartTheme.blue)
+                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(DartTheme.blue)
             }
         }
         .padding(18)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius).stroke(Color.primary.opacity(0.06)))
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(Color.primary.opacity(0.06)))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens status timeline")
@@ -71,11 +71,11 @@ private struct ActivityCard: View {
 
 private struct ActivityTimelineView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     @State private var showDetail = false
     let record: ActivityRecord
 
-    private let stages = GrabStatus.timeline
+    private let stages = DartStatus.timeline
     private var currentIndex: Int { stages.firstIndex(of: record.currentStatus) ?? 0 }
 
     var body: some View {
@@ -97,7 +97,7 @@ private struct ActivityTimelineView: View {
                         }
                     }
                     .padding(20)
-                    .grabGlass()
+                    .dartSurface()
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text(store.isLive ? "Details" : "Available preview information").font(.headline)
@@ -120,9 +120,9 @@ private struct ActivityTimelineView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-                .padding(GrabTheme.pageInset)
+                .padding(DartTheme.pageInset)
             }
-            .background(GrabBackdrop())
+            .background(DartBackdrop())
             .navigationTitle("Timeline")
             .sheet(isPresented: $showDetail) { ItemDetailView(item: record.item) }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -134,7 +134,7 @@ private struct ActivityTimelineView: View {
 
 private struct TimelineStep: View {
     enum StepState { case past, current, future }
-    let status: GrabStatus
+    let status: DartStatus
     let state: StepState
     let showsLine: Bool
 
@@ -143,10 +143,10 @@ private struct TimelineStep: View {
             VStack(spacing: 0) {
                 Image(systemName: state == .past ? "checkmark.circle.fill" : status.icon)
                     .font(.title3)
-                    .foregroundStyle(state == .future ? Color.secondary.opacity(0.4) : (status == .completed ? GrabTheme.gold : GrabTheme.blue))
+                    .foregroundStyle(state == .future ? Color.secondary.opacity(0.4) : (status == .completed ? DartTheme.gold : DartTheme.blue))
                     .frame(width: 28, height: 28)
                 if showsLine {
-                    Rectangle().fill(state == .future ? Color.secondary.opacity(0.15) : GrabTheme.blue.opacity(0.35)).frame(width: 2, height: 38)
+                    Rectangle().fill(state == .future ? Color.secondary.opacity(0.15) : DartTheme.blue.opacity(0.35)).frame(width: 2, height: 38)
                 }
             }
             VStack(alignment: .leading, spacing: 3) {

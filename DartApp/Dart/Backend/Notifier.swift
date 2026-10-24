@@ -1,9 +1,11 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import UserNotifications
 
-/// Presents local notifications while Grab is open and registers the app with APNs for background
-/// delivery. The APNs callback is forwarded to GrabStore, which persists the token in Supabase.
+/// Presents local notifications while Dart is open and registers the app with APNs for background
+/// delivery. The APNs callback is forwarded to DartStore, which persists the token in Supabase.
 @MainActor
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     private var center: UNUserNotificationCenter? {
@@ -19,7 +21,9 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     func requestPermission() {
         center?.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             guard granted else { return }
+            #if canImport(UIKit)
             Task { @MainActor in UIApplication.shared.registerForRemoteNotifications() }
+            #endif
         }
     }
 

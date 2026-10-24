@@ -20,17 +20,34 @@ struct ProfileRecord: Decodable, Hashable {
     let initials: String
     let campusID: UUID?
     let homePlaceID: UUID?
+    let ageBand: String
+    let safetyRulesAcceptedAt: Date?
     let campus: CampusRow?
     let homePlace: PlaceRow?
 
-    static let select = "id, display_name, initials, campus_id, home_place_id, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
+    static let select = "id, display_name, initials, campus_id, home_place_id, age_band, safety_rules_accepted_at, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
 
     enum CodingKeys: String, CodingKey {
         case id, initials, campus
         case displayName = "display_name"
         case campusID = "campus_id"
         case homePlaceID = "home_place_id"
+        case ageBand = "age_band"
+        case safetyRulesAcceptedAt = "safety_rules_accepted_at"
         case homePlace = "home_place"
+    }
+}
+
+struct BlockedUserRow: Decodable, Hashable, Identifiable {
+    let blockedID: UUID
+    let blocked: PersonRow?
+
+    var id: UUID { blockedID }
+    static let select = "blocked_id, blocked:profiles!user_blocks_blocked_id_fkey(id, display_name, initials)"
+
+    enum CodingKeys: String, CodingKey {
+        case blocked
+        case blockedID = "blocked_id"
     }
 }
 

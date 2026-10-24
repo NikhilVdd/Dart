@@ -135,12 +135,12 @@ await rejects('members cannot spoof feedback authors', 'nikhil', `insert into la
 
 // --- native push destinations + App Clip tracking capabilities ------------------------------
 const apnsToken = 'a'.repeat(64), activityToken = 'b'.repeat(64);
-const pushToken = await as('nikhil', `insert into push_tokens (token, bundle_id, app_variant, environment) values ($1, 'com.grab.preview.restart', 'full', 'sandbox') returning user_id`, [apnsToken]);
+const pushToken = await as('nikhil', `insert into push_tokens (token, bundle_id, app_variant, environment) values ($1, 'org.example.dart', 'full', 'sandbox') returning user_id`, [apnsToken]);
 check('member registers an APNs token as themselves', pushToken[0].user_id === U.nikhil);
-await rejects('member cannot register a push token for someone else', 'nikhil', `insert into push_tokens (user_id, token, bundle_id, app_variant, environment) values ('${U.jordan}', $1, 'com.grab.preview.restart', 'full', 'sandbox')`, ['c'.repeat(64)]);
-const activityTokenRow = await as('nikhil', `insert into live_activity_tokens (request_id, token, bundle_id, app_variant, environment) values ('10000000-0000-0000-0000-000000000002', $1, 'com.grab.preview.restart', 'full', 'sandbox') returning user_id`, [activityToken]);
+await rejects('member cannot register a push token for someone else', 'nikhil', `insert into push_tokens (user_id, token, bundle_id, app_variant, environment) values ('${U.jordan}', $1, 'org.example.dart', 'full', 'sandbox')`, ['c'.repeat(64)]);
+const activityTokenRow = await as('nikhil', `insert into live_activity_tokens (request_id, token, bundle_id, app_variant, environment) values ('10000000-0000-0000-0000-000000000002', $1, 'org.example.dart', 'full', 'sandbox') returning user_id`, [activityToken]);
 check('request participant registers a Live Activity token', activityTokenRow[0].user_id === U.nikhil);
-await rejects('non-participant cannot register a Live Activity token', 'jordan', `insert into live_activity_tokens (request_id, token, bundle_id, app_variant, environment) values ('10000000-0000-0000-0000-000000000002', $1, 'com.grab.preview.restart', 'full', 'sandbox')`, ['d'.repeat(64)]);
+await rejects('non-participant cannot register a Live Activity token', 'jordan', `insert into live_activity_tokens (request_id, token, bundle_id, app_variant, environment) values ('10000000-0000-0000-0000-000000000002', $1, 'org.example.dart', 'full', 'sandbox')`, ['d'.repeat(64)]);
 check('request participant can read the App Clip tracking capability', (await as('nikhil', `select secret from request_tracking_links where request_id='10000000-0000-0000-0000-000000000002'`)).length === 1);
 check('non-participant cannot read the App Clip tracking capability', (await as('jordan', `select secret from request_tracking_links where request_id='10000000-0000-0000-0000-000000000002'`)).length === 0);
 await rejects('clients cannot read App Clip APNs tokens', 'nikhil', `select * from clip_push_tokens`);
@@ -426,6 +426,36 @@ await hold('pi_run', 'jordan');
 const runPaid = await as('jordan', `select id, reward_cents, payment_status from request_from_run($1, 'Bread', '', null, 'pi_run')`, [freeRun[0].id]);
 check('requests added to a run carry the hold too', runPaid[0].payment_status === 'authorized' && runPaid[0].reward_cents === 250, JSON.stringify(runPaid));
 await as(null, `update payment_settings set required = false`);
+
+// --- student safety and abuse controls ------------------------------------------------------
+await rejects('clients cannot rewrite age attestations directly', 'jordan',
+  `update profiles set age_band = 'under_18' where id = '${U.jordan}'`);
+await as(null, `update profiles set age_band = 'under_18' where id = '${U.jordan}'`);
+await rejects('under-18 accounts cannot create money-bearing requests', 'jordan',
+  `insert into requests (title, pickup_label, destination_label, deliver_by, reward_cents) values ('Paid errand', 'Target', 'Unit 2', now() + interval '1 hour', 100)`);
+const minorFree = await as('jordan',
+  `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Free handoff', 'Moffitt', 'Unit 2', now() + interval '1 hour') returning id`);
+check('under-18 accounts can use free requests', minorFree.length === 1);
+
+await as('jordan', `insert into user_blocks (blocked_id) values ('${U.devon}')`);
+check('blocks are private to the blocker',
+  (await as('jordan', `select blocked_id from user_blocks`)).length === 1
+  && (await as('devon', `select blocked_id from user_blocks`)).length === 0);
+check('blocked users cannot discover open requests',
+  (await as('devon', `select id from requests where id = $1`, [minorFree[0].id])).length === 0);
+await rejects('blocked users cannot accept requests', 'devon', `select accept_request($1)`, [minorFree[0].id]);
+
+await as('jordan', `insert into safety_reports (reported_user_id, request_id, category, details)
+  values ('${U.devon}', $1, 'unsafe_handoff', 'Asked to meet at an unsafe private location')`, [minorFree[0].id]);
+await rejects('safety reports are write-only to clients', 'jordan', `select * from safety_reports`);
+await rejects('prohibited-item requests are rejected on the server', 'nikhil',
+  `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Buy firearm ammunition', 'Store', 'Unit 2', now() + interval '1 hour')`);
+await rejects('prohibited-item chat is rejected on the server', 'nikhil',
+  `insert into messages (group_id, body) values ('20000000-0000-0000-0000-000000000002', 'Can you buy fentanyl?')`);
+
+await as(null, `insert into campuses (id, slug, name, lat, lng) values ('c0000000-0000-0000-0000-000000000099', 'test-campus', 'Test Campus', 40, -75)`);
+await as(null, `insert into places (campus_id, name, kind, lat, lng) values ('c0000000-0000-0000-0000-000000000099', 'Other Campus Store', 'store', 40, -75)`);
+check('cross-campus places are hidden', (await as('nikhil', `select 1 from places where name = 'Other Campus Store'`)).length === 0);
 
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

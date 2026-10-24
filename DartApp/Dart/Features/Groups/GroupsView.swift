@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct GroupsView: View {
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     @State private var showJoin = false
     @State private var showCreate = false
     @State private var inviteCode = ""
@@ -9,9 +9,9 @@ struct GroupsView: View {
     @State private var choosingHome = false
     @State private var homeID: UUID?
 
-    private var friends: [GrabGroup] { store.groups.filter { $0.kind == .friends } }
-    private var buildings: [GrabGroup] { store.groups.filter { $0.kind == .building } }
-    private var discoverable: [GrabGroup] { store.discoverableGroups.filter { $0.kind == .building } }
+    private var friends: [DartGroup] { store.groups.filter { $0.kind == .friends } }
+    private var buildings: [DartGroup] { store.groups.filter { $0.kind == .building } }
+    private var discoverable: [DartGroup] { store.discoverableGroups.filter { $0.kind == .building } }
 
     var body: some View {
         NavigationStack {
@@ -40,7 +40,7 @@ struct GroupsView: View {
                     if store.isLive && buildings.isEmpty {
                         Button { homeID = store.profile?.homePlaceID; choosingHome = true } label: {
                             HStack(spacing: 14) {
-                                Image(systemName: "house.fill").font(.title3).foregroundStyle(GrabTheme.blue)
+                                Image(systemName: "house.fill").font(.title3).foregroundStyle(DartTheme.blue)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Where do you live?").font(.headline).foregroundStyle(.primary)
                                     Text("Choose your residence hall or apartment to join its building group.")
@@ -50,7 +50,7 @@ struct GroupsView: View {
                                 Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                             }
                             .padding(18)
-                            .grabGlass()
+                            .dartSurface()
                         }
                         .buttonStyle(PressableStyle())
                     }
@@ -65,14 +65,14 @@ struct GroupsView: View {
                                 .buttonStyle(.borderedProminent)
                         }
                         .padding(18)
-                        .grabGlass()
+                        .dartSurface()
                     }
                 }
-                .padding(.horizontal, GrabTheme.pageInset)
+                .padding(.horizontal, DartTheme.pageInset)
                 .padding(.top, 18)
                 .padding(.bottom, 116)
             }
-            .background(GrabBackdrop())
+            .background(DartBackdrop())
             .refreshable { await store.refresh() }
             .sheet(isPresented: $choosingHome) {
                 PlaceSearchView(title: "Where you live", selection: $homeID, filter: .destinations, allowsAnyStore: false)
@@ -112,16 +112,16 @@ struct GroupsView: View {
 }
 
 private struct GroupDetailView: View {
-    @EnvironmentObject private var store: GrabStore
-    let group: GrabGroup
-    @State private var selectedItem: GrabItem?
+    @EnvironmentObject private var store: DartStore
+    let group: DartGroup
+    @State private var selectedItem: DartItem?
     @State private var upcomingMessage: String?
     @State private var newListItem = ""
     @State private var confirmLeave = false
     @Environment(\.dismiss) private var dismiss
 
     /// Re-read from the store so realtime refreshes show up while this screen is open.
-    private var current: GrabGroup { store.group(id: group.id) ?? group }
+    private var current: DartGroup { store.group(id: group.id) ?? group }
 
     var body: some View {
         ScrollView {
@@ -135,7 +135,7 @@ private struct GroupDetailView: View {
                     }
                     if store.isLive, let code = current.inviteCode {
                         Label("Invite code \(code)", systemImage: "ticket")
-                            .font(.caption.weight(.semibold)).foregroundStyle(GrabTheme.blue)
+                            .font(.caption.weight(.semibold)).foregroundStyle(DartTheme.blue)
                             .textSelection(.enabled)
                     }
                 }
@@ -160,11 +160,11 @@ private struct GroupDetailView: View {
                     }
                 }
                 .padding(18)
-                .grabGlass()
+                .dartSurface()
 
                 if let run = current.run {
                     SectionHeading(title: "Active store run")
-                    Button { selectedItem = run } label: { GrabItemCard(item: run) }
+                    Button { selectedItem = run } label: { DartItemCard(item: run) }
                         .buttonStyle(PressableStyle())
                 }
 
@@ -176,7 +176,7 @@ private struct GroupDetailView: View {
                             else { upcomingMessage = "Sign in from Profile to edit the shopping list." }
                         } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: item.isPicked ? "checkmark.circle.fill" : "circle").foregroundStyle(GrabTheme.blue)
+                                Image(systemName: item.isPicked ? "checkmark.circle.fill" : "circle").foregroundStyle(DartTheme.blue)
                                 Text(item.body).strikethrough(item.isPicked).foregroundStyle(item.isPicked ? .secondary : .primary)
                                 Spacer()
                                 if item.quantity > 1 { Text("×\(item.quantity)").font(.subheadline).foregroundStyle(.secondary) }
@@ -197,7 +197,7 @@ private struct GroupDetailView: View {
                     if store.isLive {
                         if !current.shoppingList.isEmpty { Divider() }
                         HStack(spacing: 12) {
-                            Image(systemName: "plus.circle").foregroundStyle(GrabTheme.blue)
+                            Image(systemName: "plus.circle").foregroundStyle(DartTheme.blue)
                             TextField("Add an item", text: $newListItem)
                                 .onSubmit { Task { await addItem() } }
                         }
@@ -205,15 +205,15 @@ private struct GroupDetailView: View {
                     }
                 }
                 .padding(.horizontal, 18)
-                .grabGlass()
+                .dartSurface()
                 if store.isLive && !current.shoppingList.isEmpty {
                     Text("Touch and hold an item to remove it.").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            .padding(GrabTheme.pageInset)
+            .padding(DartTheme.pageInset)
             .padding(.bottom, 96)
         }
-        .background(GrabBackdrop())
+        .background(DartBackdrop())
         .task { await store.openConversation(groupID: group.id) }
         .onDisappear { store.closeConversation(groupID: group.id) }
         .sheet(item: $selectedItem) { ItemDetailView(item: $0) }

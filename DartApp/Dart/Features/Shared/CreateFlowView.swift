@@ -10,7 +10,7 @@ struct CreateSheet: View {
 
     let destination: Destination
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
 
     var body: some View {
         NavigationStack {
@@ -45,7 +45,7 @@ private struct CreateIntroView: View {
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 72, height: 72)
-                    .background(GrabTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 23))
+                    .background(DartTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 23))
                 Text(destination == .request ? "Request something nearby" : "Share a store run")
                     .font(.largeTitle.bold())
                 Text(description).font(.title3).foregroundStyle(.secondary)
@@ -55,7 +55,7 @@ private struct CreateIntroView: View {
                     IntroStep(number: "3", text: stepThree)
                 }
                 .padding(20)
-                .grabGlass()
+                .dartSurface()
                 Button { showUpcoming = true } label: {
                     PrimaryButtonLabel(title: "Continue preview", icon: "arrow.right")
                 }
@@ -63,9 +63,9 @@ private struct CreateIntroView: View {
                 Text("Preview mode: no request or broadcast will be created. Sign in from Profile to post.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
-            .padding(GrabTheme.pageInset)
+            .padding(DartTheme.pageInset)
         }
-        .background(GrabBackdrop())
+        .background(DartBackdrop())
         .navigationTitle("How it works")
         .alert("Sign in to post", isPresented: $showUpcoming) {
             Button("Done", role: .cancel) { }
@@ -85,7 +85,7 @@ private struct IntroStep: View {
     let text: String
     var body: some View {
         HStack(spacing: 14) {
-            Text(number).font(.subheadline.bold()).foregroundStyle(.white).frame(width: 30, height: 30).background(GrabTheme.blue, in: Circle())
+            Text(number).font(.subheadline.bold()).foregroundStyle(.white).frame(width: 30, height: 30).background(DartTheme.blue, in: Circle())
             Text(text).font(.body.weight(.medium))
         }
     }

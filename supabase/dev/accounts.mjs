@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Test-account helper for manual testing against the linked Supabase project.
 //
-// Mints email sign-in codes with the Auth admin API, which returns the code instead of emailing
-// it, so you can sign in as any number of test users even while Resend only delivers to you.
+// Provisions disposable dev/staging accounts through the Auth admin API.
 //
 //   node supabase/dev/accounts.mjs code <email> [Display Name]   create the user if needed, print a code
+//   node supabase/dev/accounts.mjs create <email> <name> <password> create a confirmed password account
 //   node supabase/dev/accounts.mjs building                      create "The Durant" building group if missing
 //   node supabase/dev/accounts.mjs list                          list users
 //   node supabase/dev/accounts.mjs delete <email>                delete a user and their data
@@ -20,6 +20,25 @@ import { api, ensureBuildingGroup, fail, findUser, listUsers, mintCode } from '.
 const [command, ...args] = process.argv.slice(2);
 
 switch (command) {
+  case 'create': {
+    const email = args[0]?.trim().toLowerCase();
+    const password = args.at(-1);
+    const name = args.slice(1, -1).join(' ').trim();
+    if (!email?.includes('@') || !name || !password || password.length < 6) {
+      fail('Usage: accounts.mjs create <email> <Display Name> <password>');
+    }
+    const existing = await findUser(email);
+    if (existing) fail(`${email} already exists; delete it first or use its current password.`);
+    await api('POST', '/auth/v1/admin/users', {
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { display_name: name }
+    });
+    console.log(`Created confirmed dev/staging account ${email} (${name}).`);
+    break;
+  }
+
   case 'code': {
     const email = args[0]?.trim().toLowerCase();
     if (!email?.includes('@')) fail('Usage: accounts.mjs code <email> [Display Name]');

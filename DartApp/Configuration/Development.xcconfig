@@ -1,0 +1,8 @@
+#include "Base.xcconfig"
+
+// This is the existing non-production Supabase project and publishable client key.
+// Publishable keys are protected by RLS; service-role and APNs credentials never belong here.
+DART_ENVIRONMENT = DEVELOPMENT
+SUPABASE_URL = https:/$()/kqqmdegvjgbycnmygivs.supabase.co
+SUPABASE_ANON_KEY = sb_publishable_QtetGbFGjZ-ogSrVnogWWA_B8wD8MgV
+

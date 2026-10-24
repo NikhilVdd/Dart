@@ -2,13 +2,16 @@ import SwiftUI
 
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var store: GrabStore
-    let initialItem: GrabItem
+    @EnvironmentObject private var store: DartStore
+    let initialItem: DartItem
     @State private var showUpcoming = false
+    @State private var showReport = false
+    @State private var confirmBlock = false
+    @State private var reportDetails = ""
 
-    init(item: GrabItem) { initialItem = item }
+    init(item: DartItem) { initialItem = item }
 
-    private var item: GrabItem { store.latest(initialItem) }
+    private var item: DartItem { store.latest(initialItem) }
 
     var body: some View {
         NavigationStack {
@@ -33,7 +36,7 @@ struct ItemDetailView: View {
                         DetailRow(icon: "clock.fill", label: item.kind == .friendRun ? "Cutoff" : "Timing", value: item.timing)
                     }
                     .padding(.horizontal, 16)
-                    .grabGlass()
+                    .dartSurface()
 
                     RouteMapCard(item: item)
 
@@ -58,7 +61,7 @@ struct ItemDetailView: View {
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                         .padding(18)
-                        .background(GrabTheme.paleBlue.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .background(DartTheme.paleBlue.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
                         Button { showUpcoming = true } label: {
                             PrimaryButtonLabel(title: futureActionTitle, icon: "arrow.right.circle.fill")
@@ -66,14 +69,48 @@ struct ItemDetailView: View {
                         .buttonStyle(PressableStyle())
                     }
                 }
-                .padding(GrabTheme.pageInset)
+                .padding(DartTheme.pageInset)
             }
-            .background(GrabBackdrop())
+            .background(DartBackdrop())
             .navigationTitle("Details")
             .toolbar {
+                if store.isLive, item.person.id != store.userID {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button("Report", systemImage: "exclamationmark.bubble") { showReport = true }
+                            Button("Block \(item.person.name)", systemImage: "hand.raised", role: .destructive) { confirmBlock = true }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .accessibilityLabel("Safety actions")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
+            }
+            .alert("Report \(item.person.name)", isPresented: $showReport) {
+                TextField("What happened?", text: $reportDetails)
+                Button("Submit report") {
+                    let details = reportDetails.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Task {
+                        if await store.reportUser(item.person.id, item: item, category: "other", details: details) {
+                            reportDetails = ""
+                        }
+                    }
+                }
+                .disabled(reportDetails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Cancel", role: .cancel) { reportDetails = "" }
+            } message: {
+                Text("Reports are private and sent to Dart’s safety review queue. Call local emergency services for immediate danger.")
+            }
+            .confirmationDialog("Block \(item.person.name)?", isPresented: $confirmBlock, titleVisibility: .visible) {
+                Button("Block user", role: .destructive) {
+                    Task { if await store.blockUser(item.person.id) { dismiss() } }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You will no longer see each other’s requests or runs. Blocking does not submit a report.")
             }
             .alert("Sign in to continue", isPresented: $showUpcoming) {
                 Button("Got it", role: .cancel) { }
@@ -105,7 +142,7 @@ private struct DetailRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: icon).foregroundStyle(GrabTheme.blue).frame(width: 24)
+            Image(systemName: icon).foregroundStyle(DartTheme.blue).frame(width: 24)
             VStack(alignment: .leading, spacing: 3) {
                 Text(label).font(.caption).foregroundStyle(.secondary)
                 Text(value).font(.body.weight(.medium))
@@ -124,7 +161,7 @@ private struct MoneyCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label).font(.caption).foregroundStyle(.secondary)
-            Text("$\(amount)").font(.title.bold()).foregroundStyle(emphasized ? GrabTheme.gold : .primary)
+            Text("$\(amount)").font(.title.bold()).foregroundStyle(emphasized ? DartTheme.gold : .primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
@@ -135,8 +172,8 @@ private struct MoneyCard: View {
 
 /// Actions for a live request or run, chosen by your role and the item's status.
 private struct LiveItemActions: View {
-    @EnvironmentObject private var store: GrabStore
-    let item: GrabItem
+    @EnvironmentObject private var store: DartStore
+    let item: DartItem
     let onDone: () -> Void
 
     @State private var working = false
@@ -144,7 +181,7 @@ private struct LiveItemActions: View {
     @State private var askRunner = false
     @State private var askTitle = ""
     @State private var askBudget = ""
-    @State private var matches: [(RequestMatch, GrabItem)] = []
+    @State private var matches: [(RequestMatch, DartItem)] = []
 
     private var ref: BackendRef { item.backend! }
 
@@ -224,7 +261,7 @@ private struct LiveItemActions: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Text("$\(GrabStore.dollars(match.rewardCents))").font(.headline).foregroundStyle(GrabTheme.gold)
+                    Text("$\(DartStore.dollars(match.rewardCents))").font(.headline).foregroundStyle(DartTheme.gold)
                     Button("Accept") {
                         Task {
                             if await store.accept(request, onRun: ref.id) { matches = await store.matches(forRun: ref.id) }

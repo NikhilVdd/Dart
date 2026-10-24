@@ -10,7 +10,7 @@ private enum Audience: Hashable {
 }
 
 struct RequestFormView: View {
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     let onFinish: () -> Void
 
     @State private var title = ""
@@ -22,7 +22,7 @@ struct RequestFormView: View {
     @State private var budget = ""
     @State private var audience: Audience = .campus
     @State private var working = false
-    @State private var result: [(RunMatch, GrabItem)]?
+    @State private var result: [(RunMatch, DartItem)]?
 
     var body: some View {
         Group {
@@ -34,7 +34,7 @@ struct RequestFormView: View {
                         : "These trips are already happening and can carry it with a small detour. It appears in each runner’s list of requests that fit.",
                     rows: result.map { match, run in
                         MatchRow(id: match.runID, title: run.title, detail: "+\(match.detourMinutes) min · \(run.destination)",
-                                 amount: GrabStore.dollars(match.feeCents), action: nil)
+                                 amount: DartStore.dollars(match.feeCents), action: nil)
                     },
                     onDone: onFinish
                 )
@@ -82,7 +82,7 @@ struct RequestFormView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(GrabBackdrop())
+        .background(DartBackdrop())
         .onAppear { destinationID = destinationID ?? store.profile?.homePlaceID }
     }
 
@@ -108,7 +108,7 @@ struct RequestFormView: View {
 }
 
 struct RunFormView: View {
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     let onFinish: () -> Void
 
     @State private var storeID: UUID?
@@ -120,7 +120,7 @@ struct RunFormView: View {
     @State private var audience: Audience = .campus
     @State private var working = false
     @State private var runID: UUID?
-    @State private var result: [(RequestMatch, GrabItem)]?
+    @State private var result: [(RequestMatch, DartItem)]?
     @State private var accepted: Set<UUID> = []
 
     private var isFriendRun: Bool {
@@ -139,7 +139,7 @@ struct RunFormView: View {
                     rows: result.map { match, request in
                         MatchRow(id: match.requestID, title: request.title,
                                  detail: [match.detourMinutes.map { "+\($0) min" }, request.destination].compactMap { $0 }.joined(separator: " · "),
-                                 amount: GrabStore.dollars(match.rewardCents),
+                                 amount: DartStore.dollars(match.rewardCents),
                                  action: accepted.contains(match.requestID) ? nil : {
                                      if await store.accept(request, onRun: runID) { accepted.insert(match.requestID) }
                                  })
@@ -184,7 +184,7 @@ struct RunFormView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(GrabBackdrop())
+        .background(DartBackdrop())
         .onAppear { destinationID = destinationID ?? store.profile?.homePlaceID }
     }
 
@@ -224,7 +224,7 @@ private extension Audience {
 
 private struct AudiencePicker: View {
     @Binding var audience: Audience
-    let groups: [GrabGroup]
+    let groups: [DartGroup]
 
     var body: some View {
         Picker("Visible to", selection: $audience) {
@@ -251,7 +251,7 @@ private struct MatchResultsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(GrabTheme.gold)
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(DartTheme.gold)
                 Text(title).font(.largeTitle.bold())
                 Text(subtitle).foregroundStyle(.secondary)
                 if !rows.isEmpty {
@@ -263,20 +263,20 @@ private struct MatchResultsView: View {
                                 Text(row.detail).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if row.amount > 0 { Text("$\(row.amount)").font(.headline).foregroundStyle(GrabTheme.gold) }
+                            if row.amount > 0 { Text("$\(row.amount)").font(.headline).foregroundStyle(DartTheme.gold) }
                             if let action = row.action {
                                 Button("Accept") { Task { await action() } }.buttonStyle(.borderedProminent)
                             }
                         }
                         .padding(16)
-                        .grabGlass()
+                        .dartSurface()
                     }
                 }
                 Button(action: onDone) { PrimaryButtonLabel(title: "Done", icon: "checkmark") }
                     .buttonStyle(PressableStyle())
             }
-            .padding(GrabTheme.pageInset)
+            .padding(DartTheme.pageInset)
         }
-        .background(GrabBackdrop())
+        .background(DartBackdrop())
     }
 }

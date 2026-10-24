@@ -87,7 +87,7 @@ async function deliver(row: OutboxRow, devices: Subscription[]) {
 
 Deno.serve(async request => {
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
-  if (!sameSecret(request.headers.get("x-grab-push-secret"))) return new Response("unauthorized", { status: 401 });
+  if (!sameSecret(request.headers.get("x-dart-push-secret"))) return new Response("unauthorized", { status: 401 });
 
   const totals = { notifications: 0, delivered: 0, removed: 0, failed: 0 };
   // Five rounds of 100 keeps one call well inside the Edge Function CPU and memory limits; anything

@@ -1,6 +1,6 @@
 # Manual testing with two accounts
 
-Grab needs two people: one who asks and one who is already moving. This walks through every live
+Dart needs two people: one who asks and one who is already moving. This walks through every live
 feature with two test accounts on two simulators, against the hosted Supabase project.
 
 ## Setup (once)
@@ -17,20 +17,17 @@ feature with two test accounts on two simulators, against the hosted Supabase pr
 
 ## Sign in as two people
 
-Resend only delivers to your own address until a domain is verified, so mint codes instead:
+Create two normal email/password accounts in the app. For local or staging automation, the helper
+script can provision confirmed test accounts:
 
 ```sh
-node supabase/dev/accounts.mjs code alex@berkeley.edu "Alex Requester"
-node supabase/dev/accounts.mjs code sam@berkeley.edu "Sam Runner"
+node supabase/dev/accounts.mjs create alex@example.com "Alex Requester" "test-password"
+node supabase/dev/accounts.mjs create sam@example.com "Sam Runner" "test-password"
 ```
 
-On each simulator, tap **Continue with campus email** on the launch screen, enter the email, tap
-**I already have a code**, and type the printed code. Don't tap *Email me a code* for test addresses:
-Resend can't deliver to them, and requesting a new email invalidates the minted code. If a code is
-rejected, run the `code` command again for a fresh one.
-
-Use `@berkeley.edu` addresses so both accounts are linked to UC Berkeley. Unsupported domains are
-rejected before an email is sent, rather than creating an account with no campus feed.
+On each simulator, choose **Sign in** and enter one account's email and password. Any valid email is
+accepted; the Berkeley launch backend assigns new unmatched accounts to UC Berkeley without claiming
+institutional verification. Complete age-band, home-building, notification, and safety onboarding.
 
 ## Test plan
 
@@ -72,11 +69,11 @@ Mark each as you go. **A** = Alex (requester), **B** = Sam (runner).
       otherwise from B's home. A new request posted by A raises a "New request nearby" notification on B
 
 ### Places (Apple Maps search)
-- [ ] A: New request → **Pick up from** → the sheet lists *Any store* and the places already on Grab
+- [ ] A: New request → **Pick up from** → the sheet lists *Any store* and the places already on Dart
 - [ ] Type "Berkeley Bowl" → *Add from Apple Maps* shows nearby results (nothing 15+ km away) → tap one →
       it asks what kind of place it is, with *Store* first → choose it. The form now shows it as the pickup
-- [ ] B: start a new run → **Store** → search "Berkeley Bowl". It now appears under *On Grab*, not as a new result
-- [ ] Search "CVS" in a store picker. The Shattuck CVS appears once, under *On Grab*
+- [ ] B: start a new run → **Store** → search "Berkeley Bowl". It now appears under *On Dart*, not as a new result
+- [ ] Search "CVS" in a store picker. The Shattuck CVS appears once, under *On Dart*
 - [ ] **Deliver to** → search an apartment address (e.g. "2600 Channing Way") → add as *Residence or apartment*
 
 ### Maps

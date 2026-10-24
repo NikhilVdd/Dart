@@ -13,7 +13,7 @@ struct ChatBubble: View {
                     .font(.subheadline)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
-                    .background(message.isCurrentUser ? GrabTheme.blue : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+                    .background(message.isCurrentUser ? DartTheme.blue : Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
                     .foregroundStyle(message.isCurrentUser ? .white : .primary)
                 Text(message.time).font(.caption2).foregroundStyle(.tertiary)
             }
@@ -42,7 +42,7 @@ struct ChatComposer: View {
                 Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(GrabTheme.blue)
+            .foregroundStyle(DartTheme.blue)
             .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send message")
         }
@@ -59,8 +59,8 @@ struct ChatComposer: View {
 
 /// Private chat between a request's requester and its helper, shown in the item details.
 struct RequestChatCard: View {
-    @EnvironmentObject private var store: GrabStore
-    let item: GrabItem
+    @EnvironmentObject private var store: DartStore
+    let item: DartItem
 
     private var ref: BackendRef? { item.backend }
     private var isOpen: Bool { [.accepted, .pickingUp, .onTheWay, .delivered].contains(item.status) }
@@ -90,7 +90,7 @@ struct RequestChatCard: View {
                     }
                 }
                 .padding(18)
-                .grabGlass()
+                .dartSurface()
                 .task(id: ref.id) { await store.openRequestChat(requestID: ref.id) }
                 .onDisappear { store.closeRequestChat(requestID: ref.id) }
             } else {

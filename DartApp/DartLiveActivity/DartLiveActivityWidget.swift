@@ -3,28 +3,28 @@ import SwiftUI
 import WidgetKit
 
 @main
-struct GrabLiveActivityBundle: WidgetBundle {
+struct DartLiveActivityBundle: WidgetBundle {
     var body: some Widget {
-        GrabLiveActivityWidget()
+        DartLiveActivityWidget()
     }
 }
 
-struct GrabLiveActivityWidget: Widget {
+struct DartLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: GrabDeliveryAttributes.self) { context in
-            GrabLockScreenView(context: context)
+        ActivityConfiguration(for: DartDeliveryAttributes.self) { context in
+            DartLockScreenView(context: context)
                 .activityBackgroundTint(Color(red: 0.03, green: 0.04, blue: 0.03))
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(URL(string: "grab://request/\(context.attributes.requestID)"))
+                .widgetURL(URL(string: "dart://request/\(context.attributes.requestID)"))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    GrabMark()
+                    DartMark()
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text("\(Int(context.state.progress * 100))%")
                         .font(.headline.monospacedDigit())
-                        .foregroundStyle(Color.grabLime)
+                        .foregroundStyle(Color.dartLime)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.attributes.title)
@@ -33,38 +33,38 @@ struct GrabLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 8) {
-                        GrabProgress(progress: context.state.progress)
+                        DartProgress(progress: context.state.progress)
                         Text(context.state.headline).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
             } compactLeading: {
-                GrabMark()
+                DartMark()
             } compactTrailing: {
-                Image(systemName: statusSymbol(context.state.status)).foregroundStyle(Color.grabLime)
+                Image(systemName: statusSymbol(context.state.status)).foregroundStyle(Color.dartLime)
             } minimal: {
-                Image(systemName: statusSymbol(context.state.status)).foregroundStyle(Color.grabLime)
+                Image(systemName: statusSymbol(context.state.status)).foregroundStyle(Color.dartLime)
             }
-            .keylineTint(Color.grabLime)
-            .widgetURL(URL(string: "grab://request/\(context.attributes.requestID)"))
+            .keylineTint(Color.dartLime)
+            .widgetURL(URL(string: "dart://request/\(context.attributes.requestID)"))
         }
     }
 }
 
-private struct GrabLockScreenView: View {
-    let context: ActivityViewContext<GrabDeliveryAttributes>
+private struct DartLockScreenView: View {
+    let context: ActivityViewContext<DartDeliveryAttributes>
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                GrabMark()
-                Text("DART STATUS").font(.caption2.bold()).tracking(1.2).foregroundStyle(Color.grabLime)
+                DartMark()
+                Text("DART STATUS").font(.caption2.bold()).tracking(1.2).foregroundStyle(Color.dartLime)
                 Spacer()
                 Text(Date(timeIntervalSince1970: context.state.updatedAt), style: .relative).font(.caption).foregroundStyle(.secondary)
             }
             Text(context.attributes.title).font(.title3.bold()).lineLimit(1)
-            GrabProgress(progress: context.state.progress)
+            DartProgress(progress: context.state.progress)
             HStack(spacing: 8) {
-                Image(systemName: statusSymbol(context.state.status)).foregroundStyle(Color.grabLime)
+                Image(systemName: statusSymbol(context.state.status)).foregroundStyle(Color.dartLime)
                 Text(context.state.headline).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Spacer()
             }
@@ -82,24 +82,24 @@ private struct GrabLockScreenView: View {
     }
 }
 
-private struct GrabMark: View {
+private struct DartMark: View {
     var body: some View {
         Text("G")
             .font(.caption.bold())
             .foregroundStyle(.black)
             .frame(width: 24, height: 24)
-            .background(Color.grabLime, in: RoundedRectangle(cornerRadius: 7))
+            .background(Color.dartLime, in: RoundedRectangle(cornerRadius: 7))
     }
 }
 
-private struct GrabProgress: View {
+private struct DartProgress: View {
     let progress: Double
 
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.12))
-                Capsule().fill(Color.grabLime).frame(width: proxy.size.width * max(0, min(progress, 1)))
+                Capsule().fill(Color.dartLime).frame(width: proxy.size.width * max(0, min(progress, 1)))
             }
         }
         .frame(height: 6)
@@ -121,5 +121,5 @@ private func statusSymbol(_ status: String) -> String {
 }
 
 private extension Color {
-    static let grabLime = Color(red: 0.776, green: 1, blue: 0)
+    static let dartLime = Color(red: 0.776, green: 1, blue: 0)
 }

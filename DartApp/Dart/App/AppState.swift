@@ -3,10 +3,10 @@ import SwiftUI
 @MainActor
 final class AppState: ObservableObject {
     private enum Key {
-        static let appearance = "grab.restart.appearance"
-        static let homeMode = "grab.restart.homeMode"
-        static let activityMode = "grab.restart.activityMode"
-        static let selectedTab = "grab.restart.selectedTab"
+        static let appearance = "dart.appearance.v1"
+        static let homeMode = "dart.homeMode.v1"
+        static let activityMode = "dart.activityMode.v1"
+        static let selectedTab = "dart.selectedTab.v1"
     }
 
     @Published var appearance: AppearanceChoice { didSet { save(appearance.rawValue, key: Key.appearance) } }
@@ -23,7 +23,7 @@ final class AppState: ObservableObject {
     let building = "The Durant"
 
     init(defaults: UserDefaults = .standard) {
-        let scenario = ProcessInfo.processInfo.environment["GRAB_SCREENSHOT_SCENARIO"]
+        let scenario = ProcessInfo.processInfo.environment["DART_SCREENSHOT_SCENARIO"]
         self.screenshotScenario = scenario
 
         switch scenario {

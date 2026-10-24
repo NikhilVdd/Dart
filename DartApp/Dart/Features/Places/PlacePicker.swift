@@ -30,11 +30,11 @@ enum PlaceFilter {
 
 /// A form row that shows the chosen place and opens the search sheet.
 struct PlaceField: View {
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     let title: String
     @Binding var selection: UUID?
     var filter: PlaceFilter = .any
-    /// Offer "Any store" (stored as a nil selection) for requests where Grab picks the store.
+    /// Offer "Any store" (stored as a nil selection) for requests where Dart picks the store.
     var allowsAnyStore = false
 
     @State private var searching = false
@@ -61,9 +61,9 @@ struct PlaceField: View {
     }
 }
 
-/// Search existing places and Apple Maps; adding a map result creates the place on Grab.
+/// Search existing places and Apple Maps; adding a map result creates the place on Dart.
 struct PlaceSearchView: View {
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     @Environment(\.dismiss) private var dismiss
 
     let title: String
@@ -83,7 +83,7 @@ struct PlaceSearchView: View {
         return matches.filter { $0.label.localizedCaseInsensitiveContains(trimmed) }
     }
 
-    /// Map results that aren't already on Grab. Mirrors create_place's de-duplication: within 150 m
+    /// Map results that aren't already on Dart. Mirrors create_place's de-duplication: within 150 m
     /// and one name contains the other ("CVS" / "CVS Pharmacy").
     private var newResults: [MKMapItem] {
         results.filter { item in
@@ -176,7 +176,7 @@ struct PlaceSearchView: View {
 
     private func row(icon: String, title: String, subtitle: String?, selected: Bool) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).foregroundStyle(GrabTheme.blue).frame(width: 24)
+            Image(systemName: icon).foregroundStyle(DartTheme.blue).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).foregroundStyle(.primary)
                 if let subtitle, !subtitle.isEmpty {
@@ -184,7 +184,7 @@ struct PlaceSearchView: View {
                 }
             }
             Spacer()
-            if selected { Image(systemName: "checkmark").foregroundStyle(GrabTheme.blue) }
+            if selected { Image(systemName: "checkmark").foregroundStyle(DartTheme.blue) }
         }
         .contentShape(Rectangle())
     }

@@ -36,6 +36,10 @@ select gen_random_uuid(), u.id, u.id::text,
 from auth.users u
 where u.email like '%@berkeley.edu';
 
+-- Staging fixtures represent adults so the paid-flow regression suite can execute. New real
+-- accounts remain `not_set` until onboarding records an age-band attestation.
+update public.profiles set age_band = '18_or_over', safety_rules_accepted_at = now();
+
 update public.profiles set home_place_id = 'a0000000-0000-0000-0000-000000000007'
 where id in ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000004');
 update public.profiles set home_place_id = 'a0000000-0000-0000-0000-000000000008'

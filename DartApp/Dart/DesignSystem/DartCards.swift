@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct GrabItemCard: View {
-    let item: GrabItem
+struct DartItemCard: View {
+    let item: DartItem
     var compact = false
 
     var body: some View {
@@ -9,9 +9,9 @@ struct GrabItemCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: symbol)
                     .font(.headline)
-                    .foregroundStyle(GrabTheme.blue)
+                    .foregroundStyle(DartTheme.blue)
                     .frame(width: 42, height: 42)
-                    .background(GrabTheme.blue.opacity(0.11), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .background(DartTheme.blue.opacity(0.11), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title).font(.headline).foregroundStyle(.primary)
                     Text(item.subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(compact ? 1 : 2)
@@ -20,7 +20,7 @@ struct GrabItemCard: View {
                 if let reward = item.reward {
                     Text("$\(reward)")
                         .font(.title3.bold())
-                        .foregroundStyle(GrabTheme.gold)
+                        .foregroundStyle(DartTheme.gold)
                 }
             }
             HStack(spacing: 8) {
@@ -39,8 +39,8 @@ struct GrabItemCard: View {
             }
         }
         .padding(18)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens details")
@@ -57,7 +57,7 @@ struct GrabItemCard: View {
 }
 
 struct GroupCard: View {
-    let group: GrabGroup
+    let group: DartGroup
 
     var body: some View {
         HStack(spacing: 14) {
@@ -66,15 +66,15 @@ struct GroupCard: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(group.name).font(.headline)
                 Text("\(group.memberCount) members · \(group.kind.rawValue)")
-                    .font(.caption).foregroundStyle(GrabTheme.blue)
+                    .font(.caption).foregroundStyle(DartTheme.blue)
                 Text(group.latestMessage).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
         }
         .padding(18)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
         .contentShape(Rectangle())
     }
 }

@@ -1,14 +1,16 @@
 import Foundation
 import Supabase
 
-/// App-wide data source. When Supabase is configured and the user is signed in, it serves live
-/// data mapped onto the existing view models; otherwise it serves the Section 1 preview fixtures.
+/// App-wide data source. Preview fixtures are available only in Debug builds. Release builds fail
+/// closed when configuration is missing so production can never silently show demo accounts.
 @MainActor
-final class GrabStore: ObservableObject {
+final class DartStore: ObservableObject {
     enum Phase: Equatable {
-        case preview    // no Supabase configuration in this build
-        case signedOut  // configured, waiting for sign-in
-        case live       // signed in; data comes from Supabase
+        case launching
+        case preview
+        case unconfigured
+        case signedOut
+        case live
     }
 
     @Published private(set) var phase: Phase
@@ -16,18 +18,20 @@ final class GrabStore: ObservableObject {
     @Published private(set) var profile: ProfileRecord?
     @Published private(set) var places: [PlaceRow] = []
     @Published private(set) var earnings: EarningsRow?
-    @Published private(set) var discoverableGroups: [GrabGroup] = []
+    @Published private(set) var discoverableGroups: [DartGroup] = []
+    @Published private(set) var blockedUsers: [BlockedUserRow] = []
+    @Published private(set) var requiresPasswordUpdate = false
     @Published var lastError: String?
 
-    @Published private var runFeed: [GrabItem] = []
-    @Published private var myRequestItems: [GrabItem] = []
-    @Published private var earnItems: [GrabItem] = []
-    @Published private var liveGroups: [GrabGroup] = []
+    @Published private var runFeed: [DartItem] = []
+    @Published private var myRequestItems: [DartItem] = []
+    @Published private var earnItems: [DartItem] = []
+    @Published private var liveGroups: [DartGroup] = []
     @Published private var liveActivities: [ActivityRecord] = []
     @Published private var conversations: [UUID: [Message]] = [:]
     @Published private var requestChats: [UUID: [Message]] = [:]
 
-    let backend: GrabBackend?
+    let backend: DartBackend?
     private var myRuns: [RunRow] = []
     private var openConversations: Set<UUID> = []
     private var openRequestChats: Set<UUID> = []
@@ -49,8 +53,16 @@ final class GrabStore: ObservableObject {
     private var notificationObservers: [NSObjectProtocol] = []
 
     init(config: SupabaseConfig? = SupabaseConfig.load()) {
-        backend = config.map(GrabBackend.init)
-        phase = backend == nil ? .preview : .signedOut
+        backend = config.map(DartBackend.init)
+        if backend != nil {
+            phase = .launching
+        } else {
+            #if DEBUG
+            phase = .preview
+            #else
+            phase = .unconfigured
+            #endif
+        }
         if backend != nil { observeAuth() }
         location.onUpdate = { [weak self] _ in self?.scheduleRefresh() }
         observePushTokens()
@@ -59,24 +71,40 @@ final class GrabStore: ObservableObject {
     var isLive: Bool { phase == .live }
     var isConfigured: Bool { backend != nil }
     var userID: UUID? { profile?.id ?? backend?.currentUserID }
+    var needsOnboarding: Bool {
+        guard isLive, let profile else { return false }
+        return profile.ageBand == "not_set" || profile.homePlaceID == nil || profile.safetyRulesAcceptedAt == nil
+    }
+
+    private var canUsePreviewData: Bool {
+        #if DEBUG
+        phase == .preview
+        #else
+        false
+        #endif
+    }
 
     // MARK: View-facing data (falls back to preview fixtures)
 
-    func feed(for mode: HomeMode) -> [GrabItem] {
+    func feed(for mode: HomeMode) -> [DartItem] {
         guard isLive else {
+            guard canUsePreviewData else { return [] }
             return mode == .request
                 ? [PreviewData.traderJoes, PreviewData.buildingRun, PreviewData.shampoo]
                 : [PreviewData.charger, PreviewData.shampoo, PreviewData.buildingRun]
         }
         switch mode {
-        case .request: return runFeed + myRequestItems.filter { GrabStatus.active.contains($0.status) }
+        case .request: return runFeed + myRequestItems.filter { DartStatus.active.contains($0.status) }
         case .earn: return earnItems
         }
     }
 
-    func activeItem(for mode: HomeMode) -> GrabItem? {
-        guard isLive else { return mode == .request ? PreviewData.shampoo : PreviewData.buildingRun }
-        let active = GrabStatus.active
+    func activeItem(for mode: HomeMode) -> DartItem? {
+        guard isLive else {
+            guard canUsePreviewData else { return nil }
+            return mode == .request ? PreviewData.shampoo : PreviewData.buildingRun
+        }
+        let active = DartStatus.active
         switch mode {
         case .request:
             return myRequestItems.first { active.contains($0.status) }
@@ -88,15 +116,15 @@ final class GrabStore: ObservableObject {
 
     /// The closest open request you could take, after re-centering the Earn feed on a fresh location.
     /// The server returns open requests nearest-first and leaves out your own.
-    func findNearbyTask() async -> GrabItem? {
-        guard isLive else { return feed(for: .earn).first }
+    func findNearbyTask() async -> DartItem? {
+        guard isLive else { return canUsePreviewData ? feed(for: .earn).first : nil }
         _ = await location.freshFix()
         await refresh()
         return earnItems.first
     }
 
     /// The latest version of an item, so open screens follow realtime changes.
-    func latest(_ item: GrabItem) -> GrabItem {
+    func latest(_ item: DartItem) -> DartItem {
         guard isLive else { return item }
         return myRequestItems.first { $0.id == item.id }
             ?? liveActivities.first { $0.id == item.id }?.item
@@ -106,17 +134,17 @@ final class GrabStore: ObservableObject {
             ?? item
     }
 
-    var groups: [GrabGroup] { isLive ? liveGroups : PreviewData.groups }
+    var groups: [DartGroup] { isLive ? liveGroups : (canUsePreviewData ? PreviewData.groups : []) }
 
-    func group(id: UUID) -> GrabGroup? {
+    func group(id: UUID) -> DartGroup? {
         groups.first { $0.id == id } ?? discoverableGroups.first { $0.id == id }
     }
 
     func activities(for mode: ActivityMode) -> [ActivityRecord] {
-        (isLive ? liveActivities : PreviewData.activities).filter { $0.mode == mode }
+        (isLive ? liveActivities : (canUsePreviewData ? PreviewData.activities : [])).filter { $0.mode == mode }
     }
 
-    func conversation(for group: GrabGroup) -> [Message] {
+    func conversation(for group: DartGroup) -> [Message] {
         isLive ? (conversations[group.id] ?? group.conversation) : group.conversation
     }
 
@@ -146,7 +174,7 @@ final class GrabStore: ObservableObject {
         }
     }
 
-    private var runFeedMine: [GrabItem] {
+    private var runFeedMine: [DartItem] {
         myRuns.map { item(from: $0) }
     }
 
@@ -176,6 +204,26 @@ final class GrabStore: ObservableObject {
         }
     }
 
+    func requestPasswordReset(email: String) async -> Bool {
+        await perform { try await $0.requestPasswordReset(email: email) }
+    }
+
+    func updatePassword(_ password: String) async -> Bool {
+        let updated = await perform { try await $0.updatePassword(password) }
+        if updated { requiresPasswordUpdate = false }
+        return updated
+    }
+
+    func handleDeepLink(_ url: URL) {
+        if url.scheme == "dart", url.host == "auth" {
+            backend?.handleAuthCallback(url)
+        }
+    }
+
+    func dismissPasswordUpdate() {
+        requiresPasswordUpdate = false
+    }
+
     func signOut() async {
         _ = await perform { try await $0.signOut() }
     }
@@ -191,12 +239,27 @@ final class GrabStore: ObservableObject {
         await refresh()
     }
 
+    func setAgeBand(_ value: String) async -> Bool {
+        await mutate { try await $0.setAgeBand(value) }
+    }
+
+    func acceptSafetyRules() async -> Bool {
+        await mutate { try await $0.acceptSafetyRules() }
+    }
+
+    func requestNotificationPermission() {
+        notifier.requestPermission()
+    }
+
     private func observeAuth() {
         guard let backend else { return }
         authTask = Task { [weak self] in
             for await (event, session) in backend.client.auth.authStateChanges {
                 guard let self else { return }
                 switch event {
+                case .passwordRecovery:
+                    self.requiresPasswordUpdate = true
+                    if session != nil { self.phase = .live }
                 case .initialSession, .signedIn:
                     if session != nil {
                         if self.phase != .live {
@@ -233,6 +296,7 @@ final class GrabStore: ObservableObject {
             async let placeRows = backend.places()
             async let groupRows = backend.groups()
             async let memberRows = backend.members()
+            async let blockedRows = backend.blockedUsers()
             async let runRows = backend.activeRuns()
             async let requestRows = backend.myRequests(userID: userID)
             async let itemRows = backend.listItems()
@@ -245,9 +309,10 @@ final class GrabStore: ObservableObject {
             let origin = nearbyOrigin(profile: profile)
             async let nearbyRows = backend.openRequestsNearby(lat: origin?.lat, lng: origin?.lng)
 
-            let (places, groups, members, runs, requests, items, messages, earnings, nearby, requestMessages) = try await (
-                placeRows, groupRows, memberRows, runRows, requestRows, itemRows, messageRows, earningsRow, nearbyRows, requestMessageRows
+            let (places, groups, members, blocked, runs, requests, items, messages, earnings, nearby, requestMessages) = try await (
+                placeRows, groupRows, memberRows, blockedRows, runRows, requestRows, itemRows, messageRows, earningsRow, nearbyRows, requestMessageRows
             )
+            self.blockedUsers = blocked
             apply(userID: userID, profile: profile, places: places, groups: groups, members: members, runs: runs,
                   requests: requests, nearby: nearby, items: items, messages: messages, earnings: earnings)
             await liveActivityCoordinator.sync(records: liveActivities)
@@ -322,11 +387,11 @@ final class GrabStore: ObservableObject {
 
     private func observePushTokens() {
         let center = NotificationCenter.default
-        notificationObservers.append(center.addObserver(forName: .grabAPNSDeviceToken, object: nil, queue: .main) { [weak self] note in
+        notificationObservers.append(center.addObserver(forName: .dartAPNSDeviceToken, object: nil, queue: .main) { [weak self] note in
             guard let token = note.userInfo?["token"] as? String else { return }
             Task { @MainActor in await self?.registerPushToken(token) }
         })
-        notificationObservers.append(center.addObserver(forName: .grabLiveActivityPushToken, object: nil, queue: .main) { [weak self] note in
+        notificationObservers.append(center.addObserver(forName: .dartLiveActivityPushToken, object: nil, queue: .main) { [weak self] note in
             guard let token = note.userInfo?["token"] as? String,
                   let request = note.userInfo?["requestID"] as? String,
                   let requestID = UUID(uuidString: request) else { return }
@@ -343,7 +408,7 @@ final class GrabStore: ObservableObject {
         do {
             try await backend.registerPushToken(
                 token,
-                bundleID: Bundle.main.bundleIdentifier ?? "com.grab.preview.restart",
+                bundleID: Bundle.main.bundleIdentifier ?? "org.example.dart",
                 appVariant: "full"
             )
         } catch {
@@ -357,7 +422,7 @@ final class GrabStore: ObservableObject {
             try await backend.registerLiveActivityToken(
                 token,
                 requestID: requestID,
-                bundleID: Bundle.main.bundleIdentifier ?? "com.grab.preview.restart",
+                bundleID: Bundle.main.bundleIdentifier ?? "org.example.dart",
                 appVariant: "full"
             )
         } catch {
@@ -424,6 +489,7 @@ final class GrabStore: ObservableObject {
         earnItems = []
         liveGroups = []
         discoverableGroups = []
+        blockedUsers = []
         liveActivities = []
         conversations = [:]
     }
@@ -431,7 +497,7 @@ final class GrabStore: ObservableObject {
     // MARK: Actions
 
     @discardableResult
-    func postRequest(_ request: NewRequest) async -> (request: RequestRow, matches: [(RunMatch, GrabItem)])? {
+    func postRequest(_ request: NewRequest) async -> (request: RequestRow, matches: [(RunMatch, DartItem)])? {
         guard let backend else { return nil }
         do {
             let row = try await backend.postRequest(request)
@@ -447,7 +513,7 @@ final class GrabStore: ObservableObject {
     }
 
     @discardableResult
-    func announceRun(_ run: NewRun) async -> (run: RunRow, matches: [(RequestMatch, GrabItem)])? {
+    func announceRun(_ run: NewRun) async -> (run: RunRow, matches: [(RequestMatch, DartItem)])? {
         guard let backend, let userID else { return nil }
         do {
             let row = try await backend.announceRun(run)
@@ -465,7 +531,7 @@ final class GrabStore: ObservableObject {
     }
 
     /// Requests that fit on one of your active runs, smallest detour first.
-    func matches(forRun runID: UUID) async -> [(RequestMatch, GrabItem)] {
+    func matches(forRun runID: UUID) async -> [(RequestMatch, DartItem)] {
         guard let backend, let userID else { return [] }
         do {
             let matches = try await backend.matchRequests(forRun: runID)
@@ -480,34 +546,34 @@ final class GrabStore: ObservableObject {
     }
 
     /// Your runs that are still collecting requests.
-    var myActiveRuns: [GrabItem] { runFeedMine }
+    var myActiveRuns: [DartItem] { runFeedMine }
 
-    func accept(_ item: GrabItem, onRun runID: UUID? = nil) async -> Bool {
+    func accept(_ item: DartItem, onRun runID: UUID? = nil) async -> Bool {
         guard let ref = item.backend, ref.source == .request else { return false }
         return await mutate { try await $0.accept(requestID: ref.id, runID: runID) }
     }
 
-    func advance(_ item: GrabItem, to status: GrabStatus) async -> Bool {
+    func advance(_ item: DartItem, to status: DartStatus) async -> Bool {
         guard let ref = item.backend, ref.source == .request, let raw = status.requestStatus else { return false }
         return await mutate { try await $0.advance(requestID: ref.id, to: raw) }
     }
 
-    func release(_ item: GrabItem) async -> Bool {
+    func release(_ item: DartItem) async -> Bool {
         guard let ref = item.backend else { return false }
         return await mutate { try await $0.release(requestID: ref.id) }
     }
 
-    func cancel(_ item: GrabItem) async -> Bool {
+    func cancel(_ item: DartItem) async -> Bool {
         guard let ref = item.backend else { return false }
         return await mutate { try await $0.cancel(requestID: ref.id) }
     }
 
-    func setRunStatus(_ item: GrabItem, _ status: String) async -> Bool {
+    func setRunStatus(_ item: DartItem, _ status: String) async -> Bool {
         guard let ref = item.backend, ref.source == .run else { return false }
         return await mutate { try await $0.setRunStatus(ref.id, status: status) }
     }
 
-    func requestFromRun(_ item: GrabItem, title: String, budgetDollars: Int?) async -> Bool {
+    func requestFromRun(_ item: DartItem, title: String, budgetDollars: Int?) async -> Bool {
         guard let ref = item.backend, ref.source == .run else { return false }
         return await mutate { try await $0.requestFromRun(runID: ref.id, title: title, budgetCents: budgetDollars.map { $0 * 100 }) }
     }
@@ -534,7 +600,7 @@ final class GrabStore: ObservableObject {
         await mutate { _ = try await $0.joinGroup(inviteCode: code) }
     }
 
-    func joinBuilding(_ group: GrabGroup) async -> Bool {
+    func joinBuilding(_ group: DartGroup) async -> Bool {
         await mutate { try await $0.joinBuilding(groupID: group.id) }
     }
 
@@ -543,21 +609,41 @@ final class GrabStore: ObservableObject {
         await mutate { try await $0.setHomePlace(placeID) }
     }
 
-    func leave(_ group: GrabGroup) async -> Bool {
+    func leave(_ group: DartGroup) async -> Bool {
         await mutate { try await $0.leaveGroup(group.id) }
+    }
+
+    func blockUser(_ userID: UUID) async -> Bool {
+        await mutate { try await $0.blockUser(userID) }
+    }
+
+    func unblockUser(_ userID: UUID) async -> Bool {
+        await mutate { try await $0.unblockUser(userID) }
+    }
+
+    func reportUser(_ userID: UUID, item: DartItem, category: String, details: String) async -> Bool {
+        await perform {
+            try await $0.reportUser(
+                userID,
+                requestID: item.backend?.source == .request ? item.backend?.id : nil,
+                groupID: item.backend?.groupID,
+                category: category,
+                details: details
+            )
+        }
     }
 
     func delete(_ item: ShoppingItem) async -> Bool {
         await mutate { try await $0.deleteListItem(item.id) }
     }
 
-    private func mutate(_ work: (GrabBackend) async throws -> Void) async -> Bool {
+    private func mutate(_ work: (DartBackend) async throws -> Void) async -> Bool {
         let ok = await perform(work)
         if ok { await refresh() }
         return ok
     }
 
-    private func perform(_ work: (GrabBackend) async throws -> Void) async -> Bool {
+    private func perform(_ work: (DartBackend) async throws -> Void) async -> Bool {
         guard let backend else { return false }
         do {
             try await work(backend)
@@ -581,7 +667,7 @@ final class GrabStore: ObservableObject {
 
     private func startRealtime() async {
         guard let backend, channel == nil else { return }
-        let channel = backend.client.channel("grab-live")
+        let channel = backend.client.channel("dart-live")
         let changes = channel.postgresChange(AnyAction.self, schema: "public")
         self.channel = channel
         do {
@@ -632,11 +718,11 @@ final class GrabStore: ObservableObject {
         let latestByGroup = Dictionary(grouping: messages, by: \.groupID).compactMapValues(\.first)
         let itemsByGroup = Dictionary(grouping: items, by: \.groupID)
 
-        let mapped = groups.map { row -> GrabGroup in
+        let mapped = groups.map { row -> DartGroup in
             let roster = membersByGroup[row.id] ?? []
             let latest = latestByGroup[row.id]
             let run = runs.first { $0.groupID == row.id }.map { item(from: $0) }
-            return GrabGroup(
+            return DartGroup(
                 id: row.id,
                 name: row.name,
                 kind: row.kind == "building" ? .building : .friends,
@@ -656,14 +742,14 @@ final class GrabStore: ObservableObject {
         discoverableGroups = mapped.filter { !$0.isMember }
     }
 
-    private func item(from run: RunRow) -> GrabItem {
+    private func item(from run: RunRow) -> DartItem {
         let me = userID
         let isMine = run.runnerID == me
         let runner = run.runner.map { Person(id: $0.id, name: $0.displayName, initials: $0.initials) }
             ?? Person(id: run.runnerID, name: "A neighbor", initials: "?")
         let firstName = isMine ? "You" : (runner.name.split(separator: " ").first.map(String.init) ?? runner.name)
         let store = run.storeLabel.components(separatedBy: " · ").first ?? run.storeLabel
-        let kind: GrabItem.Kind = switch run.audience {
+        let kind: DartItem.Kind = switch run.audience {
         case "friends": .friendRun
         case "building": .buildingRun
         default: .campusRun
@@ -679,7 +765,7 @@ final class GrabStore: ObservableObject {
         let timing = kind == .friendRun
             ? "List closes \(Self.relative(run.closesAt))"
             : "Requests close at \(Self.time(run.closesAt))"
-        return GrabItem(
+        return DartItem(
             id: run.id,
             title: title,
             subtitle: subtitle,
@@ -691,7 +777,7 @@ final class GrabStore: ObservableObject {
             merchandiseBudget: nil,
             effort: nil,
             kind: kind,
-            status: GrabStatus(runStatus: run.status),
+            status: DartStatus(runStatus: run.status),
             detail: [run.note, "Takes requests that add up to \(run.maxAddedMinutes) min to the trip."].compactMap { $0 }.joined(separator: " "),
             backend: BackendRef(source: .run, id: run.id, groupID: run.groupID, role: isMine ? .owner : .viewer, rawStatus: run.status),
             pickupLocation: location(of: run.storePlaceID),
@@ -699,7 +785,7 @@ final class GrabStore: ObservableObject {
         )
     }
 
-    private func item(from request: RequestRow, me: UUID) -> GrabItem {
+    private func item(from request: RequestRow, me: UUID) -> DartItem {
         let requester = request.requester.map { Person(id: $0.id, name: $0.displayName, initials: $0.initials) }
             ?? Person(id: request.requesterID, name: "A neighbor", initials: "?")
         let role: BackendRef.Role = request.requesterID == me ? .owner : (request.helperID == me ? .helper : .viewer)
@@ -708,7 +794,7 @@ final class GrabStore: ObservableObject {
             let who = request.helperID == me ? "you" : helper.displayName
             detail += (detail.isEmpty ? "" : "\n\n") + "Accepted by \(who)."
         }
-        return GrabItem(
+        return DartItem(
             id: request.id,
             title: request.title,
             subtitle: request.details.isEmpty ? "\(request.pickupLabel) → \(request.destinationLabel)" : request.details,
@@ -720,7 +806,7 @@ final class GrabStore: ObservableObject {
             merchandiseBudget: request.merchandiseBudgetCents.map(Self.dollars),
             effort: request.estMinutes.map { "\($0) min" },
             kind: .campusRequest,
-            status: GrabStatus(requestStatus: request.status),
+            status: DartStatus(requestStatus: request.status),
             detail: detail.isEmpty ? "No extra details." : detail,
             backend: BackendRef(source: .request, id: request.id, groupID: request.groupID, role: role, rawStatus: request.status),
             pickupLocation: location(of: request.pickupPlaceID),
@@ -731,7 +817,7 @@ final class GrabStore: ObservableObject {
     private func record(from request: RequestRow, me: UUID) -> ActivityRecord {
         let isRequester = request.requesterID == me
         let helperName = request.helperID == me ? "you" : (request.helper?.displayName.split(separator: " ").first.map(String.init) ?? "your helper")
-        let status = GrabStatus(requestStatus: request.status)
+        let status = DartStatus(requestStatus: request.status)
         let update: String = switch status {
         case .waiting: "Posted \(Self.relative(request.createdAt))"
         case .accepted: isRequester ? "Accepted by \(helperName)" : "You accepted \(Self.relative(request.acceptedAt ?? request.createdAt))"
@@ -775,7 +861,7 @@ final class GrabStore: ObservableObject {
     }
 }
 
-extension GrabStatus {
+extension DartStatus {
     init(requestStatus: String) {
         switch requestStatus {
         case "accepted": self = .accepted
@@ -813,7 +899,7 @@ extension GrabStatus {
     }
 
     /// The next step the helper can move a request to. Completion is the requester's to confirm.
-    var nextHelperStep: GrabStatus? {
+    var nextHelperStep: DartStatus? {
         switch self {
         case .accepted: .pickingUp
         case .pickingUp: .onTheWay

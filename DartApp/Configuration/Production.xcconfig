@@ -1,0 +1,10 @@
+#include "Base.xcconfig"
+
+// Intentionally unusable until the owner supplies production identifiers and a separate project.
+DART_ENVIRONMENT = PRODUCTION
+DART_BUNDLE_PREFIX = org.example.dart.production
+DART_ASSOCIATED_DOMAIN = dart.example.invalid
+DART_APNS_ENVIRONMENT = production
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+

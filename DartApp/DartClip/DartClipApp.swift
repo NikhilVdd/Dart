@@ -4,13 +4,13 @@ import UIKit
 import UserNotifications
 
 @main
-struct GrabClipApp: App {
-    @UIApplicationDelegateAdaptor(GrabClipDelegate.self) private var appDelegate
+struct DartClipApp: App {
+    @UIApplicationDelegateAdaptor(DartClipDelegate.self) private var appDelegate
     @State private var invocation = ClipInvocation.fallback
 
     var body: some Scene {
         WindowGroup {
-            GrabClipView(invocation: invocation)
+            DartClipView(invocation: invocation)
                 .preferredColorScheme(.dark)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     if let url = activity.webpageURL { invocation = ClipInvocation(url: url) }
@@ -19,7 +19,7 @@ struct GrabClipApp: App {
     }
 }
 
-final class GrabClipDelegate: NSObject, UIApplicationDelegate {
+final class DartClipDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
@@ -30,11 +30,11 @@ final class GrabClipDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         ClipPushTokenCenter.shared.currentToken = token
-        NotificationCenter.default.post(name: .grabClipAPNSToken, object: nil, userInfo: ["token": token])
+        NotificationCenter.default.post(name: .dartClipAPNSToken, object: nil, userInfo: ["token": token])
     }
 }
 
-extension GrabClipDelegate: UNUserNotificationCenterDelegate {
+extension DartClipDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
@@ -43,7 +43,7 @@ extension GrabClipDelegate: UNUserNotificationCenterDelegate {
 }
 
 private extension Notification.Name {
-    static let grabClipAPNSToken = Notification.Name("grab.clip-apns-token")
+    static let dartClipAPNSToken = Notification.Name("dart.clip-apns-token")
 }
 
 @MainActor
@@ -92,7 +92,7 @@ struct ClipInvocation: Equatable {
     }
 }
 
-private struct GrabClipView: View {
+private struct DartClipView: View {
     let invocation: ClipInvocation
     @State private var tracking = false
     @State private var message: String?
@@ -102,7 +102,7 @@ private struct GrabClipView: View {
             Color(red: 0.03, green: 0.04, blue: 0.03).ignoresSafeArea()
             VStack(alignment: .leading, spacing: 22) {
                 Text("G").font(.title.bold()).foregroundStyle(.black).frame(width: 54, height: 54)
-                    .background(Color.grabLime, in: RoundedRectangle(cornerRadius: 16))
+                    .background(Color.dartLime, in: RoundedRectangle(cornerRadius: 16))
                 Text("Track your Dart").font(.largeTitle.bold())
                 Text(invocation.title).font(.title2.weight(.semibold))
                 VStack(alignment: .leading, spacing: 12) {
@@ -113,17 +113,17 @@ private struct GrabClipView: View {
                 Button { Task { await startTracking() } } label: {
                     Label(tracking ? "Live status added" : "Add live status", systemImage: tracking ? "checkmark" : "wave.3.right")
                         .font(.headline).foregroundStyle(.black).frame(maxWidth: .infinity).padding(.vertical, 17)
-                        .background(Color.grabLime, in: RoundedRectangle(cornerRadius: 18))
+                        .background(Color.dartLime, in: RoundedRectangle(cornerRadius: 18))
                 }
                 .disabled(tracking)
                 if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
-                Link("Open the full Dart app", destination: URL(string: "grab://request/\(invocation.requestID)")!)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.grabLime)
+                Link("Open the full Dart app", destination: URL(string: "dart://request/\(invocation.requestID)")!)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.dartLime)
             }
             .padding(24)
         }
         .task { await registerAlertTokenIfAvailable() }
-        .onReceive(NotificationCenter.default.publisher(for: .grabClipAPNSToken)) { note in
+        .onReceive(NotificationCenter.default.publisher(for: .dartClipAPNSToken)) { note in
             guard let token = note.userInfo?["token"] as? String else { return }
             Task { await register(token: token, kind: "alert") }
         }
@@ -135,14 +135,14 @@ private struct GrabClipView: View {
             return
         }
         do {
-            let attributes = GrabDeliveryAttributes(
+            let attributes = DartDeliveryAttributes(
                 requestID: invocation.requestID,
                 title: invocation.title,
                 pickup: invocation.pickup,
                 destination: invocation.destination,
                 role: "viewer"
             )
-            let state = GrabDeliveryAttributes.ContentState.grab(status: invocation.status, headline: "Your Dart is active")
+            let state = DartDeliveryAttributes.ContentState.make(status: invocation.status, headline: "Your Dart is active")
             let activity = try Activity.request(
                 attributes: attributes,
                 content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(15 * 60)),
@@ -158,7 +158,7 @@ private struct GrabClipView: View {
         }
     }
 
-    private func observePushToken(for activity: Activity<GrabDeliveryAttributes>) {
+    private func observePushToken(for activity: Activity<DartDeliveryAttributes>) {
         Task {
             for await tokenData in activity.pushTokenUpdates {
                 let token = tokenData.map { String(format: "%02x", $0) }.joined()
@@ -176,7 +176,7 @@ private struct GrabClipView: View {
     private func register(token: String, kind: String) async {
         guard let secret = invocation.trackingSecret else { return }
         do {
-            try await GrabClipPushRegistrar.register(
+            try await DartClipPushRegistrar.register(
                 token: token,
                 kind: kind,
                 requestID: invocation.requestID,
@@ -188,7 +188,7 @@ private struct GrabClipView: View {
     }
 }
 
-private enum GrabClipPushRegistrar {
+private enum DartClipPushRegistrar {
     static func register(token: String, kind: String, requestID: String, trackingSecret: String) async throws {
         guard let plistURL = Bundle.main.url(forResource: "Supabase", withExtension: "plist"),
               let values = NSDictionary(contentsOf: plistURL) as? [String: Any],
@@ -208,7 +208,7 @@ private enum GrabClipPushRegistrar {
             "tracking_secret": trackingSecret,
             "token": token,
             "token_kind": kind,
-            "bundle_id": Bundle.main.bundleIdentifier ?? "com.grab.preview.restart.Clip",
+            "bundle_id": Bundle.main.bundleIdentifier ?? "org.example.dart.Clip",
             "environment": pushEnvironment,
         ])
         let (_, response) = try await URLSession.shared.data(for: request)
@@ -227,5 +227,5 @@ private enum GrabClipPushRegistrar {
 }
 
 private extension Color {
-    static let grabLime = Color(red: 0.776, green: 1, blue: 0)
+    static let dartLime = Color(red: 0.776, green: 1, blue: 0)
 }

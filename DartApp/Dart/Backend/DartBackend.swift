@@ -3,7 +3,7 @@ import Supabase
 
 /// Thin, typed wrapper over the Supabase client. Every call is subject to row level security,
 /// and request status changes go through the lifecycle functions defined in the migrations.
-final class GrabBackend {
+final class DartBackend {
     let client: SupabaseClient
 
     init(config: SupabaseConfig) {
@@ -33,6 +33,21 @@ final class GrabBackend {
         return response.session != nil
     }
 
+    func requestPasswordReset(email: String) async throws {
+        try await client.auth.resetPasswordForEmail(
+            email,
+            redirectTo: URL(string: "dart://auth/recovery")
+        )
+    }
+
+    func updatePassword(_ password: String) async throws {
+        _ = try await client.auth.update(user: UserAttributes(password: password))
+    }
+
+    func handleAuthCallback(_ url: URL) {
+        client.auth.handle(url)
+    }
+
     func signOut() async throws {
         try await client.auth.signOut()
     }
@@ -59,6 +74,10 @@ final class GrabBackend {
 
     func members() async throws -> [MemberRow] {
         try await client.from("group_members").select(MemberRow.select).execute().value
+    }
+
+    func blockedUsers() async throws -> [BlockedUserRow] {
+        try await client.from("user_blocks").select(BlockedUserRow.select).order("created_at", ascending: false).execute().value
     }
 
     /// Active runs you can see: your own, your groups', and campus-wide ones.
@@ -143,6 +162,14 @@ final class GrabBackend {
         try await client.from("profiles").update(["display_name": name]).eq("id", value: userID).execute()
     }
 
+    func setAgeBand(_ ageBand: String) async throws {
+        try await client.rpc("set_my_age_band", params: ["p_age_band": ageBand]).execute()
+    }
+
+    func acceptSafetyRules() async throws {
+        try await client.rpc("accept_safety_rules").execute()
+    }
+
     func postRequest(_ request: NewRequest) async throws -> RequestRow {
         try await client.from("requests").insert(request).select(RequestRow.select).single().execute().value
     }
@@ -208,6 +235,24 @@ final class GrabBackend {
 
     func leaveGroup(_ groupID: UUID) async throws {
         try await client.rpc("leave_group", params: ["p_group_id": groupID]).execute()
+    }
+
+    func blockUser(_ userID: UUID) async throws {
+        try await client.from("user_blocks").insert(["blocked_id": userID.uuidString]).execute()
+    }
+
+    func unblockUser(_ userID: UUID) async throws {
+        try await client.from("user_blocks").delete().eq("blocked_id", value: userID).execute()
+    }
+
+    func reportUser(_ userID: UUID, requestID: UUID?, groupID: UUID?, category: String, details: String) async throws {
+        try await client.from("safety_reports").insert(SafetyReportPayload(
+            reportedUserID: userID,
+            requestID: requestID,
+            groupID: groupID,
+            category: category,
+            details: details
+        )).execute()
     }
 
     func deleteListItem(_ id: UUID) async throws {
@@ -340,5 +385,20 @@ private struct LiveActivityTokenRegistration: Encodable {
         case requestID = "request_id"
         case bundleID = "bundle_id"
         case appVariant = "app_variant"
+    }
+}
+
+private struct SafetyReportPayload: Encodable {
+    let reportedUserID: UUID
+    let requestID: UUID?
+    let groupID: UUID?
+    let category: String
+    let details: String
+
+    enum CodingKeys: String, CodingKey {
+        case category, details
+        case reportedUserID = "reported_user_id"
+        case requestID = "request_id"
+        case groupID = "group_id"
     }
 }

@@ -5,7 +5,7 @@ extension GeoPoint {
     var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lng) }
 }
 
-extension GrabItem {
+extension DartItem {
     /// Map pin symbol: requests are packages, runs show who they're for.
     var mapSymbol: String {
         switch kind {
@@ -16,32 +16,32 @@ extension GrabItem {
         }
     }
 
-    var mapTint: Color { kind == .campusRequest ? GrabTheme.gold : GrabTheme.blue }
+    var mapTint: Color { kind == .campusRequest ? DartTheme.gold : DartTheme.blue }
 }
 
 /// A compact map of the feed above the list. Tap a pin to open the item; expand for a full map.
 struct FeedMapCard: View {
-    let items: [GrabItem]
-    let onSelect: (GrabItem) -> Void
+    let items: [DartItem]
+    let onSelect: (DartItem) -> Void
 
     @State private var expanded = false
 
-    private var located: [GrabItem] { items.filter { $0.mapLocation != nil } }
+    private var located: [DartItem] { items.filter { $0.mapLocation != nil } }
 
     var body: some View {
         if !located.isEmpty {
             ZStack(alignment: .topTrailing) {
                 FeedMap(items: located, onSelect: onSelect)
                     .frame(height: 210)
-                    .clipShape(RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius, style: .continuous)
+                    .clipShape(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous)
                         .stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
 
                 Button { expanded = true } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.subheadline.weight(.semibold))
                         .frame(width: 36, height: 36)
-                        .grabGlass(radius: 12)
+                        .dartSurface(radius: 12)
                 }
                 .buttonStyle(PressableStyle())
                 .padding(10)
@@ -71,8 +71,8 @@ struct FeedMapCard: View {
 
 /// Pins for feed items; selecting one calls `onSelect`.
 struct FeedMap: View {
-    let items: [GrabItem]
-    let onSelect: (GrabItem) -> Void
+    let items: [DartItem]
+    let onSelect: (DartItem) -> Void
 
     @State private var position: MapCameraPosition = .automatic
     @State private var selection: UUID?

@@ -2,15 +2,15 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var state: AppState
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedItem: GrabItem?
+    @State private var selectedItem: DartItem?
     @State private var creating: CreateSheet.Destination?
     @State private var appeared = false
     @State private var findingTask = false
     @State private var noTaskNearby = false
 
-    private var feed: [GrabItem] { store.feed(for: state.homeMode) }
+    private var feed: [DartItem] { store.feed(for: state.homeMode) }
 
     var body: some View {
         NavigationStack {
@@ -31,18 +31,18 @@ struct HomeView: View {
                         ContentStateCard(state: store.isLoading ? .loading : .empty)
                     }
                     ForEach(Array(feed.enumerated()), id: \.element.id) { index, item in
-                        Button { selectedItem = item } label: { GrabItemCard(item: item) }
+                        Button { selectedItem = item } label: { DartItemCard(item: item) }
                             .buttonStyle(PressableStyle())
                             .opacity(appeared ? 1 : 0)
                             .offset(y: appeared ? 0 : 12)
                             .animation(reduceMotion ? nil : .easeOut(duration: 0.3).delay(Double(index) * 0.07), value: appeared)
                     }
                 }
-                .padding(.horizontal, GrabTheme.pageInset)
+                .padding(.horizontal, DartTheme.pageInset)
                 .padding(.top, 18)
                 .padding(.bottom, 116)
             }
-            .background(GrabBackdrop())
+            .background(DartBackdrop())
             .refreshable { await store.refresh() }
             .onAppear { appeared = true }
             .sheet(item: $selectedItem) { ItemDetailView(item: $0) }
@@ -61,7 +61,7 @@ struct HomeView: View {
                 Text("\(greeting), \(store.firstName ?? state.profileName)").font(.subheadline).foregroundStyle(.secondary)
                 Text("What can we grab?").font(.largeTitle.bold())
                 Label(store.campusName ?? state.campus, systemImage: "graduationcap.fill")
-                    .font(.caption.weight(.semibold)).foregroundStyle(GrabTheme.blue)
+                    .font(.caption.weight(.semibold)).foregroundStyle(DartTheme.blue)
             }
             Spacer()
             if !store.isLive { PreviewPill(text: "PREVIEW") }
@@ -107,12 +107,12 @@ struct HomeView: View {
         }
     }
 
-    private func activeCard(_ item: GrabItem) -> some View {
+    private func activeCard(_ item: DartItem) -> some View {
         Button { selectedItem = item } label: {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Label(state.homeMode == .request ? "ACTIVE REQUEST" : "ACTIVE JOB", systemImage: "waveform.path.ecg")
-                        .font(.caption2.bold()).tracking(0.8).foregroundStyle(GrabTheme.blue)
+                        .font(.caption2.bold()).tracking(0.8).foregroundStyle(DartTheme.blue)
                     Spacer()
                     StatusChip(status: item.status)
                 }
@@ -122,13 +122,13 @@ struct HomeView: View {
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             .padding(18)
-            .grabGlass()
+            .dartSurface()
         }
         .buttonStyle(PressableStyle())
         .accessibilityHint("Opens active item details")
     }
 
-    private func activeSubtitle(_ item: GrabItem) -> String {
+    private func activeSubtitle(_ item: DartItem) -> String {
         guard store.isLive else {
             return state.homeMode == .request ? "Accepted by Maya · merchandise budget is separate" : "Returning to The Durant · $5 preview reward"
         }

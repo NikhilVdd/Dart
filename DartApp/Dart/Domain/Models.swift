@@ -19,7 +19,7 @@ enum AppearanceChoice: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
 }
 
-enum GrabStatus: String, Codable, CaseIterable {
+enum DartStatus: String, Codable, CaseIterable {
     case waiting = "Waiting for someone"
     case accepted = "Accepted"
     case pickingUp = "Picking up"
@@ -30,10 +30,10 @@ enum GrabStatus: String, Codable, CaseIterable {
     case expired = "Expired"
 
     /// The delivery stages shown on a timeline; cancelled and expired are end states, not stages.
-    static let timeline: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .delivered, .completed]
+    static let timeline: [DartStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .delivered, .completed]
 
     /// Still in progress: shown in feeds and the active card.
-    static let active: [GrabStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .delivered]
+    static let active: [DartStatus] = [.waiting, .accepted, .pickingUp, .onTheWay, .delivered]
 
     var icon: String {
         switch self {
@@ -74,11 +74,11 @@ struct BackendRef: Hashable, Codable {
     let id: UUID
     var groupID: UUID? = nil
     var role: Role = .viewer
-    /// The database status (`run_status` / `request_status`), finer-grained than GrabStatus.
+    /// The database status (`run_status` / `request_status`), finer-grained than DartStatus.
     var rawStatus: String? = nil
 }
 
-struct GrabItem: Identifiable, Hashable, Codable {
+struct DartItem: Identifiable, Hashable, Codable {
     enum Kind: String, Codable {
         case campusRequest
         case friendRun
@@ -97,7 +97,7 @@ struct GrabItem: Identifiable, Hashable, Codable {
     let merchandiseBudget: Int?
     let effort: String?
     let kind: Kind
-    let status: GrabStatus
+    let status: DartStatus
     let detail: String
     var backend: BackendRef? = nil
     /// Nil when unknown, e.g. an "any store" request has no pickup point.
@@ -117,7 +117,7 @@ struct GrabItem: Identifiable, Hashable, Codable {
     }
 }
 
-struct GrabGroup: Identifiable, Hashable, Codable {
+struct DartGroup: Identifiable, Hashable, Codable {
     enum Kind: String, Codable {
         case friends = "Free friend group"
         case building = "Paid building community"
@@ -130,7 +130,7 @@ struct GrabGroup: Identifiable, Hashable, Codable {
     let memberInitials: [String]
     let latestMessage: String
     let conversation: [Message]
-    let run: GrabItem?
+    let run: DartItem?
     let shoppingList: [ShoppingItem]
     var inviteCode: String? = nil
     var isMember = true
@@ -158,9 +158,9 @@ struct Message: Identifiable, Hashable, Codable {
 
 struct ActivityRecord: Identifiable, Hashable, Codable {
     let id: UUID
-    let item: GrabItem
+    let item: DartItem
     let mode: ActivityMode
-    let currentStatus: GrabStatus
+    let currentStatus: DartStatus
     let lastUpdate: String
 }
 
@@ -169,7 +169,7 @@ enum PreviewData {
     static let jordan = Person(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, name: "Jordan Lee", initials: "JL")
     static let devon = Person(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, name: "Devon Park", initials: "DP")
 
-    static let charger = GrabItem(
+    static let charger = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
         title: "Grab my charger from the library",
         subtitle: "USB-C charger at Moffitt Library",
@@ -187,7 +187,7 @@ enum PreviewData {
         destinationLocation: GeoPoint(lat: 37.86693, lng: -122.26093)
     )
 
-    static let shampoo = GrabItem(
+    static let shampoo = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
         title: "Pick up shampoo from Target",
         subtitle: "Any unscented everyday shampoo",
@@ -205,7 +205,7 @@ enum PreviewData {
         destinationLocation: GeoPoint(lat: 37.86770, lng: -122.26109)
     )
 
-    static let traderJoes = GrabItem(
+    static let traderJoes = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
         title: "Maya is at Trader Joe’s",
         subtitle: "Add something before Maya checks out",
@@ -223,7 +223,7 @@ enum PreviewData {
         destinationLocation: GeoPoint(lat: 37.86766, lng: -122.25866)
     )
 
-    static let buildingRun = GrabItem(
+    static let buildingRun = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000004")!,
         title: "Target run back to your building",
         subtitle: "One neighbor request still available",
@@ -247,9 +247,9 @@ enum PreviewData {
     ]
 
     static let groups = [
-        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!, name: "Sunday Dinner", kind: .friends, memberCount: 6, memberInitials: ["MC", "NV", "JL"], latestMessage: "Maya started a Trader Joe’s run", conversation: friendMessages, run: traderJoes, shoppingList: ["Sparkling water", "Pasta", "Basil"].map(ShoppingItem.sample)),
-        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!, name: "Design Studio", kind: .friends, memberCount: 9, memberInitials: ["DP", "AK", "NV"], latestMessage: "Anyone going near the art store?", conversation: [Message(id: UUID(), sender: "Devon", body: "Anyone going near the art store tonight?", time: "4:18 PM", isCurrentUser: false)], run: traderJoes, shoppingList: ["Tracing paper", "Black markers"].map(ShoppingItem.sample)),
-        GrabGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Target run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Target run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"].map(ShoppingItem.sample))
+        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!, name: "Sunday Dinner", kind: .friends, memberCount: 6, memberInitials: ["MC", "NV", "JL"], latestMessage: "Maya started a Trader Joe’s run", conversation: friendMessages, run: traderJoes, shoppingList: ["Sparkling water", "Pasta", "Basil"].map(ShoppingItem.sample)),
+        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!, name: "Design Studio", kind: .friends, memberCount: 9, memberInitials: ["DP", "AK", "NV"], latestMessage: "Anyone going near the art store?", conversation: [Message(id: UUID(), sender: "Devon", body: "Anyone going near the art store tonight?", time: "4:18 PM", isCurrentUser: false)], run: traderJoes, shoppingList: ["Tracing paper", "Black markers"].map(ShoppingItem.sample)),
+        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Target run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Target run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"].map(ShoppingItem.sample))
     ]
 
     static let activities = [

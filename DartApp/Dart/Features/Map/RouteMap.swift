@@ -4,7 +4,7 @@ import SwiftUI
 /// Pickup → drop-off on a map, with the walking route and time from Apple Maps.
 /// Falls back to a straight line if no route is available; shows a single pin when only one end is known.
 struct RouteMapCard: View {
-    let item: GrabItem
+    let item: DartItem
 
     @State private var route: MKRoute?
     @State private var position: MapCameraPosition = .automatic
@@ -20,17 +20,17 @@ struct RouteMapCard: View {
                     if let pickup {
                         Marker(item.pickup, systemImage: item.kind == .campusRequest ? "bag.fill" : "storefront.fill",
                                coordinate: pickup.coordinate)
-                            .tint(GrabTheme.blue)
+                            .tint(DartTheme.blue)
                     }
                     if let destination {
                         Marker(item.destination, systemImage: "flag.checkered", coordinate: destination.coordinate)
-                            .tint(GrabTheme.gold)
+                            .tint(DartTheme.gold)
                     }
                     if let route {
-                        MapPolyline(route).stroke(GrabTheme.blue, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        MapPolyline(route).stroke(DartTheme.blue, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                     } else if let pickup, let destination, !loading {
                         MapPolyline(coordinates: [pickup.coordinate, destination.coordinate])
-                            .stroke(GrabTheme.blue.opacity(0.6), style: StrokeStyle(lineWidth: 3, dash: [6, 6]))
+                            .stroke(DartTheme.blue.opacity(0.6), style: StrokeStyle(lineWidth: 3, dash: [6, 6]))
                     }
                 }
                 .mapStyle(.standard(pointsOfInterest: .excludingAll))

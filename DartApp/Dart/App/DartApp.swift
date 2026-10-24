@@ -1,20 +1,22 @@
 import SwiftUI
 
 @main
-struct GrabApp: App {
-    @UIApplicationDelegateAdaptor(GrabAppDelegate.self) private var appDelegate
+struct DartApp: App {
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(DartAppDelegate.self) private var appDelegate
+    #endif
     @StateObject private var state = AppState()
-    @StateObject private var store = GrabStore()
+    @StateObject private var store = DartStore()
 
     var body: some Scene {
         WindowGroup {
             RootShellView()
                 .environmentObject(state)
                 .environmentObject(store)
-                .preferredColorScheme(state.colorScheme)
+                .preferredColorScheme(.dark)
                 .onOpenURL { url in
-                    guard url.scheme == "grab", url.host == "request" else { return }
-                    state.selectedTab = 2
+                    store.handleDeepLink(url)
+                    if url.scheme == "dart", url.host == "request" { state.selectedTab = 2 }
                 }
         }
     }

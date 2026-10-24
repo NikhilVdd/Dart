@@ -1,11 +1,13 @@
-import ActivityKit
 import Foundation
 
+#if os(iOS)
+import ActivityKit
+
 extension Notification.Name {
-    static let grabLiveActivityPushToken = Notification.Name("grab.live-activity-push-token")
+    static let dartLiveActivityPushToken = Notification.Name("dart.live-activity-push-token")
 }
 
-/// Keeps one DoorDash-style Live Activity in sync with the most relevant active Grab request.
+/// Keeps one DoorDash-style Live Activity in sync with the most relevant active Dart request.
 /// Foreground realtime changes update it immediately; APNs uses the emitted token when the app is closed.
 @MainActor
 final class LiveActivityCoordinator {
@@ -26,12 +28,12 @@ final class LiveActivityCoordinator {
         await endOrphanedActivities(keeping: requestID)
         let state = contentState(for: current)
 
-        if let activity = Activity<GrabDeliveryAttributes>.activities.first(where: { $0.attributes.requestID == requestID }) {
+        if let activity = Activity<DartDeliveryAttributes>.activities.first(where: { $0.attributes.requestID == requestID }) {
             await activity.update(ActivityContent(state: state, staleDate: Date().addingTimeInterval(15 * 60)))
             return
         }
 
-        let attributes = GrabDeliveryAttributes(
+        let attributes = DartDeliveryAttributes(
             requestID: requestID,
             title: current.item.title,
             pickup: current.item.pickup,
@@ -55,12 +57,12 @@ final class LiveActivityCoordinator {
         await endOrphanedActivities(keeping: nil)
     }
 
-    private func contentState(for record: ActivityRecord) -> GrabDeliveryAttributes.ContentState {
+    private func contentState(for record: ActivityRecord) -> DartDeliveryAttributes.ContentState {
         let rawStatus = record.item.backend?.rawStatus ?? record.currentStatus.activityStatus
-        return .grab(status: rawStatus, headline: record.lastUpdate)
+        return .make(status: rawStatus, headline: record.lastUpdate)
     }
 
-    private func observePushTokens(for activity: Activity<GrabDeliveryAttributes>) {
+    private func observePushTokens(for activity: Activity<DartDeliveryAttributes>) {
         let requestID = activity.attributes.requestID
         tokenTasks[requestID]?.cancel()
         tokenTasks[requestID] = Task {
@@ -68,7 +70,7 @@ final class LiveActivityCoordinator {
                 guard !Task.isCancelled else { return }
                 let token = tokenData.map { String(format: "%02x", $0) }.joined()
                 NotificationCenter.default.post(
-                    name: .grabLiveActivityPushToken,
+                    name: .dartLiveActivityPushToken,
                     object: nil,
                     userInfo: ["requestID": requestID, "token": token]
                 )
@@ -77,8 +79,8 @@ final class LiveActivityCoordinator {
     }
 
     private func endOrphanedActivities(keeping requestID: String?) async {
-        for activity in Activity<GrabDeliveryAttributes>.activities where activity.attributes.requestID != requestID {
-            let final = GrabDeliveryAttributes.ContentState.grab(status: "completed", headline: "Dart complete")
+        for activity in Activity<DartDeliveryAttributes>.activities where activity.attributes.requestID != requestID {
+            let final = DartDeliveryAttributes.ContentState.make(status: "completed", headline: "Dart complete")
             await activity.end(ActivityContent(state: final, staleDate: nil), dismissalPolicy: .after(Date().addingTimeInterval(15 * 60)))
             tokenTasks[activity.attributes.requestID]?.cancel()
             tokenTasks[activity.attributes.requestID] = nil
@@ -86,7 +88,7 @@ final class LiveActivityCoordinator {
     }
 }
 
-private extension GrabStatus {
+private extension DartStatus {
     var activityStatus: String {
         switch self {
         case .waiting: "open"
@@ -100,3 +102,14 @@ private extension GrabStatus {
         }
     }
 }
+#else
+extension Notification.Name {
+    static let dartLiveActivityPushToken = Notification.Name("dart.live-activity-push-token")
+}
+
+@MainActor
+final class LiveActivityCoordinator {
+    func sync(records: [ActivityRecord]) async {}
+    func endAll() async {}
+}
+#endif

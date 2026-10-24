@@ -1,14 +1,16 @@
-# Grab Friends & Family launch
+# Dart Friends & Family launch
 
-## Public app
+## Legacy public PWA
 
-The public PWA is hosted at:
+The previous Grab-branded PWA is hosted at:
 
 https://grab-product-preview-nv.vaddeynikhil.chatgpt.site
 
-It is responsive, installable from Safari or Chrome, and backed by the production Supabase project.
+It is not the production native Dart app, its URL is not the native app's final associated domain,
+and it must not be used as evidence of App Store or TestFlight readiness. It remains useful for
+comparing the mobile content hierarchy while the SwiftUI app is validated.
 
-## What is live
+## What the legacy PWA supports
 
 - Email/password signup, sign-in, sign-out, account deletion, and password-reset initiation
 - Guided first-run onboarding and mobile Home Screen installation
@@ -43,7 +45,7 @@ npm test
 ## Release checklist
 
 - Test signup and sign-in with a fresh account.
-- On an iPhone, add Grab to the Home Screen, tap Profile → Account → Turn on notifications, then run a
+- On an iPhone, add the legacy PWA to the Home Screen, tap Profile → Account → Turn on notifications, then run a
   request through every step from a second account and watch the one notification advance.
 - Complete onboarding and visit Home, Groups, Request, Earn, Activity, and Profile.
 - Verify global search, updates, feedback, and mobile navigation.
@@ -53,6 +55,7 @@ npm test
 
 ## Known boundary
 
-Payment processing and payouts are intentionally out of scope for Friends & Family. Push
-notifications are Web Push (no Apple Developer account); deployment steps are in `supabase/README.md`. Custom SMTP is
-the only remaining external service configuration needed for reliable password-reset email delivery.
+Payment processing and payouts remain disabled. Web Push for the legacy PWA does not validate APNs,
+App Clip, Live Activity, signing, or universal-link behavior in the native app. Native launch gates are
+tracked in `docs/release-readiness.md`; custom SMTP is also required for reliable account confirmation
+and password-recovery email.

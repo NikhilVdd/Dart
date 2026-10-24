@@ -1,4 +1,4 @@
-# Grab backend (Supabase)
+# Dart backend (Supabase)
 
 Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no server to run.
 
@@ -75,7 +75,7 @@ The ten launch places are aligned to Apple Maps coordinates (migration 8).
 
 ### Housekeeping and account deletion
 
-- `expire_stale()` runs every minute via **pg_cron** (job `grab-expire-stale`). It expires overdue open
+- `expire_stale()` runs every minute via **pg_cron** (legacy job identifier `grab-expire-stale`). It expires overdue open
   requests, auto-completes deliveries unconfirmed for 24 hours, and closes runs an hour after their cutoff
   once nothing is in flight (three hours at most). Clients can't call it.
 - `delete_my_account()` (the App Store requires in-app deletion) hands back deliveries you were making,
@@ -83,16 +83,16 @@ The ten launch places are aligned to Apple Maps coordinates (migration 8).
   friend groups where you were the last member, then deletes your auth user. Your profile, requests,
   runs and memberships cascade; messages and list items stay with the author cleared.
 
-### Push notifications (Web Push, migration 12)
+### Legacy PWA push notifications (Web Push, migration 12)
 
 The installed PWA gets real push notifications through Web Push with our own VAPID keys. No Apple
-Developer account or APNs is involved; iPhone (iOS 16.4+) delivers them once Grab is opened from the
+Developer account or APNs is involved; iPhone (iOS 16.4+) delivers them once the legacy PWA is opened from the
 Home Screen and the person taps **Turn on notifications**.
 
 ```
 trigger ─▶ enqueue_push() ─▶ notification_outbox ─pg_net─▶ send-push Edge Function ─▶ Apple / Google / Mozilla push service
                                      ▲                                                    
-                         grab-push-retry (pg_cron, every minute)
+                         grab-push-retry (legacy pg_cron job identifier, every minute)
 ```
 
 - `push_subscriptions`: one row per browser/device, registered with `save_push_subscription()` and removed
@@ -130,14 +130,14 @@ the newest one, and the push `Topic` header does the same at the push service fo
    ```
 4. Tell Postgres where to send (SQL editor):
    ```sql
-   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/send-push', 'grab_push_url');
-   select vault.create_secret('<webhook secret>', 'grab_push_secret');
+   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/send-push', 'dart_push_url');
+   select vault.create_secret('<webhook secret>', 'dart_push_secret');
    ```
 5. Deploy the web app, open it from the Home Screen and tap Profile → Account → **Turn on
    notifications**. (`send_test_push()` queues a test for the signed-in user.) `select * from notification_outbox order by id desc` shows what was
    queued, sent, superseded, or why it failed (`last_error`).
 
-Rotating the VAPID keys invalidates every device; each one re-registers the next time Grab is opened.
+Rotating the VAPID keys invalidates every device; each one re-registers the next time the legacy PWA is opened.
 
 ### Payments (Stripe Connect, migration 15)
 
@@ -219,7 +219,8 @@ Row level security is on for every table:
    delivery, turn off **Confirm email** under Authentication → Providers → Email. If confirmation stays
    on, configure custom SMTP so new users reliably receive the confirmation message.
 4. Copy **Project URL** and the **anon / publishable key** from *Project Settings → API* into
-   `DartApp/Dart/Resources/Supabase.plist`.
+   the appropriate uncommitted or CI-provided `.xcconfig` values. Do not put production secrets in
+   `DartApp/Dart/Resources/Supabase.plist`; the checked-in file contains build-setting placeholders.
 5. For remote notifications, deploy `send-dart-push` and `register-clip-push`, add the APNs secrets,
    and point a Database Webhook for `push_events` inserts at `send-dart-push`. Exact values and Apple
    setup are in [`docs/ios-live-status.md`](../docs/ios-live-status.md).
@@ -234,8 +235,8 @@ npx supabase start      # prints the API URL and anon key
 npx supabase db reset   # applies migrations + seed.sql
 ```
 
-Put `http://127.0.0.1:54321` and the printed anon key in `Supabase.plist`, or set the `SUPABASE_URL` and
-`SUPABASE_ANON_KEY` environment variables in the Xcode scheme. Sign in as `nikhil@berkeley.edu` with
+Put `http://127.0.0.1:54321` and the printed publishable key in a local `.xcconfig`, or set the
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` environment variables in the Xcode scheme. Sign in as `nikhil@berkeley.edu` with
 password `grab-demo`. Studio is at http://127.0.0.1:54323.
 
 ## Tests (no Docker needed)
@@ -249,12 +250,13 @@ for Supabase's `auth` schema and roles. It then checks RLS, the lifecycle RPCs a
 
 ## Manual testing with test accounts
 
-`supabase/dev/accounts.mjs` mints sign-in codes for any email (no email is sent), creates a building
-group to test with, and lists and deletes users. See [`docs/manual-testing.md`](../docs/manual-testing.md)
-for the full two-account test plan.
+`supabase/dev/accounts.mjs` creates confirmed development/staging email-password accounts, creates a
+building group to test with, and lists and deletes users. See
+[`docs/manual-testing.md`](../docs/manual-testing.md) for the full two-account test plan. Never run it
+against production.
 
 `supabase/dev/demo.mjs setup` builds a live demo scene (background people, runs, requests, chat, history)
-and prints sign-in codes for two presenter accounts. `reset` removes it. See [`docs/demo.md`](../docs/demo.md)
+for development use. `reset` removes it. See [`docs/demo.md`](../docs/demo.md)
 for the recording script.
 
 ## Adding a migration

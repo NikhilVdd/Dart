@@ -1,33 +1,44 @@
 import SwiftUI
 
-enum GrabTheme {
-    static let blue = Color(red: 0.06, green: 0.32, blue: 0.92)
-    static let brightBlue = Color(red: 0.19, green: 0.56, blue: 1.0)
-    static let paleBlue = Color(red: 0.80, green: 0.90, blue: 1.0)
-    static let gold = Color(red: 0.82, green: 0.61, blue: 0.17)
-    static let navy = Color(red: 0.035, green: 0.09, blue: 0.20)
-    static let pearl = Color(red: 0.965, green: 0.975, blue: 0.995)
+enum DartTheme {
+    // Canonical values mirror web-preview/src/styles.css. The legacy names remain as aliases
+    // while feature views are migrated so this checkpoint stays buildable.
+    static let background = Color(red: 0.031, green: 0.039, blue: 0.031) // #080A08
+    static let surface = Color(red: 0.067, green: 0.078, blue: 0.067)    // #111411
+    static let surfaceRaised = Color(red: 0.090, green: 0.106, blue: 0.090)
+    static let line = Color(red: 0.165, green: 0.188, blue: 0.165)       // #2A302A
+    static let text = Color(red: 0.969, green: 0.976, blue: 0.961)       // #F7F9F5
+    static let muted = Color(red: 0.576, green: 0.608, blue: 0.576)      // #939B93
+    static let lime = Color(red: 0.776, green: 1.0, blue: 0.0)           // #C6FF00
+    static let limeSoft = Color(red: 0.659, green: 0.902, blue: 0.0)     // #A8E600
+    static let warning = Color(red: 1.0, green: 0.745, blue: 0.333)
+
+    static let blue = lime
+    static let brightBlue = limeSoft
+    static let paleBlue = lime
+    static let gold = warning
+    static let navy = background
+    static let pearl = background
 
     static let pageInset: CGFloat = 20
     static let cardRadius: CGFloat = 24
     static let controlRadius: CGFloat = 17
 }
 
-struct GrabBackdrop: View {
-    @Environment(\.colorScheme) private var colorScheme
+struct DartBackdrop: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shifted = false
 
     var body: some View {
         ZStack {
-            (colorScheme == .dark ? GrabTheme.navy : GrabTheme.pearl)
+            DartTheme.background
             Circle()
-                .fill(GrabTheme.brightBlue.opacity(colorScheme == .dark ? 0.22 : 0.16))
+                .fill(DartTheme.lime.opacity(0.07))
                 .frame(width: 380, height: 380)
                 .blur(radius: 90)
                 .offset(x: shifted ? 130 : -110, y: shifted ? -240 : -120)
             Circle()
-                .fill(GrabTheme.paleBlue.opacity(colorScheme == .dark ? 0.09 : 0.42))
+                .fill(DartTheme.limeSoft.opacity(0.035))
                 .frame(width: 320, height: 320)
                 .blur(radius: 70)
                 .offset(x: shifted ? -120 : 100, y: shifted ? 340 : 220)
@@ -42,28 +53,24 @@ struct GrabBackdrop: View {
 
 struct GlassSurface: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var colorScheme
     let radius: CGFloat
 
     func body(content: Content) -> some View {
         content
             .background {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(reduceTransparency
-                          ? (colorScheme == .dark ? Color(red: 0.08, green: 0.13, blue: 0.23) : .white)
-                          : Color.clear)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+                    .fill(reduceTransparency ? DartTheme.surface : DartTheme.surface.opacity(0.94))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(.white.opacity(colorScheme == .dark ? 0.13 : 0.72), lineWidth: 0.8)
+                    .stroke(DartTheme.line, lineWidth: 1)
             }
-            .shadow(color: GrabTheme.blue.opacity(colorScheme == .dark ? 0.12 : 0.08), radius: 22, y: 12)
+            .shadow(color: .black.opacity(0.30), radius: 24, y: 14)
     }
 }
 
 extension View {
-    func grabGlass(radius: CGFloat = GrabTheme.cardRadius) -> some View {
+    func dartSurface(radius: CGFloat = DartTheme.cardRadius) -> some View {
         modifier(GlassSurface(radius: radius))
     }
 }
@@ -88,9 +95,9 @@ struct PrimaryButtonLabel: View {
             .font(.headline)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 17)
-            .foregroundStyle(.white)
-            .background(GrabTheme.blue.gradient, in: RoundedRectangle(cornerRadius: GrabTheme.controlRadius, style: .continuous))
-            .shadow(color: GrabTheme.blue.opacity(0.25), radius: 16, y: 8)
+            .foregroundStyle(DartTheme.background)
+            .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius, style: .continuous))
+            .shadow(color: DartTheme.lime.opacity(0.16), radius: 18, y: 10)
     }
 }
 
@@ -103,8 +110,8 @@ struct SecondaryButtonLabel: View {
             .font(.headline)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .foregroundStyle(GrabTheme.blue)
-            .grabGlass(radius: GrabTheme.controlRadius)
+            .foregroundStyle(DartTheme.text)
+            .dartSurface(radius: DartTheme.controlRadius)
     }
 }
 
@@ -123,11 +130,11 @@ struct SlidingSegmentedControl<Selection: Hashable & RawRepresentable & CaseIter
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .foregroundStyle(selection == item ? Color.white : Color.primary.opacity(0.72))
+                        .foregroundStyle(selection == item ? DartTheme.background : DartTheme.muted)
                         .background {
                             if selection == item {
                                 RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                    .fill(GrabTheme.blue.gradient)
+                                    .fill(DartTheme.lime)
                                     .matchedGeometryEffect(id: "segment", in: selectionAnimation)
                             }
                         }
@@ -137,7 +144,7 @@ struct SlidingSegmentedControl<Selection: Hashable & RawRepresentable & CaseIter
             }
         }
         .padding(4)
-        .grabGlass(radius: GrabTheme.controlRadius)
+        .dartSurface(radius: DartTheme.controlRadius)
         .sensoryFeedback(.selection, trigger: selection)
     }
 }
@@ -149,24 +156,24 @@ struct PreviewPill: View {
         Text(text)
             .font(.caption2.weight(.bold))
             .tracking(1.1)
-            .foregroundStyle(GrabTheme.blue)
+            .foregroundStyle(DartTheme.lime)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(GrabTheme.paleBlue.opacity(0.42), in: Capsule())
+            .background(DartTheme.lime.opacity(0.10), in: Capsule())
             .accessibilityLabel("Development preview")
     }
 }
 
 struct StatusChip: View {
-    let status: GrabStatus
+    let status: DartStatus
 
     var body: some View {
         Label(status.rawValue, systemImage: status.icon)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(status == .completed ? GrabTheme.gold : GrabTheme.blue)
+            .foregroundStyle(status == .completed ? DartTheme.gold : DartTheme.blue)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background((status == .completed ? GrabTheme.gold : GrabTheme.blue).opacity(0.11), in: Capsule())
+            .background((status == .completed ? DartTheme.gold : DartTheme.blue).opacity(0.11), in: Capsule())
     }
 }
 
@@ -180,7 +187,7 @@ struct AvatarStack: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white)
                     .frame(width: 34, height: 34)
-                    .background([GrabTheme.blue, GrabTheme.brightBlue, GrabTheme.gold][index % 3], in: Circle())
+                    .background([DartTheme.blue, DartTheme.brightBlue, DartTheme.gold][index % 3], in: Circle())
                     .overlay(Circle().stroke(.background, lineWidth: 2))
                     .accessibilityHidden(true)
             }
@@ -208,13 +215,13 @@ struct EmptyStateCard: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "sparkles").font(.title2).foregroundStyle(GrabTheme.blue)
+            Image(systemName: "sparkles").font(.title2).foregroundStyle(DartTheme.blue)
             Text(title).font(.headline)
             Text(message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(26)
-        .grabGlass()
+        .dartSurface()
     }
 }
 
@@ -254,16 +261,16 @@ struct ContentStateCard: View {
     var body: some View {
         VStack(spacing: 12) {
             if state == .loading {
-                ProgressView().tint(GrabTheme.blue)
+                ProgressView().tint(DartTheme.blue)
             } else {
-                Image(systemName: state.symbol).font(.title2).foregroundStyle(GrabTheme.blue)
+                Image(systemName: state.symbol).font(.title2).foregroundStyle(DartTheme.blue)
             }
             Text(state.title).font(.headline)
             Text(state.message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(26)
-        .grabGlass()
+        .dartSurface()
         .accessibilityElement(children: .combine)
     }
 }

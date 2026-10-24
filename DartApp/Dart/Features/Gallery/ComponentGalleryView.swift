@@ -11,16 +11,16 @@ struct ComponentGalleryView: View {
                 SlidingSegmentedControl(selection: $mode)
                 HStack { StatusChip(status: .waiting); StatusChip(status: .completed) }
                 AvatarStack(initials: ["MC", "JL", "DP"])
-                GrabItemCard(item: PreviewData.charger)
+                DartItemCard(item: PreviewData.charger)
                 PrimaryButtonLabel(title: "Primary action", icon: "arrow.right")
                 SecondaryButtonLabel(title: "Secondary action", icon: "plus")
                 ContentStateCard(state: .loading)
                 ContentStateCard(state: .empty)
                 ContentStateCard(state: .error)
             }
-            .padding(GrabTheme.pageInset)
+            .padding(DartTheme.pageInset)
         }
-        .background(GrabBackdrop())
+        .background(DartBackdrop())
         .navigationTitle("Gallery")
     }
 }

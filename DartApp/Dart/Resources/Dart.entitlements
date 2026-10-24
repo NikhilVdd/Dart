@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>aps-environment</key>
-	<string>development</string>
+	<string>$(DART_APNS_ENVIRONMENT)</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:grab-product-preview-nv.vaddeynikhil.chatgpt.site</string>
-		<string>appclips:grab-product-preview-nv.vaddeynikhil.chatgpt.site</string>
+		<string>applinks:$(DART_ASSOCIATED_DOMAIN)</string>
+		<string>appclips:$(DART_ASSOCIATED_DOMAIN)</string>
 	</array>
 </dict>
 </plist>

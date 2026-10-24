@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject private var state: AppState
-    @EnvironmentObject private var store: GrabStore
+    @EnvironmentObject private var store: DartStore
     @State private var confirmReset = false
     @State private var showSignIn = false
     @State private var editingName = false
@@ -19,6 +19,7 @@ struct ProfileView: View {
                     profileHeader
                     accountCard
                     infoCard
+                    blockedAccountsCard
                     appearanceCard
                     earningsCard
                     previewExplanation
@@ -27,10 +28,10 @@ struct ProfileView: View {
                             ComponentGalleryView()
                         } label: {
                             Label("Open component gallery", systemImage: "square.grid.2x2.fill")
-                                .font(.headline).foregroundStyle(GrabTheme.blue)
+                                .font(.headline).foregroundStyle(DartTheme.blue)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(18)
-                                .grabGlass()
+                                .dartSurface()
                         }
                         .buttonStyle(PressableStyle())
                         Button(role: .destructive) { confirmReset = true } label: {
@@ -41,11 +42,11 @@ struct ProfileView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, GrabTheme.pageInset)
+                .padding(.horizontal, DartTheme.pageInset)
                 .padding(.top, 18)
                 .padding(.bottom, 116)
             }
-            .background(GrabBackdrop())
+            .background(DartBackdrop())
             .refreshable { await store.refresh() }
             .sheet(isPresented: $showSignIn) { SignInView() }
             .sheet(isPresented: $choosingHome) {
@@ -80,7 +81,7 @@ struct ProfileView: View {
             Text(store.isLive ? (store.profile?.initials ?? "?") : "NV")
                 .font(.title.bold()).foregroundStyle(.white)
                 .frame(width: 72, height: 72)
-                .background(GrabTheme.blue.gradient, in: Circle())
+                .background(DartTheme.blue.gradient, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(store.profile?.displayName ?? state.profileName).font(.largeTitle.bold())
                     .minimumScaleFactor(0.7).lineLimit(1)
@@ -104,7 +105,7 @@ struct ProfileView: View {
             }
         }
         .padding(.horizontal, 16)
-        .grabGlass()
+        .dartSurface()
     }
 
     private var appearanceCard: some View {
@@ -116,7 +117,30 @@ struct ProfileView: View {
             .pickerStyle(.segmented)
         }
         .padding(18)
-        .grabGlass()
+        .dartSurface()
+    }
+
+    @ViewBuilder private var blockedAccountsCard: some View {
+        if store.isLive {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeading(title: "Blocked accounts", subtitle: "Blocked students cannot discover or accept your requests")
+                if store.blockedUsers.isEmpty {
+                    Text("No blocked accounts").font(.subheadline).foregroundStyle(DartTheme.muted)
+                } else {
+                    ForEach(store.blockedUsers) { row in
+                        HStack {
+                            Text(row.blocked?.displayName ?? "Blocked account")
+                            Spacer()
+                            Button("Unblock") { Task { _ = await store.unblockUser(row.blockedID) } }
+                                .buttonStyle(.bordered)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                }
+            }
+            .padding(18)
+            .dartSurface()
+        }
     }
 
     private var earningsCard: some View {
@@ -126,14 +150,14 @@ struct ProfileView: View {
                 Spacer()
                 if !store.isLive { PreviewPill(text: "SAMPLE") }
             }
-            Text("$\(store.earnings.map { GrabStore.dollars($0.earnedCents) } ?? 46)")
-                .font(.system(size: 36, weight: .bold, design: .rounded)).foregroundStyle(GrabTheme.gold)
+            Text("$\(store.earnings.map { DartStore.dollars($0.earnedCents) } ?? 46)")
+                .font(.system(size: 36, weight: .bold, design: .rounded)).foregroundStyle(DartTheme.gold)
             Text(earningsCaption)
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .padding(18)
-        .background(GrabTheme.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: GrabTheme.cardRadius))
-        .overlay(RoundedRectangle(cornerRadius: GrabTheme.cardRadius).stroke(GrabTheme.gold.opacity(0.2)))
+        .background(DartTheme.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: DartTheme.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(DartTheme.gold.opacity(0.2)))
     }
 
     private var earningsCaption: String {
@@ -145,9 +169,11 @@ struct ProfileView: View {
 
     private var aboutText: String {
         switch store.phase {
+        case .launching: "Connecting securely to Dart."
         case .live: "Connected to the Dart backend. Requests, runs, chat, shopping lists, push notifications, and Live Activity status tracking are enabled. Card payments are not part of this build."
         case .signedOut: "Connected to the Dart backend. Sign in or create an account with any email address to load live requests, runs, groups, and chat."
         case .preview: "This is a development-only product preview. Sample tasks, people, messages, rewards, notifications, and earnings are not real. Add Supabase settings to connect a backend."
+        case .unconfigured: "This release is missing its backend environment configuration."
         }
     }
 
@@ -194,7 +220,7 @@ private struct ProfileRow: View {
     var showsChevron = false
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: icon).foregroundStyle(GrabTheme.blue).frame(width: 26)
+            Image(systemName: icon).foregroundStyle(DartTheme.blue).frame(width: 26)
             Text(title)
             Spacer()
             Text(value).foregroundStyle(.secondary).lineLimit(1)

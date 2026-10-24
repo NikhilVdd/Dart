@@ -1,6 +1,6 @@
 # Recording a demo
 
-A three-minute, two-phone demo of Grab against the hosted Supabase project. **Alex Kim** asks for
+A three-minute, two-phone demo of Dart against the hosted Supabase project. **Alex Kim** asks for
 something; **Sam Rivera** is already heading that way. Background people (Maya, Jordan, Devon, Priya)
 fill the feeds, groups and chat so the app looks alive.
 

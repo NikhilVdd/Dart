@@ -1,0 +1,13 @@
+// Non-secret defaults shared by every Dart target.
+// Override the placeholder identity and domain in each release environment.
+DART_BUNDLE_PREFIX = org.example.dart
+DART_ASSOCIATED_DOMAIN = dart.example.invalid
+DART_URL_SCHEME = dart
+DART_APNS_ENVIRONMENT = development
+DART_ENVIRONMENT = local
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+
+PRODUCT_BUNDLE_IDENTIFIER = $(DART_BUNDLE_PREFIX)$(DART_BUNDLE_SUFFIX)
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) DART_$(DART_ENVIRONMENT)
+

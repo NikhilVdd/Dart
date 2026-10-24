@@ -1,9 +1,11 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import UserNotifications
 
 extension Notification.Name {
-    static let grabAPNSDeviceToken = Notification.Name("grab.apns-device-token")
+    static let dartAPNSDeviceToken = Notification.Name("dart.apns-device-token")
 }
 
 @MainActor
@@ -16,11 +18,12 @@ final class PushTokenCenter {
     func receive(_ data: Data) {
         let token = data.map { String(format: "%02x", $0) }.joined()
         currentToken = token
-        NotificationCenter.default.post(name: .grabAPNSDeviceToken, object: nil, userInfo: ["token": token])
+        NotificationCenter.default.post(name: .dartAPNSDeviceToken, object: nil, userInfo: ["token": token])
     }
 }
 
-final class GrabAppDelegate: NSObject, UIApplicationDelegate {
+#if canImport(UIKit)
+final class DartAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Task { @MainActor in PushTokenCenter.shared.receive(deviceToken) }
@@ -32,3 +35,6 @@ final class GrabAppDelegate: NSObject, UIApplicationDelegate {
         // foreground updates continue to work without an APNs device token.
     }
 }
+#else
+final class DartAppDelegate: NSObject {}
+#endif

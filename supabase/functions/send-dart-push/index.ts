@@ -21,7 +21,7 @@ const supabase = createClient(
 Deno.serve(async (request) => {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const hookSecret = Deno.env.get("PUSH_WEBHOOK_SECRET");
-  if (!hookSecret || request.headers.get("x-grab-webhook-secret") !== hookSecret) {
+  if (!hookSecret || request.headers.get("x-dart-webhook-secret") !== hookSecret) {
     return new Response("Unauthorized", { status: 401 });
   }
 
