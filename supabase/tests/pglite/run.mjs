@@ -413,7 +413,11 @@ check('cancelling releases the hold', JSON.stringify(await jobs('pi_two')) === '
 await hold('pi_three', 'jordan');
 const toRelease = (await postPaid('jordan', 'pi_three'))[0];
 await as('nikhil', `select accept_request($1)`, [toRelease.id]);
+await as('nikhil', `select set_item_cost($1, 900)`, [toRelease.id]);
 await as('nikhil', `select release_request($1)`, [toRelease.id]);
+check('a released request forgets the last runner’s receipt total and payout account',
+  (await as(null, `select item_cost_cents from requests where id = $1`, [toRelease.id]))[0].item_cost_cents === null &&
+  (await as(null, `select destination_account from payment_holds where payment_intent_id = 'pi_three'`))[0].destination_account === null);
 check('a runner releasing the task keeps the hold for the next runner', (await jobs('pi_three')).length === 0 && (await as('jordan', `select status from requests where id = $1`, [toRelease.id]))[0].status === 'open');
 await as(null, `update requests set deliver_by = now() - interval '1 minute' where id = $1`, [toRelease.id]);
 await as(null, `select expire_stale()`);
@@ -425,6 +429,43 @@ check('holds never turned into a request are released', JSON.stringify(await job
 await hold('pi_run', 'jordan');
 const runPaid = await as('jordan', `select id, reward_cents, payment_status from request_from_run($1, 'Bread', '', null, 'pi_run')`, [freeRun[0].id]);
 check('requests added to a run carry the hold too', runPaid[0].payment_status === 'authorized' && runPaid[0].reward_cents === 250, JSON.stringify(runPaid));
+
+await hold('pi_five_days', 'jordan');
+await rejects('paid requests must be due within 4 days of the hold', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, payment_intent_id) values ('x', 'Target', 'Unit 2', now() + interval '5 days', 'pi_five_days')`);
+await hold('pi_short', 'jordan');
+await as(null, `update payment_holds set capture_before = now() + interval '3 days' where payment_intent_id = 'pi_short'`);
+await rejects('…and 2 days before Stripe’s capture deadline', 'jordan', `insert into requests (title, pickup_label, destination_label, deliver_by, payment_intent_id) values ('x', 'Target', 'Unit 2', now() + interval '2 days', 'pi_short')`);
+check('…which still allows sooner deadlines', (await postPaid('jordan', 'pi_short')).length === 1);
+
+await hold('pi_lapsed', 'jordan');
+const lapsed = (await postPaid('jordan', 'pi_lapsed'))[0];
+await as('nikhil', `select accept_request($1)`, [lapsed.id]);
+await as(null, `update payment_holds set status = 'canceled' where payment_intent_id = 'pi_lapsed'`);
+await rejects('runners can’t start shopping on a hold that lapsed', 'nikhil', `select advance_request($1, 'picking_up')`, [lapsed.id]);
+
+await hold('pi_expiring', 'jordan');
+const expiring = (await postPaid('jordan', 'pi_expiring'))[0];
+await as('nikhil', `select accept_request($1)`, [expiring.id]);
+await as('nikhil', `select set_item_cost($1, 1500)`, [expiring.id]);
+await as('nikhil', `select advance_request($1, 'delivered')`, [expiring.id]);
+await as(null, `update payment_holds set capture_before = now() + interval '20 hours' where payment_intent_id = 'pi_expiring'`);
+await as(null, `select retry_payment_jobs()`);
+check('delivered requests stay unconfirmed while the hold has time', (await as(null, `select status from requests where id = $1`, [expiring.id]))[0].status === 'delivered');
+await as(null, `update payment_holds set capture_before = now() + interval '6 hours' where payment_intent_id = 'pi_expiring'`);
+await as(null, `select retry_payment_jobs()`);
+check('…and auto-complete (queuing the capture) before it lapses', (await as(null, `select status from requests where id = $1`, [expiring.id]))[0].status === 'completed' && JSON.stringify(await jobs('pi_expiring')) === '["capture"]');
+
+await as(null, `update payment_jobs set done_at = now() where done_at is null and payment_intent_id <> 'pi_expiring'`);
+await as(null, `update payment_jobs set attempts = 20 where payment_intent_id = 'pi_expiring'`);
+check('a capture that failed 20 times stops while nothing was captured', (await as(null, `select * from claim_payment_jobs(10)`)).length === 0);
+await as(null, `update payment_holds set status = 'captured' where payment_intent_id = 'pi_expiring'`);
+const stuck = await as(null, `select * from claim_payment_jobs(10)`);
+check('captured money still owed to a runner keeps retrying', stuck.length === 1 && stuck[0].payment_intent_id === 'pi_expiring');
+await as(null, `select finish_payment_job($1, 'runner account cannot receive transfers yet')`, [stuck[0].id]);
+check('…hourly, not every minute', (await as(null, `select * from claim_payment_jobs(10)`)).length === 0 && (await as(null, `select retry_after > now() + interval '50 minutes' as later from payment_jobs where id = $1`, [stuck[0].id]))[0].later);
+await as(null, `update payment_jobs set retry_after = now() - interval '1 second' where id = $1`, [stuck[0].id]);
+check('…and runs again once the hour is up', (await as(null, `select * from claim_payment_jobs(10)`)).length === 1);
+
 await as(null, `update payment_settings set required = false`);
 
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');

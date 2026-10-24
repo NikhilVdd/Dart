@@ -20,17 +20,32 @@ const env = (name: string) => {
   return value;
 };
 
-const stripe = new Stripe(env("STRIPE_SECRET_KEY"), { httpClient: Stripe.createFetchHttpClient() });
-const publishableKey = env("STRIPE_PUBLISHABLE_KEY");
+// Catch swapped or wrong keys (e.g. a Supabase key in STRIPE_PUBLISHABLE_KEY) at startup, not as a blank form.
+const stripeKey = (name: string, prefixes: string[]) => {
+  const value = env(name);
+  if (!prefixes.some(prefix => value.startsWith(prefix))) throw new Error(`${name} must start with ${prefixes.join(" or ")}`);
+  return value;
+};
+
+// Restricted keys (rk_) work too, given the permissions listed in supabase/README.md.
+const stripe = new Stripe(stripeKey("STRIPE_SECRET_KEY", ["sk_test_", "sk_live_", "rk_test_", "rk_live_"]), { httpClient: Stripe.createFetchHttpClient() });
+const publishableKey = stripeKey("STRIPE_PUBLISHABLE_KEY", ["pk_test_", "pk_live_"]);
 const jobSecret = env("PAYMENTS_WEBHOOK_SECRET");
 const admin = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), {
   auth: { persistSession: false, autoRefreshToken: false }
 });
 
-// Stripe's standard US card pricing. The requester covers it so Dart nets zero on each order.
-const STRIPE_PERCENT = 0.029;
+// Stripe's standard card pricing (US cards; international cards add 1.5%). The requester covers it
+// so Dart nets zero on each order: the hold assumes the international rate, the capture uses the
+// card's actual rate.
+const DOMESTIC_PERCENT = 0.029;
+const INTERNATIONAL_PERCENT = 0.044;
 const STRIPE_FIXED_CENTS = 30;
-const grossUp = (cents: number) => Math.ceil((cents + STRIPE_FIXED_CENTS) / (1 - STRIPE_PERCENT));
+const grossUp = (cents: number, percent: number) => Math.ceil((cents + STRIPE_FIXED_CENTS) / (1 - percent));
+
+// Card testing guard: how many holds one person may start.
+const HOLDS_PER_HOUR = 5;
+const HOLDS_PER_DAY = 15;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -69,14 +84,34 @@ async function refreshPayoutAccount(userId: string, accountId: string) {
 // Requester: card holds
 // ---------------------------------------------------------------------------
 
+async function holdsSince(userId: string, ms: number) {
+  const { count, error } = await admin.from("payment_holds").select("payment_intent_id", { count: "exact", head: true })
+    .eq("user_id", userId).gte("created_at", new Date(Date.now() - ms).toISOString());
+  if (error) throw error;
+  return count ?? 0;
+}
+
+// When the card on a confirmed hold must be captured by (from the charge).
+async function captureBefore(intent: Stripe.PaymentIntent) {
+  const chargeId = typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge?.id;
+  if (!chargeId) return null;
+  const charge = await stripe.charges.retrieve(chargeId);
+  const unix = charge.payment_method_details?.card?.capture_before;
+  return unix ? new Date(unix * 1000).toISOString() : null;
+}
+
 async function start(user: { id: string }, body: { budget_cents?: unknown }) {
   const config = await settings();
+  if (!config.required) throw new UserError("Payments aren’t turned on yet.");
+  if (await holdsSince(user.id, 3_600_000) >= HOLDS_PER_HOUR || await holdsSince(user.id, 86_400_000) >= HOLDS_PER_DAY) {
+    throw new UserError("Too many payment attempts. Try again later.");
+  }
   const budget = Number(body.budget_cents);
   if (!Number.isInteger(budget) || budget < 100 || budget > config.max_budget_cents) {
     throw new UserError(`Set an item budget between $1 and $${config.max_budget_cents / 100}.`);
   }
   const fee = config.delivery_fee_cents;
-  const total = grossUp(budget + fee);
+  const total = grossUp(budget + fee, INTERNATIONAL_PERCENT);
   const intent = await stripe.paymentIntents.create({
     amount: total,
     currency: "usd",
@@ -111,7 +146,7 @@ async function confirm(user: { id: string }, body: { payment_intent_id?: unknown
   if (intent.metadata.dart_user_id !== user.id) throw new UserError("Payment not found.");
   if (intent.status !== "requires_capture") return { status: intent.status };
   await admin.from("payment_holds")
-    .update({ status: "authorized", authorized_cents: intent.amount_capturable })
+    .update({ status: "authorized", authorized_cents: intent.amount_capturable, capture_before: await captureBefore(intent) })
     .eq("payment_intent_id", id).eq("status", "pending");
   return { status: "authorized" };
 }
@@ -188,10 +223,13 @@ async function capture(hold: Hold) {
   if (!hold.destination_account) throw new Error("no runner account");
   const payout = hold.item_cost_cents + hold.fee_cents;
 
-  let intent = await stripe.paymentIntents.retrieve(hold.payment_intent_id);
+  let intent = await stripe.paymentIntents.retrieve(hold.payment_intent_id, { expand: ["latest_charge"] });
   if (intent.status === "requires_capture") {
+    const charge = intent.latest_charge as Stripe.Charge | null;
+    const country = charge?.payment_method_details?.card?.country;
+    const percent = country && country !== "US" ? INTERNATIONAL_PERCENT : DOMESTIC_PERCENT;
     intent = await stripe.paymentIntents.capture(hold.payment_intent_id, {
-      amount_to_capture: Math.min(grossUp(payout), intent.amount_capturable)
+      amount_to_capture: Math.min(grossUp(payout, percent), intent.amount_capturable)
     }, { idempotencyKey: `capture-${hold.payment_intent_id}` });
   }
   if (intent.status !== "succeeded") {
@@ -207,7 +245,7 @@ async function capture(hold: Hold) {
     amount: payout,
     currency: "usd",
     destination: hold.destination_account,
-    source_transaction: intent.latest_charge as string,
+    source_transaction: typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge!.id,
     transfer_group: hold.request_id ? `request_${hold.request_id}` : undefined,
     metadata: { payment_intent_id: hold.payment_intent_id, request_id: hold.request_id ?? "" }
   }, { idempotencyKey: `transfer-${hold.payment_intent_id}` });

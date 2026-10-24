@@ -145,7 +145,8 @@ Dart is a Connect **marketplace** using **separate charges and transfers**: Dart
 record, runners are connected accounts (Accounts v2, `recipient` configuration, Express Dashboard), and
 the requester's card is only held until they confirm delivery. Dart keeps nothing: the requester pays
 the receipt total + the delivery fee (`payment_settings.delivery_fee_cents`, $2.50) + Stripe's card fee
-(2.9% + 30¢, grossed up), and the runner receives receipt total + delivery fee.
+(grossed up: 2.9% + 30¢ for US cards, 4.4% + 30¢ for international ones; the hold assumes the higher
+rate), and the runner receives receipt total + delivery fee.
 
 ```
 post ─▶ payments{start} ─▶ Payment Element (manual capture hold) ─▶ payments{confirm} ─▶ insert request (payment_intent_id)
@@ -158,11 +159,15 @@ cancelled / expired / requester account deleted / hold never used (30 min) ─�
 - `payment_holds` (no client access) is the source of truth for each card hold; amounts on a paid request
   come from its hold and can't be changed by the client. `requests.payment_status` mirrors it for the UI.
 - `payout_accounts` maps a runner to their Stripe account; readable only by that runner.
-- Card holds last 7 days, so paid requests must be due within 6 days of posting.
+- Card holds last 7 days (`payment_holds.capture_before` records Stripe's exact deadline), so paid requests
+  must be due within 4 days of posting and 2 days before that deadline. A delivered paid request
+  auto-completes once its hold has under 12 hours left, and runners can't start shopping on a lapsed hold.
+- `payments{start}` refuses when payments are off and allows 5 holds per person per hour (15 per day)
+  to blunt card testing. Add Radar rules for card testing too.
 - Stripe calls only happen in `functions/payments` (the secret key never reaches the browser).
   `functions/stripe-webhook` backs up hold confirmation and records holds Stripe cancels or expires.
-- Dart pays Connect's own fees (per active account per month, per payout); those aren't covered by the
-  requester's card fee.
+- Dart pays Connect's own fees (per active account per month, per payout) and dispute fees ($15 each,
+  plus the disputed amount if lost); those aren't covered by the requester's card fee.
 
 #### Turning it on
 
@@ -177,6 +182,9 @@ Use a Stripe **sandbox** (test keys) until the whole flow has been tried end to 
      PAYMENTS_WEBHOOK_SECRET=<job secret>
    npx supabase functions deploy payments --no-verify-jwt
    ```
+   A restricted key (`rk_…`) works if it has: PaymentIntents **write**, Charges **read**, Transfers
+   **write**, and under Connect: Accounts, Account Sessions and Login Links **write**. A missing
+   permission shows up as a Stripe permission error in the PWA or in `payment_jobs.last_error`.
 4. Tell Postgres where to send settlement jobs (SQL editor):
    ```sql
    select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/payments', 'dart_payments_url');
@@ -192,7 +200,9 @@ Use a Stripe **sandbox** (test keys) until the whole flow has been tried end to 
 6. Switch payments on: `update public.payment_settings set required = true;`
 
 `select * from payment_jobs order by id desc` shows queued captures/releases and why any failed
-(`last_error`; failed jobs retry every minute, up to 20 attempts).
+(`last_error`; failed jobs retry every minute, up to 20 attempts). A capture whose money was already
+taken but couldn't be transferred keeps retrying hourly after that; check for these with
+`select * from payment_jobs where done_at is null and attempts >= 20`.
 
 ### Security
 

@@ -46,8 +46,15 @@ Deno.serve(async request => {
   try {
     if (event.type === "payment_intent.amount_capturable_updated") {
       const intent = event.data.object;
+      const chargeId = typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge?.id;
+      const charge = chargeId ? await stripe.charges.retrieve(chargeId) : null;
+      const unix = charge?.payment_method_details?.card?.capture_before;
       await admin.from("payment_holds")
-        .update({ status: "authorized", authorized_cents: intent.amount_capturable })
+        .update({
+          status: "authorized",
+          authorized_cents: intent.amount_capturable,
+          capture_before: unix ? new Date(unix * 1000).toISOString() : null
+        })
         .eq("payment_intent_id", intent.id).eq("status", "pending");
     } else if (event.type === "payment_intent.canceled") {
       await holdCanceled(event.data.object);
