@@ -12,7 +12,11 @@ struct ActivityView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     if !store.isLive { PreviewPill() }
-                    Text("Activity").font(.largeTitle.bold())
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Activity").font(.largeTitle.weight(.heavy)).foregroundStyle(DartTheme.text)
+                        Text("Every active Dart and past handoff, in one place.")
+                            .font(.subheadline).foregroundStyle(DartTheme.muted)
+                    }
                     SlidingSegmentedControl(selection: $state.activityMode)
                     SectionHeading(title: state.activityMode == .requesting ? "Your requests" : "Your helping activity",
                                    subtitle: store.isLive ? "Every delivery stage, updated live" : "Preview records across each delivery stage")
@@ -44,25 +48,31 @@ private struct ActivityCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack(alignment: .top) {
+                DartIconTile(symbol: record.currentStatus.icon, size: 48, highlighted: DartStatus.active.contains(record.currentStatus))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(record.item.title).font(.headline).foregroundStyle(.primary)
-                    Text(record.lastUpdate).font(.subheadline).foregroundStyle(.secondary)
+                    Text(record.item.title).font(.headline.weight(.bold)).foregroundStyle(DartTheme.text)
+                    Text(record.lastUpdate).font(.subheadline).foregroundStyle(DartTheme.muted)
                 }
                 Spacer()
                 if let reward = record.item.reward {
-                    Text("$\(reward)").font(.headline).foregroundStyle(DartTheme.gold)
+                    Text("$\(reward)").font(.headline.weight(.heavy)).foregroundStyle(DartTheme.limeInk)
+                        .padding(.horizontal, 10).padding(.vertical, 7)
+                        .background(DartTheme.lime, in: Capsule())
                 }
             }
+            CompactStatusTrack(status: record.currentStatus)
             HStack {
-                StatusChip(status: record.currentStatus)
+                Text(record.currentStatus.rawValue)
+                    .font(.caption.weight(.bold)).foregroundStyle(DartTheme.text)
                 Spacer()
-                Text("View timeline").font(.caption.weight(.semibold)).foregroundStyle(DartTheme.blue)
-                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(DartTheme.blue)
+                Text("Track & manage").font(.caption.weight(.bold)).foregroundStyle(DartTheme.limeInk)
+                Image(systemName: "arrow.right").font(.caption.bold()).foregroundStyle(DartTheme.limeInk)
             }
         }
         .padding(18)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(Color.primary.opacity(0.06)))
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.06), radius: 14, y: 7)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens status timeline")

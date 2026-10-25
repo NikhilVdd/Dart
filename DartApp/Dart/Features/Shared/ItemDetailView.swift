@@ -8,6 +8,8 @@ struct ItemDetailView: View {
     @State private var showReport = false
     @State private var confirmBlock = false
     @State private var reportDetails = ""
+    @State private var appeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(item: DartItem) { initialItem = item }
 
@@ -17,13 +19,10 @@ struct ItemDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        PreviewPill(text: item.kindLabel.uppercased())
-                        Text(item.title)
-                            .font(.largeTitle.bold())
-                            .minimumScaleFactor(0.82)
-                        Text(item.detail).font(.body).foregroundStyle(.secondary)
-                        StatusChip(status: item.status)
+                    detailHero
+
+                    if DartStatus.active.contains(item.status) || item.status == .completed {
+                        LiveTrackingCard(item: item)
                     }
 
                     VStack(spacing: 0) {
@@ -70,9 +69,10 @@ struct ItemDetailView: View {
                     }
                 }
                 .padding(DartTheme.pageInset)
+                .padding(.bottom, 20)
             }
             .background(DartBackdrop())
-            .navigationTitle("Details")
+            .navigationTitle("Dart details")
             .toolbar {
                 if store.isLive, item.person.id != store.userID {
                     ToolbarItem(placement: .primaryAction) {
@@ -88,6 +88,9 @@ struct ItemDetailView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.fontWeight(.semibold)
                 }
+            }
+            .onAppear {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.86)) { appeared = true }
             }
             .alert("Report \(item.person.name)", isPresented: $showReport) {
                 TextField("What happened?", text: $reportDetails)
@@ -125,12 +128,99 @@ struct ItemDetailView: View {
         .macSheetSize()
     }
 
+    private var detailHero: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                DartIconTile(symbol: itemSymbol, size: 66, highlighted: true)
+                    .scaleEffect(appeared ? 1 : 0.75)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.kindLabel.uppercased())
+                        .font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
+                    Text(item.title)
+                        .font(.system(size: 29, weight: .heavy, design: .rounded))
+                        .foregroundStyle(DartTheme.text)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 4)
+                if let reward = item.reward {
+                    VStack(spacing: 0) {
+                        Text("$\(reward)").font(.title2.weight(.heavy))
+                        Text("reward").font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(DartTheme.limeInk)
+                    .padding(10)
+                    .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 15))
+                }
+            }
+            Text(item.detail).font(.body).foregroundStyle(DartTheme.muted)
+        }
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 10)
+    }
+
+    private var itemSymbol: String {
+        switch item.kind {
+        case .campusRequest: "bag.fill"
+        case .friendRun: "person.2.fill"
+        case .buildingRun: "building.2.fill"
+        case .campusRun: "storefront.fill"
+        }
+    }
+
     private var futureActionTitle: String {
         switch item.kind {
         case .campusRequest: "Preview accept flow"
         case .friendRun: "Preview add item flow"
         case .buildingRun: "Preview building request"
         case .campusRun: "Preview store-run request"
+        }
+    }
+}
+
+private struct LiveTrackingCard: View {
+    let item: DartItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("CURRENT STATUS").font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.limeInk)
+                    Text(item.status.rawValue).font(.title3.weight(.heavy)).foregroundStyle(DartTheme.text)
+                }
+                Spacer()
+                Image(systemName: item.status.icon)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(DartTheme.limeInk)
+                    .frame(width: 48, height: 48)
+                    .background(Color.white.opacity(0.50), in: Circle())
+            }
+            CompactStatusTrack(status: item.status)
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "arrow.turn.down.right")
+                    .foregroundStyle(DartTheme.limeInk)
+                Text(nextStep)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DartTheme.text)
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(colors: [DartTheme.lime.opacity(0.90), DartTheme.limeSoft.opacity(0.68)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 25, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private var nextStep: String {
+        switch item.status {
+        case .waiting: "Next: a nearby helper accepts your request."
+        case .accepted: "Next: the helper heads to the pickup."
+        case .pickingUp: "Next: the helper confirms they are on the way."
+        case .onTheWay: "Next: meet at the destination shown below."
+        case .delivered: "Next: the requester confirms receipt."
+        case .completed: "This Dart is complete."
+        case .cancelled: "No further action is needed."
+        case .expired: "Post a new Dart if you still need help."
         }
     }
 }
@@ -161,12 +251,12 @@ private struct MoneyCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label).font(.caption).foregroundStyle(.secondary)
-            Text("$\(amount)").font(.title.bold()).foregroundStyle(emphasized ? DartTheme.gold : .primary)
+            Text("$\(amount)").font(.title.bold()).foregroundStyle(emphasized ? DartTheme.limeInk : DartTheme.text)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.06)))
+        .background(emphasized ? DartTheme.lime.opacity(0.18) : DartTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(emphasized ? DartTheme.limeSoft.opacity(0.5) : DartTheme.line))
     }
 }
 
@@ -267,7 +357,12 @@ private struct LiveItemActions: View {
                             if await store.accept(request, onRun: ref.id) { matches = await store.matches(forRun: ref.id) }
                         }
                     }
-                        .buttonStyle(.borderedProminent)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(DartTheme.limeInk)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 40)
+                        .background(DartTheme.lime, in: Capsule())
+                        .buttonStyle(PressableStyle())
                 }
                 .padding(14)
                 .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 16))
@@ -297,7 +392,10 @@ private struct LiveItemActions: View {
         Button(role: role) { Task { working = true; await action(); working = false } } label: {
             Text(title).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
         }
-        .buttonStyle(.bordered)
+        .foregroundStyle(role == .destructive ? DartTheme.danger : DartTheme.text)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.controlRadius).stroke(role == .destructive ? DartTheme.danger.opacity(0.35) : DartTheme.line))
+        .buttonStyle(PressableStyle())
     }
 
     private func finish(_ ok: Bool) async {

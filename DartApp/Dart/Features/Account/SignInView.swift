@@ -56,60 +56,53 @@ struct SignInView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Image(systemName: mode == .signIn ? "person.crop.circle.fill" : "person.crop.circle.badge.plus")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 66, height: 66)
-                        .background(DartTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 21))
+                    HStack {
+                        DartIconTile(symbol: mode == .signIn ? "bolt.fill" : "person.badge.plus", size: 70, highlighted: true)
+                        Spacer()
+                        Text("DART").font(.caption.weight(.heavy)).tracking(2).foregroundStyle(DartTheme.limeInk)
+                            .padding(.horizontal, 13).frame(height: 36).background(DartTheme.lime, in: Capsule())
+                    }
 
                     VStack(alignment: .leading, spacing: 7) {
                         Text(mode == .signIn ? "Welcome back" : "Create your Dart account")
-                            .font(.largeTitle.bold())
+                            .font(.largeTitle.weight(.heavy))
+                            .foregroundStyle(DartTheme.text)
                         Text(mode == .signIn
                              ? "Sign in to use live requests, runs, groups, and chat."
                              : "No school email is required. Use any email address and choose a password.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DartTheme.muted)
                     }
 
-                    Picker("Account action", selection: $mode) {
-                        ForEach(Mode.allCases) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    SlidingSegmentedControl(selection: $mode)
 
-                    VStack(spacing: 0) {
+                    VStack(spacing: 14) {
                         if mode == .createAccount {
-                            TextField("Your name", text: $displayName)
-                                .textContentType(.name)
-                                .autocorrectionDisabled()
-                                .padding(16)
-                            Divider().opacity(0.45)
+                            DartField(label: "Your name") {
+                                TextField("First and last name", text: $displayName)
+                                    .textContentType(.name).autocorrectionDisabled().textFieldStyle(.plain)
+                            }
                         }
 
-                        TextField("Email address", text: $email)
-                            .textContentType(.emailAddress)
-                            .autocorrectionDisabled()
-                            .padding(16)
-                            #if os(iOS)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            #endif
+                        DartField(label: "Email") {
+                            TextField("you@example.com", text: $email)
+                                .textContentType(.emailAddress).autocorrectionDisabled().textFieldStyle(.plain)
+                                #if os(iOS)
+                                .keyboardType(.emailAddress).textInputAutocapitalization(.never)
+                                #endif
+                        }
 
-                        Divider().opacity(0.45)
-
-                        SecureField("Password", text: $password)
-                            .textContentType(mode == .signIn ? .password : .newPassword)
-                            .padding(16)
+                        DartField(label: "Password") {
+                            SecureField("At least 6 characters", text: $password)
+                                .textContentType(mode == .signIn ? .password : .newPassword).textFieldStyle(.plain)
+                        }
 
                         if mode == .createAccount {
-                            Divider().opacity(0.45)
-                            SecureField("Confirm password", text: $passwordConfirmation)
-                                .textContentType(.newPassword)
-                                .padding(16)
+                            DartField(label: "Confirm password") {
+                                SecureField("Enter it once more", text: $passwordConfirmation)
+                                    .textContentType(.newPassword).textFieldStyle(.plain)
+                            }
                         }
                     }
-                    .dartSurface(radius: 18)
 
                     if mode == .createAccount {
                         Label("Use at least 6 characters.", systemImage: "lock.shield")
@@ -306,7 +299,7 @@ struct PasswordUpdateView: View {
                     Task { await save() }
                 } label: {
                     if isWorking {
-                        ProgressView().tint(DartTheme.background).frame(maxWidth: .infinity).frame(height: 56)
+                        ProgressView().tint(DartTheme.limeInk).frame(maxWidth: .infinity).frame(height: 56)
                             .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 17))
                     } else {
                         PrimaryButtonLabel(title: "Save new password", icon: "lock.rotation")
@@ -383,7 +376,7 @@ struct OnboardingView: View {
                     } else {
                         Button { Task { await finish() } } label: {
                             if isWorking {
-                                ProgressView().tint(DartTheme.background).frame(maxWidth: .infinity).frame(height: 56)
+                                ProgressView().tint(DartTheme.limeInk).frame(maxWidth: .infinity).frame(height: 56)
                                     .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 17))
                             } else {
                                 PrimaryButtonLabel(title: "Agree and enter Dart", icon: "checkmark.shield.fill")
@@ -464,7 +457,7 @@ struct OnboardingView: View {
             Label("Accepted, pickup, on-the-way, and delivered updates", systemImage: "bell.badge.fill")
                 .padding(18).dartSurface()
             Button("Allow notifications") { store.requestNotificationPermission() }
-                .buttonStyle(.borderedProminent).tint(DartTheme.lime).foregroundStyle(DartTheme.background)
+                .buttonStyle(.borderedProminent).tint(DartTheme.lime).foregroundStyle(DartTheme.limeInk)
                 .frame(minHeight: 44)
             Text("You can also continue and enable them later in Settings.")
                 .font(.footnote).foregroundStyle(DartTheme.muted)

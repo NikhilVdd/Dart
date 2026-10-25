@@ -21,6 +21,7 @@ final class DartStore: ObservableObject {
     @Published private(set) var discoverableGroups: [DartGroup] = []
     @Published private(set) var blockedUsers: [BlockedUserRow] = []
     @Published private(set) var requiresPasswordUpdate = false
+    @Published private(set) var routedItem: DartItem?
     @Published var lastError: String?
 
     @Published private var runFeed: [DartItem] = []
@@ -217,7 +218,22 @@ final class DartStore: ObservableObject {
     func handleDeepLink(_ url: URL) {
         if url.scheme == "dart", url.host == "auth" {
             backend?.handleAuthCallback(url)
+            return
         }
+        if url.scheme == "dart", ["request", "requests"].contains(url.host ?? ""),
+           let id = UUID(uuidString: url.pathComponents.last ?? "") {
+            routedItem = latestItem(id: id)
+        }
+    }
+
+    func consumeRoutedItem() { routedItem = nil }
+
+    private func latestItem(id: UUID) -> DartItem? {
+        myRequestItems.first { $0.id == id }
+            ?? liveActivities.first { $0.id == id }?.item
+            ?? earnItems.first { $0.id == id }
+            ?? runFeed.first { $0.id == id }
+            ?? runFeedMine.first { $0.id == id }
     }
 
     func dismissPasswordUpdate() {
@@ -397,6 +413,10 @@ final class DartStore: ObservableObject {
                   let requestID = UUID(uuidString: request) else { return }
             Task { @MainActor in await self?.registerLiveActivityToken(token, requestID: requestID) }
         })
+        notificationObservers.append(center.addObserver(forName: .dartNotificationRoute, object: nil, queue: .main) { [weak self] note in
+            guard let route = note.userInfo?["route"] as? String, let url = URL(string: route) else { return }
+            Task { @MainActor in self?.handleDeepLink(url) }
+        })
     }
 
     private func registerCurrentPushToken() async {
@@ -455,11 +475,14 @@ final class DartStore: ObservableObject {
             case (false, "accepted") where old == nil && request.runID != nil && !before.nearbyIDs.contains(request.id): "New request on your run: “\(request.title)”."
             default: nil
             }
-            if let text { notifier.post("Dart", text, id: "request-\(request.id)-\(request.status)") }
+            if let text {
+                notifier.post("Dart", text, id: "request-\(request.id)-\(request.status)", route: "dart://requests/\(request.id)")
+            }
         }
 
         for request in nearby where !before.nearbyIDs.contains(request.id) && request.requesterID != userID {
-            notifier.post("New request nearby", "\(request.title) · $\(Self.dollars(request.rewardCents)) reward", id: "nearby-\(request.id)")
+            notifier.post("New request nearby", "\(request.title) · $\(Self.dollars(request.rewardCents)) reward",
+                          id: "nearby-\(request.id)", route: "dart://requests/\(request.id)")
         }
 
         for message in messages where !before.messageIDs.contains(message.id) && message.senderID != userID
@@ -473,7 +496,8 @@ final class DartStore: ObservableObject {
             && !openRequestChats.contains(message.requestID) {
             let title = requests.first { $0.id == message.requestID }?.title ?? "Your request"
             let sender = message.sender?.displayName.split(separator: " ").first.map(String.init) ?? "Someone"
-            notifier.post(title, "\(sender): \(message.body)", id: "request-message-\(message.id)")
+            notifier.post(title, "\(sender): \(message.body)", id: "request-message-\(message.id)",
+                          route: "dart://requests/\(message.requestID)")
         }
     }
 

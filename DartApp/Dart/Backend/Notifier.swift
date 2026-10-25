@@ -27,11 +27,12 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func post(_ title: String, _ body: String, id: String = UUID().uuidString) {
+    func post(_ title: String, _ body: String, id: String = UUID().uuidString, route: String? = nil) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let route { content.userInfo["deep_link"] = route }
         center?.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
     }
 
@@ -40,4 +41,19 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
                                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .sound, .list])
     }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        if let route = (info["deep_link"] ?? info["url"]) as? String {
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .dartNotificationRoute, object: nil, userInfo: ["route": route])
+            }
+        }
+        completionHandler()
+    }
+}
+
+extension Notification.Name {
+    static let dartNotificationRoute = Notification.Name("dart.notification.route")
 }
