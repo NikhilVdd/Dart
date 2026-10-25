@@ -38,10 +38,10 @@ struct HomeView: View {
             .onAppear {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) { appeared = true }
             }
-            .sheet(item: $selectedItem) { ItemDetailView(item: $0) }
-            .sheet(item: $creating) { CreateSheet(destination: $0) }
-            .sheet(isPresented: $showGroups) { GroupsView().macSheetSize() }
-            .sheet(isPresented: $showNotifications) { NotificationInboxSheet() }
+            .dartModal(item: $selectedItem) { ItemDetailView(item: $0) }
+            .dartModal(item: $creating) { CreateSheet(destination: $0) }
+            .dartModal(isPresented: $showGroups) { GroupsView().macSheetSize() }
+            .dartModal(isPresented: $showNotifications) { NotificationInboxSheet() }
         }
     }
 
@@ -306,11 +306,13 @@ struct ExploreView: View {
             }
             .background(DartBackdrop())
             .refreshable { await store.refresh() }
-            .sheet(item: $selectedItem) { ItemDetailView(item: $0) }
-            .alert("No tasks nearby right now", isPresented: $noTaskNearby) {
-                Button("Got it", role: .cancel) {}
-            } message: {
-                Text("We’ll surface a relevant request here as soon as one opens near campus.")
+            .dartModal(item: $selectedItem) { ItemDetailView(item: $0) }
+            .dartDialog(isPresented: $noTaskNearby) {
+                DartAlertCard(symbol: "location.magnifyingglass", title: "Nothing nearby yet",
+                              message: "We’ll surface a relevant request here as soon as one opens near campus.",
+                              primaryTitle: "Got it") {
+                    noTaskNearby = false
+                }
             }
         }
     }
@@ -394,7 +396,7 @@ struct CompactStatusTrack: View {
 }
 
 private struct NotificationInboxSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     @EnvironmentObject private var store: DartStore
     @State private var selected: DartItem?
 
@@ -436,9 +438,8 @@ private struct NotificationInboxSheet: View {
             .background(DartBackdrop())
             .navigationTitle("Notifications")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .sheet(item: $selected) { ItemDetailView(item: $0) }
+            .dartModal(item: $selected) { ItemDetailView(item: $0) }
         }
-        .presentationDragIndicator(.visible)
         .macSheetSize()
     }
 

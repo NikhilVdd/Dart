@@ -21,7 +21,7 @@ struct SignInBanner: View {
             .dartSurface()
         }
         .buttonStyle(PressableStyle())
-        .sheet(isPresented: $showSignIn) { SignInView() }
+        .dartModal(isPresented: $showSignIn) { SignInView() }
     }
 }
 
@@ -36,7 +36,7 @@ struct SignInView: View {
     }
 
     @EnvironmentObject private var store: DartStore
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     let allowsDismiss: Bool
     @State private var mode: Mode = .signIn
     @State private var displayName = ""
@@ -144,8 +144,7 @@ struct SignInView: View {
                 }
             }
         }
-        .presentationDragIndicator(.visible)
-        .sheet(isPresented: $showPasswordReset) { PasswordResetRequestView() }
+        .dartModal(isPresented: $showPasswordReset) { PasswordResetRequestView() }
         .macSheetSize(minHeight: 620)
         .onChange(of: mode) { _, _ in
             password = ""
@@ -153,21 +152,23 @@ struct SignInView: View {
             errorMessage = nil
         }
         .onChange(of: store.isLive) { _, live in if live { dismiss() } }
-        .alert("Couldn’t continue", isPresented: Binding(
+        .dartDialog(isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "Please try again.")
+            DartAlertCard(symbol: "exclamationmark.triangle.fill", title: "Couldn’t continue",
+                          message: errorMessage ?? "Please try again.", primaryTitle: "Try again") {
+                errorMessage = nil
+            }
         }
-        .alert("Account created", isPresented: Binding(
+        .dartDialog(isPresented: Binding(
             get: { confirmationMessage != nil },
             set: { if !$0 { confirmationMessage = nil } }
         )) {
-            Button("Continue", role: .cancel) { confirmationMessage = nil }
-        } message: {
-            Text(confirmationMessage ?? "")
+            DartAlertCard(symbol: "envelope.badge.fill", title: "Check your email",
+                          message: confirmationMessage ?? "", primaryTitle: "Continue") {
+                confirmationMessage = nil
+            }
         }
     }
 
@@ -221,47 +222,60 @@ struct SignInView: View {
 
 private struct PasswordResetRequestView: View {
     @EnvironmentObject private var store: DartStore
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     @State private var email = ""
     @State private var isWorking = false
     @State private var message: String?
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    DartIconTile(symbol: "key.fill", size: 66, highlighted: true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Reset your password").font(.largeTitle.weight(.heavy)).foregroundStyle(DartTheme.text)
+                        Text("Dart will email a secure recovery link if an account exists for this address.")
+                            .font(.subheadline).foregroundStyle(DartTheme.muted)
+                    }
+                    DartField(label: "Email") {
                     TextField("Email address", text: $email)
                         .textContentType(.emailAddress)
+                            .textFieldStyle(.plain)
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
                         #endif
-                } header: {
-                    Text("Reset your password")
-                } footer: {
-                    Text("Dart will email a secure recovery link if an account exists for this address.")
-                }
+                    }
 
-                Button {
-                    Task { await send() }
-                } label: {
-                    if isWorking { ProgressView() } else { Text("Send recovery email") }
+                    Button { Task { await send() } } label: {
+                        if isWorking {
+                            HStack { ProgressView().tint(DartTheme.limeInk); Text("Sending…").font(.headline) }
+                                .frame(maxWidth: .infinity).padding(.vertical, 17)
+                                .foregroundStyle(DartTheme.limeInk)
+                                .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                        } else {
+                            PrimaryButtonLabel(title: "Send recovery email", icon: "paperplane.fill")
+                        }
+                    }
+                    .buttonStyle(PressableStyle())
+                    .disabled(isWorking || !email.contains("@"))
                 }
-                .disabled(isWorking || !email.contains("@"))
+                .padding(DartTheme.pageInset)
             }
-            .scrollContentBackground(.hidden)
             .background(DartBackdrop())
             .navigationTitle("Password reset")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
-            .alert("Check your email", isPresented: Binding(
+            .dartDialog(isPresented: Binding(
                 get: { message != nil },
                 set: { if !$0 { message = nil } }
             )) {
-                Button("Done") { dismiss() }
-            } message: {
-                Text(message ?? "")
+                DartAlertCard(symbol: "envelope.open.fill", title: "Check your email", message: message ?? "",
+                              primaryTitle: "Done") {
+                    message = nil
+                    dismiss()
+                }
             }
         }
     }
@@ -311,13 +325,14 @@ struct PasswordUpdateView: View {
             .padding(DartTheme.pageInset)
             .background(DartBackdrop())
             .interactiveDismissDisabled()
-            .alert("Couldn’t update password", isPresented: Binding(
+            .dartDialog(isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage ?? "Please try again.")
+                DartAlertCard(symbol: "lock.trianglebadge.exclamationmark", title: "Couldn’t update password",
+                              message: errorMessage ?? "Please try again.", primaryTitle: "Try again") {
+                    errorMessage = nil
+                }
             }
         }
     }
@@ -388,7 +403,7 @@ struct OnboardingView: View {
                 .padding(DartTheme.pageInset)
             }
             .interactiveDismissDisabled()
-            .sheet(isPresented: $choosingHome) {
+            .dartModal(isPresented: $choosingHome) {
                 PlaceSearchView(title: "Where you live", selection: $selectedHomeID, filter: .destinations, allowsAnyStore: false)
             }
             .onAppear {
@@ -456,9 +471,10 @@ struct OnboardingView: View {
                 .foregroundStyle(DartTheme.muted)
             Label("Accepted, pickup, on-the-way, and delivered updates", systemImage: "bell.badge.fill")
                 .padding(18).dartSurface()
-            Button("Allow notifications") { store.requestNotificationPermission() }
-                .buttonStyle(.borderedProminent).tint(DartTheme.lime).foregroundStyle(DartTheme.limeInk)
-                .frame(minHeight: 44)
+            Button { store.requestNotificationPermission() } label: {
+                PrimaryButtonLabel(title: "Allow notifications", icon: "bell.badge.fill")
+            }
+            .buttonStyle(PressableStyle())
             Text("You can also continue and enable them later in Settings.")
                 .font(.footnote).foregroundStyle(DartTheme.muted)
         }

@@ -49,7 +49,7 @@ struct FeedMapCard: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Map of \(located.count) nearby items. The same items are listed below.")
-            .sheet(isPresented: $expanded) {
+            .dartModal(isPresented: $expanded) {
                 NavigationStack {
                     FeedMap(items: located) { item in
                         expanded = false
@@ -62,8 +62,6 @@ struct FeedMapCard: View {
                         ToolbarItem(placement: .confirmationAction) { Button("Done") { expanded = false } }
                     }
                 }
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
             }
         }
     }

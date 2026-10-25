@@ -9,7 +9,7 @@ struct CreateSheet: View {
     }
 
     let destination: Destination
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     @EnvironmentObject private var store: DartStore
 
     var body: some View {
@@ -28,8 +28,6 @@ struct CreateSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
         .macSheetSize()
     }
 }
@@ -67,10 +65,12 @@ private struct CreateIntroView: View {
         }
         .background(DartBackdrop())
         .navigationTitle("How it works")
-        .alert("Sign in to post", isPresented: $showUpcoming) {
-            Button("Done", role: .cancel) { }
-        } message: {
-            Text("Posting requests and runs needs a signed-in account on a build connected to the Dart backend.")
+        .dartDialog(isPresented: $showUpcoming) {
+            DartAlertCard(symbol: "person.crop.circle.badge.plus", title: "Sign in to post",
+                          message: "Posting requests and runs needs a signed-in account on a build connected to the Dart backend.",
+                          primaryTitle: "Done") {
+                showUpcoming = false
+            }
         }
     }
 

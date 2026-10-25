@@ -4,6 +4,7 @@ struct GroupsView: View {
     @EnvironmentObject private var store: DartStore
     @State private var showJoin = false
     @State private var showCreate = false
+    @State private var showGroupActions = false
     @State private var inviteCode = ""
     @State private var newGroupName = ""
     @State private var choosingHome = false
@@ -61,8 +62,13 @@ struct GroupsView: View {
                                 Text("\(group.memberCount) neighbors on Dart").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Button("Join") { Task { await store.joinBuilding(group) } }
-                                .buttonStyle(.borderedProminent)
+                            Button { Task { await store.joinBuilding(group) } } label: {
+                                Text("Join").font(.caption.weight(.bold))
+                                    .foregroundStyle(DartTheme.limeInk)
+                                    .padding(.horizontal, 16).frame(minHeight: 40)
+                                    .background(DartTheme.lime, in: Capsule())
+                            }
+                            .buttonStyle(PressableStyle())
                         }
                         .padding(18)
                         .dartSurface()
@@ -74,7 +80,7 @@ struct GroupsView: View {
             }
             .background(DartBackdrop())
             .refreshable { await store.refresh() }
-            .sheet(isPresented: $choosingHome) {
+            .dartModal(isPresented: $choosingHome) {
                 PlaceSearchView(title: "Where you live", selection: $homeID, filter: .destinations, allowsAnyStore: false)
             }
             .onChange(of: homeID) { _, id in
@@ -87,25 +93,41 @@ struct GroupsView: View {
             .toolbar {
                 if store.isLive {
                     ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button { showCreate = true } label: { Label("New friend group", systemImage: "person.2.badge.plus") }
-                            Button { showJoin = true } label: { Label("Join with invite code", systemImage: "ticket") }
-                        } label: {
+                        Button { showGroupActions = true } label: {
                             Image(systemName: "plus.circle.fill").font(.title3)
                         }
                         .accessibilityLabel("Add group")
                     }
                 }
             }
-            .alert("Join a group", isPresented: $showJoin) {
-                TextField("Invite code", text: $inviteCode)
-                Button("Join") { Task { if await store.joinGroup(code: inviteCode) { inviteCode = "" } } }
-                Button("Cancel", role: .cancel) { }
-            } message: { Text("Ask a member for the group’s 8-character code.") }
-            .alert("New friend group", isPresented: $showCreate) {
-                TextField("Name", text: $newGroupName)
-                Button("Create") { Task { if await store.createGroup(named: newGroupName) { newGroupName = "" } } }
-                Button("Cancel", role: .cancel) { }
+            .dartDialog(isPresented: $showGroupActions) {
+                GroupActionChooser {
+                    showGroupActions = false
+                    showCreate = true
+                } onJoin: {
+                    showGroupActions = false
+                    showJoin = true
+                } onCancel: {
+                    showGroupActions = false
+                }
+            }
+            .dartDialog(isPresented: $showJoin) {
+                DartTextPromptCard(symbol: "ticket.fill", title: "Join a group",
+                                   message: "Ask a member for the group’s 8-character code.", placeholder: "Invite code",
+                                   text: $inviteCode, actionTitle: "Join group") {
+                    let code = inviteCode
+                    showJoin = false
+                    Task { if await store.joinGroup(code: code) { inviteCode = "" } }
+                } onCancel: { showJoin = false }
+            }
+            .dartDialog(isPresented: $showCreate) {
+                DartTextPromptCard(symbol: "person.2.badge.plus", title: "New friend group",
+                                   message: "Create a private circle for chat, shared lists, and free store runs.",
+                                   placeholder: "Group name", text: $newGroupName, actionTitle: "Create group") {
+                    let name = newGroupName
+                    showCreate = false
+                    Task { if await store.createGroup(named: name) { newGroupName = "" } }
+                } onCancel: { showCreate = false }
             }
         }
     }
@@ -155,8 +177,11 @@ private struct GroupDetailView: View {
                         Button { upcomingMessage = "Sign in from Profile to send messages." } label: {
                             Label("Sign in to send messages", systemImage: "text.bubble")
                                 .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity).padding(14)
+                                .foregroundStyle(DartTheme.text)
+                                .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                                .overlay(RoundedRectangle(cornerRadius: DartTheme.controlRadius).stroke(DartTheme.line))
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PressableStyle())
                     }
                 }
                 .padding(18)
@@ -171,27 +196,33 @@ private struct GroupDetailView: View {
                 SectionHeading(title: "Shopping list", subtitle: store.isLive ? "Tap to check off" : "Preview items")
                 VStack(spacing: 0) {
                     ForEach(Array(current.shoppingList.enumerated()), id: \.element.id) { index, item in
-                        Button {
-                            if store.isLive { Task { await store.toggle(item) } }
-                            else { upcomingMessage = "Sign in from Profile to edit the shopping list." }
-                        } label: {
-                            HStack(spacing: 12) {
+                        HStack(spacing: 10) {
+                            Button {
+                                if store.isLive { Task { await store.toggle(item) } }
+                                else { upcomingMessage = "Sign in from Profile to edit the shopping list." }
+                            } label: {
+                                HStack(spacing: 12) {
                                 Image(systemName: item.isPicked ? "checkmark.circle.fill" : "circle").foregroundStyle(DartTheme.blue)
                                 Text(item.body).strikethrough(item.isPicked).foregroundStyle(item.isPicked ? .secondary : .primary)
                                 Spacer()
                                 if item.quantity > 1 { Text("×\(item.quantity)").font(.subheadline).foregroundStyle(.secondary) }
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .padding(.vertical, 13)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
+                            .buttonStyle(.plain)
                             if store.isLive {
                                 Button(role: .destructive) { Task { _ = await store.delete(item) } } label: {
-                                    Label("Remove from list", systemImage: "trash")
+                                    Image(systemName: "trash")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(DartTheme.danger)
+                                        .frame(width: 36, height: 36)
+                                        .background(DartTheme.danger.opacity(0.10), in: Circle())
                                 }
+                                .buttonStyle(PressableStyle())
+                                .accessibilityLabel("Remove \(item.body)")
                             }
                         }
+                        .padding(.vertical, 8)
                         if index < current.shoppingList.count - 1 { Divider() }
                     }
                     if store.isLive {
@@ -206,9 +237,6 @@ private struct GroupDetailView: View {
                 }
                 .padding(.horizontal, 18)
                 .dartSurface()
-                if store.isLive && !current.shoppingList.isEmpty {
-                    Text("Touch and hold an item to remove it.").font(.caption).foregroundStyle(.secondary)
-                }
             }
             .padding(DartTheme.pageInset)
             .padding(.bottom, 96)
@@ -216,37 +244,76 @@ private struct GroupDetailView: View {
         .background(DartBackdrop())
         .task { await store.openConversation(groupID: group.id) }
         .onDisappear { store.closeConversation(groupID: group.id) }
-        .sheet(item: $selectedItem) { ItemDetailView(item: $0) }
+        .dartModal(item: $selectedItem) { ItemDetailView(item: $0) }
         .toolbar {
             if store.isLive && current.isMember {
                 ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button(role: .destructive) { confirmLeave = true } label: {
-                            Label("Leave group", systemImage: "rectangle.portrait.and.arrow.right")
-                        }
-                    } label: { Image(systemName: "ellipsis.circle") }
+                    Button { confirmLeave = true } label: { Image(systemName: "ellipsis.circle") }
                     .accessibilityLabel("Group options")
                 }
             }
         }
-        .confirmationDialog("Leave \(current.name)?", isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("Leave group", role: .destructive) {
-                Task { if await store.leave(current) { dismiss() } }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text(current.kind == .building
-                 ? "You’ll stop seeing this building’s runs, and it will no longer be your home."
-                 : "You’ll stop seeing this group’s chat, list and runs. Rejoin any time with the invite code.")
+        .dartDialog(isPresented: $confirmLeave) {
+            DartAlertCard(symbol: "rectangle.portrait.and.arrow.right", title: "Leave \(current.name)?",
+                          message: current.kind == .building
+                            ? "You’ll stop seeing this building’s runs, and it will no longer be your home."
+                            : "You’ll stop seeing this group’s chat, list, and runs. Rejoin any time with the invite code.",
+                          primaryTitle: "Leave group", primaryIsDestructive: true,
+                          primaryAction: {
+                              confirmLeave = false
+                              Task { if await store.leave(current) { dismiss() } }
+                          }, secondaryTitle: "Stay", secondaryAction: { confirmLeave = false })
         }
-        .alert("Sign in required", isPresented: Binding(get: { upcomingMessage != nil }, set: { if !$0 { upcomingMessage = nil } })) {
-            Button("OK", role: .cancel) { upcomingMessage = nil }
-        } message: { Text(upcomingMessage ?? "") }
+        .dartDialog(isPresented: Binding(get: { upcomingMessage != nil }, set: { if !$0 { upcomingMessage = nil } })) {
+            DartAlertCard(symbol: "person.crop.circle.badge.plus", title: "Sign in required",
+                          message: upcomingMessage ?? "Sign in to continue.", primaryTitle: "Got it") {
+                upcomingMessage = nil
+            }
+        }
     }
 
     private func addItem() async {
         let body = newListItem.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         if await store.addListItem(body, groupID: group.id, runID: current.run?.backend?.id) { newListItem = "" }
+    }
+}
+
+private struct GroupActionChooser: View {
+    let onCreate: () -> Void
+    let onJoin: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            DartIconTile(symbol: "person.3.fill", size: 58, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Grow your circles").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text("Create a private friend group or join one with an invite code.")
+                    .font(.subheadline).foregroundStyle(DartTheme.muted)
+            }
+            action("Create friend group", "person.2.badge.plus", onCreate)
+            action("Join with invite code", "ticket.fill", onJoin)
+            Button("Cancel", action: onCancel).font(.headline).foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity).frame(minHeight: 44)
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
+    }
+
+    private func action(_ title: String, _ symbol: String, _ handler: @escaping () -> Void) -> some View {
+        Button(action: handler) {
+            HStack(spacing: 13) {
+                DartIconTile(symbol: symbol, size: 44)
+                Text(title).font(.headline).foregroundStyle(DartTheme.text)
+                Spacer()
+                Image(systemName: "arrow.right").foregroundStyle(DartTheme.limeInk)
+            }
+            .padding(14)
+            .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(PressableStyle())
     }
 }

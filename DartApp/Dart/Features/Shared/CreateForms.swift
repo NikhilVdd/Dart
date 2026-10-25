@@ -215,7 +215,7 @@ struct RequestFormView: View {
                         Text("$\(reward)").font(.system(size: 36, weight: .heavy, design: .rounded)).foregroundStyle(DartTheme.text)
                     }
                     Spacer()
-                    Stepper("Reward", value: $reward, in: 0...50).labelsHidden()
+                    DartNumberStepper(title: "Helper reward", value: $reward, range: 0...50)
                 }
                 DartField(label: "Merchandise budget (optional)") {
                     TextField("$0", text: $budget)
@@ -419,7 +419,7 @@ struct RunFormView: View {
                                 Text("$\(fee)").font(.title.weight(.heavy)).foregroundStyle(DartTheme.text)
                             }
                             Spacer()
-                            Stepper("Fee", value: $fee, in: 0...20).labelsHidden()
+                            DartNumberStepper(title: "Reward per request", value: $fee, range: 0...20)
                         }
                     }
                     HStack {
@@ -428,7 +428,7 @@ struct RunFormView: View {
                             Text("\(maxDetour) minutes").font(.headline).foregroundStyle(DartTheme.text)
                         }
                         Spacer()
-                        Stepper("Detour", value: $maxDetour, in: 2...30).labelsHidden()
+                        DartNumberStepper(title: "Maximum detour", value: $maxDetour, range: 2...30)
                     }
                 }
                 .padding(18)
@@ -501,10 +501,31 @@ private struct AudiencePicker: View {
     let groups: [DartGroup]
 
     var body: some View {
-        Picker("Visible to", selection: $audience) {
-            Text("Everyone on campus").tag(Audience.campus)
-            ForEach(groups) { group in Text(group.name).tag(Audience.group(group.id)) }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                choice("Everyone", symbol: "graduationcap.fill", value: .campus)
+                ForEach(groups) { group in
+                    choice(group.name, symbol: group.kind == .friends ? "person.2.fill" : "building.2.fill",
+                           value: .group(group.id))
+                }
+            }
+            .padding(.vertical, 5)
         }
+    }
+
+    private func choice(_ title: String, symbol: String, value: Audience) -> some View {
+        let selected = audience == value
+        return Button { audience = value } label: {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(selected ? DartTheme.limeInk : DartTheme.text)
+                .padding(.horizontal, 13)
+                .frame(minHeight: 40)
+                .background(selected ? DartTheme.lime : DartTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(selected ? Color.clear : DartTheme.line))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

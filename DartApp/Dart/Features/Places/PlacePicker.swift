@@ -55,7 +55,7 @@ struct PlaceField: View {
                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(.tertiary)
             }
         }
-        .sheet(isPresented: $searching) {
+        .dartModal(isPresented: $searching) {
             PlaceSearchView(title: title, selection: $selection, filter: filter, allowsAnyStore: allowsAnyStore)
         }
     }
@@ -64,7 +64,7 @@ struct PlaceField: View {
 /// Search existing places and Apple Maps; adding a map result creates the place on Dart.
 struct PlaceSearchView: View {
     @EnvironmentObject private var store: DartStore
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
 
     let title: String
     @Binding var selection: UUID?
@@ -75,6 +75,7 @@ struct PlaceSearchView: View {
     @State private var results: [MKMapItem] = []
     @State private var searchingMaps = false
     @State private var adding = false
+    @State private var pendingMapItem: MKMapItem?
 
     private var existing: [PlaceRow] {
         let matches = store.places.filter(filter.allows)
@@ -99,65 +100,84 @@ struct PlaceSearchView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    DartSearchField(
+                        prompt: filter == .stores ? "Search stores" : "Search places",
+                        text: $query
+                    )
+
                 if allowsAnyStore && query.isEmpty {
-                    Section {
-                        Button { choose(nil) } label: {
-                            row(icon: "sparkles", title: "Any store", subtitle: "Someone already shopping nearby picks it up",
-                                selected: selection == nil)
-                        }
+                    Button { choose(nil) } label: {
+                        placeCard(icon: "sparkles", title: "Any store",
+                                  subtitle: "Someone already shopping nearby picks it up",
+                                  selected: selection == nil)
                     }
+                    .buttonStyle(PressableStyle())
                 }
 
                 if !existing.isEmpty {
-                    Section("On Dart") {
+                    SectionHeading(title: "On Dart", subtitle: "Saved places near your campus")
+                    VStack(spacing: 0) {
                         ForEach(existing) { place in
                             Button { choose(place.id) } label: {
                                 row(icon: Self.symbol(for: place.kind), title: place.name, subtitle: place.detail,
                                     selected: selection == place.id)
                             }
+                            .buttonStyle(PressableStyle())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            if place.id != existing.last?.id {
+                                Divider().overlay(DartTheme.line).padding(.leading, 54)
+                            }
                         }
                     }
+                    .dartSurface(radius: DartTheme.controlRadius)
                 }
 
                 if !query.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Section {
+                    SectionHeading(title: "Add from Apple Maps", subtitle: "Not on Dart yet? Add it for your campus")
+                    VStack(spacing: 12) {
                         if searchingMaps && results.isEmpty {
-                            HStack { ProgressView(); Text("Searching Apple Maps…").foregroundStyle(.secondary) }
+                            HStack(spacing: 12) {
+                                ProgressView().tint(DartTheme.lime)
+                                Text("Searching nearby…").foregroundStyle(DartTheme.muted)
+                                Spacer()
+                            }
+                            .padding(18)
+                            .dartSurface(radius: DartTheme.controlRadius)
                         } else if newResults.isEmpty {
-                            Text("No other matches nearby.").foregroundStyle(.secondary)
+                            EmptyStateCard(title: "No new matches", message: "Try a broader place or street name.")
                         }
                         ForEach(newResults, id: \.self) { item in
-                            // A menu carries its own item, so the choice can't lose track of which
-                            // place it belongs to, and it shows every kind on both iOS and macOS.
-                            Menu {
-                                Section("Add \(item.name ?? "this place") as") {
-                                    ForEach(kinds(for: item), id: \.0) { kind, label in
-                                        Button(label) { Task { await add(item, kind: kind) } }
-                                    }
-                                }
-                            } label: {
-                                row(icon: "plus.circle.fill", title: item.name ?? "Unnamed place",
-                                    subtitle: Self.address(for: item.placemark), selected: false)
+                            Button { pendingMapItem = item } label: {
+                                placeCard(icon: "plus", title: item.name ?? "Unnamed place",
+                                          subtitle: Self.address(for: item.placemark), selected: false)
                             }
-                            .menuIndicator(.hidden)
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressableStyle())
                             .disabled(adding)
                         }
-                    } header: {
-                        Text("Add from Apple Maps")
-                    } footer: {
+
                         if adding {
-                            Text("Adding…")
+                            Label("Adding place…", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(DartTheme.muted)
                         } else if let error = store.lastError {
-                            Text(error).foregroundStyle(.red)
+                            Label(error, systemImage: "exclamationmark.circle.fill")
+                                .font(.footnote)
+                                .foregroundStyle(DartTheme.danger)
                         } else {
                             Text("Places you add are shared with everyone on your campus.")
+                                .font(.footnote)
+                                .foregroundStyle(DartTheme.muted)
                         }
                     }
                 }
+                }
+                .padding(.horizontal, DartTheme.pageInset)
+                .padding(.vertical, 18)
             }
-            .searchable(text: $query, prompt: filter == .stores ? "Search stores" : "Search places")
+            .background(DartBackdrop())
             .task(id: query) { await searchMaps() }
             .navigationTitle(title)
             .toolbar {
@@ -165,7 +185,22 @@ struct PlaceSearchView: View {
             }
             .macSheetSize(minHeight: 540)
         }
-        .presentationDragIndicator(.visible)
+        .dartDialog(isPresented: Binding(
+            get: { pendingMapItem != nil },
+            set: { if !$0 { pendingMapItem = nil } }
+        )) {
+            if let item = pendingMapItem {
+                PlaceKindChooser(
+                    placeName: item.name ?? "this place",
+                    kinds: kinds(for: item),
+                    choose: { kind in
+                        pendingMapItem = nil
+                        Task { await add(item, kind: kind) }
+                    },
+                    cancel: { pendingMapItem = nil }
+                )
+            }
+        }
     }
 
     /// The inferred kind first, then the rest of the kinds this picker allows.
@@ -187,6 +222,13 @@ struct PlaceSearchView: View {
             if selected { Image(systemName: "checkmark").foregroundStyle(DartTheme.blue) }
         }
         .contentShape(Rectangle())
+    }
+
+    private func placeCard(icon: String, title: String, subtitle: String?, selected: Bool) -> some View {
+        row(icon: icon, title: title, subtitle: subtitle, selected: selected)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .dartSurface(radius: DartTheme.controlRadius)
     }
 
     private func choose(_ id: UUID?) {
@@ -274,5 +316,59 @@ struct PlaceSearchView: View {
 
     private static func meters(_ lat1: Double, _ lng1: Double, _ lat2: Double, _ lng2: Double) -> Double {
         CLLocation(latitude: lat1, longitude: lng1).distance(from: CLLocation(latitude: lat2, longitude: lng2))
+    }
+}
+
+private struct PlaceKindChooser: View {
+    let placeName: String
+    let kinds: [(String, String)]
+    let choose: (String) -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            DartIconTile(symbol: "mappin.and.ellipse", size: 58, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("What kind of place is this?")
+                    .font(.title2.weight(.heavy))
+                    .foregroundStyle(DartTheme.text)
+                Text(placeName)
+                    .font(.subheadline)
+                    .foregroundStyle(DartTheme.muted)
+            }
+
+            ScrollView {
+                VStack(spacing: 9) {
+                    ForEach(kinds, id: \.0) { kind, label in
+                        Button { choose(kind) } label: {
+                            HStack {
+                                Text(label).font(.headline)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                            }
+                            .foregroundStyle(DartTheme.text)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 50)
+                            .background(DartTheme.surfaceRaised,
+                                        in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                            .overlay(RoundedRectangle(cornerRadius: DartTheme.controlRadius).stroke(DartTheme.line))
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                }
+            }
+            .frame(maxHeight: 270)
+
+            Button("Not now", action: cancel)
+                .font(.headline)
+                .foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .buttonStyle(PressableStyle())
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
     }
 }

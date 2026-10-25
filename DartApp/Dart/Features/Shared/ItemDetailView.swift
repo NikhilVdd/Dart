@@ -1,12 +1,13 @@
 import SwiftUI
 
 struct ItemDetailView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     @EnvironmentObject private var store: DartStore
     let initialItem: DartItem
     @State private var showUpcoming = false
     @State private var showReport = false
     @State private var confirmBlock = false
+    @State private var showSafetyActions = false
     @State private var reportDetails = ""
     @State private var appeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -76,10 +77,7 @@ struct ItemDetailView: View {
             .toolbar {
                 if store.isLive, item.person.id != store.userID {
                     ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button("Report", systemImage: "exclamationmark.bubble") { showReport = true }
-                            Button("Block \(item.person.name)", systemImage: "hand.raised", role: .destructive) { confirmBlock = true }
-                        } label: {
+                        Button { showSafetyActions = true } label: {
                             Image(systemName: "ellipsis.circle")
                         }
                         .accessibilityLabel("Safety actions")
@@ -92,39 +90,51 @@ struct ItemDetailView: View {
             .onAppear {
                 withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.86)) { appeared = true }
             }
-            .alert("Report \(item.person.name)", isPresented: $showReport) {
-                TextField("What happened?", text: $reportDetails)
-                Button("Submit report") {
+            .dartDialog(isPresented: $showSafetyActions) {
+                SafetyActionCard(name: item.person.name) {
+                    showSafetyActions = false
+                    showReport = true
+                } onBlock: {
+                    showSafetyActions = false
+                    confirmBlock = true
+                } onCancel: {
+                    showSafetyActions = false
+                }
+            }
+            .dartDialog(isPresented: $showReport) {
+                ReportPromptCard(name: item.person.name, details: $reportDetails) {
                     let details = reportDetails.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !details.isEmpty else { return }
+                    showReport = false
                     Task {
                         if await store.reportUser(item.person.id, item: item, category: "other", details: details) {
                             reportDetails = ""
                         }
                     }
+                } onCancel: {
+                    showReport = false
+                    reportDetails = ""
                 }
-                .disabled(reportDetails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("Cancel", role: .cancel) { reportDetails = "" }
-            } message: {
-                Text("Reports are private and sent to Dart’s safety review queue. Call local emergency services for immediate danger.")
             }
-            .confirmationDialog("Block \(item.person.name)?", isPresented: $confirmBlock, titleVisibility: .visible) {
-                Button("Block user", role: .destructive) {
-                    Task { if await store.blockUser(item.person.id) { dismiss() } }
+            .dartDialog(isPresented: $confirmBlock) {
+                DartAlertCard(symbol: "hand.raised.fill", title: "Block \(item.person.name)?",
+                              message: "You will no longer see each other’s requests or runs. Blocking does not submit a report.",
+                              primaryTitle: "Block account", primaryIsDestructive: true,
+                              primaryAction: {
+                                  confirmBlock = false
+                                  Task { if await store.blockUser(item.person.id) { dismiss() } }
+                              }, secondaryTitle: "Cancel", secondaryAction: { confirmBlock = false })
+            }
+            .dartDialog(isPresented: $showUpcoming) {
+                DartAlertCard(symbol: "person.crop.circle.badge.plus", title: "Sign in to continue",
+                              message: store.isConfigured
+                                ? "Sign in from Profile to accept requests, join runs, and track deliveries."
+                                : "This build has no backend configured, so actions are shown for preview only.",
+                              primaryTitle: "Got it") {
+                    showUpcoming = false
                 }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("You will no longer see each other’s requests or runs. Blocking does not submit a report.")
-            }
-            .alert("Sign in to continue", isPresented: $showUpcoming) {
-                Button("Got it", role: .cancel) { }
-            } message: {
-                Text(store.isConfigured
-                     ? "Sign in from Profile to accept requests, join runs, and track deliveries."
-                     : "This build has no backend configured, so actions are shown for preview only.")
             }
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
         .macSheetSize()
     }
 
@@ -225,6 +235,156 @@ private struct LiveTrackingCard: View {
     }
 }
 
+private struct SafetyActionCard: View {
+    let name: String
+    let onReport: () -> Void
+    let onBlock: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            DartIconTile(symbol: "shield.lefthalf.filled", size: 58, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Safety options").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text("Choose what you need for your interaction with \(name).")
+                    .font(.subheadline).foregroundStyle(DartTheme.muted)
+            }
+            action("Report privately", "exclamationmark.bubble.fill", DartTheme.text, onReport)
+            action("Block account", "hand.raised.fill", DartTheme.danger, onBlock)
+            Button("Cancel", action: onCancel).font(.headline).foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity).frame(minHeight: 44)
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
+    }
+
+    private func action(_ title: String, _ symbol: String, _ color: Color, _ handler: @escaping () -> Void) -> some View {
+        Button(action: handler) {
+            HStack(spacing: 13) {
+                Image(systemName: symbol).font(.headline).foregroundStyle(color).frame(width: 42, height: 42)
+                    .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 13))
+                Text(title).font(.headline).foregroundStyle(color)
+                Spacer()
+                Image(systemName: "arrow.right").foregroundStyle(color)
+            }
+            .padding(12)
+            .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
+private struct ReportPromptCard: View {
+    let name: String
+    @Binding var details: String
+    let onSubmit: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            DartIconTile(symbol: "exclamationmark.bubble.fill", size: 56, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Report \(name)").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text("Reports are private and sent to Dart’s safety review queue. Call local emergency services for immediate danger.")
+                    .font(.subheadline).foregroundStyle(DartTheme.muted)
+            }
+            DartField(label: "What happened?") {
+                TextField("Share the important details", text: $details, axis: .vertical)
+                    .textFieldStyle(.plain).lineLimit(3...6)
+            }
+            Button(action: onSubmit) { PrimaryButtonLabel(title: "Submit private report", icon: "paperplane.fill") }
+                .buttonStyle(PressableStyle())
+                .disabled(details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", action: onCancel).font(.headline).foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity).frame(minHeight: 44)
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
+    }
+}
+
+private struct RunChoiceCard: View {
+    let runs: [DartItem]
+    let onRun: (UUID?) -> Void
+    let onDedicatedTrip: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            DartIconTile(symbol: "point.topleft.down.to.point.bottomright.curvepath", size: 56, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("How are you helping?").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text("Attach this request to a route you already shared or make a dedicated trip.")
+                    .font(.subheadline).foregroundStyle(DartTheme.muted)
+            }
+            ForEach(runs) { run in
+                Button { onRun(run.backend?.id) } label: {
+                    HStack(spacing: 12) {
+                        DartIconTile(symbol: "cart.fill", size: 42)
+                        Text(run.title).font(.headline).foregroundStyle(DartTheme.text).lineLimit(2)
+                        Spacer()
+                        Image(systemName: "arrow.right").foregroundStyle(DartTheme.limeInk)
+                    }
+                    .padding(12).background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 17))
+                }
+                .buttonStyle(PressableStyle())
+            }
+            Button(action: onDedicatedTrip) { PrimaryButtonLabel(title: "Make a dedicated trip", icon: "figure.walk") }
+                .buttonStyle(PressableStyle())
+            Button("Cancel", action: onCancel).font(.headline).foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity).frame(minHeight: 44)
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
+    }
+}
+
+private struct AskRunnerCard: View {
+    let isFriendRun: Bool
+    let reward: Int
+    @Binding var title: String
+    @Binding var budget: String
+    let onSend: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 17) {
+            DartIconTile(symbol: isFriendRun ? "cart.badge.plus" : "bag.badge.plus", size: 56, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isFriendRun ? "Add to the list" : "What should they grab?")
+                    .font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text(isFriendRun ? "Friend runs are free. Settle up for the item itself directly."
+                     : "The $\(reward) run reward goes to the shopper; the item budget stays separate.")
+                    .font(.subheadline).foregroundStyle(DartTheme.muted)
+            }
+            DartField(label: "Item") { TextField("What do you need?", text: $title).textFieldStyle(.plain) }
+            if !isFriendRun {
+                DartField(label: "Item budget (optional)") {
+                    TextField("$0", text: $budget).textFieldStyle(.plain)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+                }
+            }
+            Button(action: onSend) { PrimaryButtonLabel(title: "Send request", icon: "paperplane.fill") }
+                .buttonStyle(PressableStyle())
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", action: onCancel).font(.headline).foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity).frame(minHeight: 44)
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
+    }
+}
+
 private struct DetailRow: View {
     let icon: String
     let label: String
@@ -314,24 +474,25 @@ private struct LiveItemActions: View {
             }
         }
         .disabled(working)
-        .confirmationDialog("Take this on one of your runs?", isPresented: $chooseRun, titleVisibility: .visible) {
-            ForEach(store.myActiveRuns) { run in
-                Button("Add to \(run.title)") { Task { _ = await store.accept(item, onRun: run.backend?.id) } }
+        .dartDialog(isPresented: $chooseRun) {
+            RunChoiceCard(runs: store.myActiveRuns) { runID in
+                chooseRun = false
+                Task { _ = await store.accept(item, onRun: runID) }
+            } onDedicatedTrip: {
+                chooseRun = false
+                Task { _ = await store.accept(item) }
+            } onCancel: {
+                chooseRun = false
             }
-            Button("Make a dedicated trip") { Task { _ = await store.accept(item) } }
-            Button("Cancel", role: .cancel) { }
         }
-        .alert(item.kind == .friendRun ? "Add to the list" : "What should they grab?", isPresented: $askRunner) {
-            TextField("Item", text: $askTitle)
-            if item.kind != .friendRun {
-                TextField("Item budget in dollars (optional)", text: $askBudget)
+        .dartDialog(isPresented: $askRunner) {
+            AskRunnerCard(isFriendRun: item.kind == .friendRun, reward: item.reward ?? 0,
+                          title: $askTitle, budget: $askBudget) {
+                askRunner = false
+                Task { await sendAsk() }
+            } onCancel: {
+                askRunner = false
             }
-            Button("Send") { Task { await sendAsk() } }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text(item.kind == .friendRun
-                 ? "Friends’ runs are free. Settle up for the item itself directly."
-                 : "The $\(item.reward ?? 0) run fee goes to the shopper; the item budget is separate.")
         }
         .task { if ref.source == .run, ref.role == .owner { matches = await store.matches(forRun: ref.id) } }
     }

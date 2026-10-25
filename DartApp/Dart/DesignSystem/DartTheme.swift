@@ -229,6 +229,53 @@ struct DartProgressRail: View {
     }
 }
 
+struct DartNumberStepper: View {
+    let title: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        HStack(spacing: 8) {
+            stepButton(symbol: "minus", enabled: value > range.lowerBound) {
+                value = max(range.lowerBound, value - 1)
+            }
+            Text("\(value)")
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(DartTheme.text)
+                .frame(minWidth: 30)
+                .accessibilityHidden(true)
+            stepButton(symbol: "plus", enabled: value < range.upperBound) {
+                value = min(range.upperBound, value + 1)
+            }
+        }
+        .padding(5)
+        .background(DartTheme.surface, in: Capsule())
+        .overlay(Capsule().stroke(DartTheme.line))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue("\(value)")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: value = min(range.upperBound, value + 1)
+            case .decrement: value = max(range.lowerBound, value - 1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private func stepButton(symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(enabled ? DartTheme.limeInk : DartTheme.muted)
+                .frame(width: 34, height: 34)
+                .background(enabled ? DartTheme.lime : DartTheme.surfaceRaised, in: Circle())
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(!enabled)
+    }
+}
+
 struct SlidingSegmentedControl<Selection: Hashable & RawRepresentable & CaseIterable>: View where Selection.RawValue == String, Selection.AllCases: RandomAccessCollection {
     @Binding var selection: Selection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -399,5 +446,182 @@ extension View {
         #else
         self
         #endif
+    }
+
+    /// Dart's own bottom presentation. It keeps native SwiftUI focus and accessibility behavior,
+    /// but replaces the system sheet chrome, detents, dimming, and motion with our visual language.
+    func dartModal<Modal: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Modal) -> some View {
+        modifier(DartModalModifier(isPresented: isPresented, modal: content))
+    }
+
+    func dartModal<Item: Identifiable, Modal: View>(item: Binding<Item?>,
+                                                     @ViewBuilder content: @escaping (Item) -> Modal) -> some View {
+        modifier(DartItemModalModifier(item: item, modal: content))
+    }
+
+    /// Centered branded dialog for confirmations, errors, and compact input prompts.
+    func dartDialog<Dialog: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Dialog) -> some View {
+        modifier(DartDialogModifier(isPresented: isPresented, dialog: content))
+    }
+}
+
+private struct DartModalModifier<Modal: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    let modal: () -> Modal
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isPresented {
+                DartModalChrome(isPresented: $isPresented, content: modal)
+                    .zIndex(100)
+            }
+        }
+        .animation(.spring(response: 0.38, dampingFraction: 0.88), value: isPresented)
+    }
+}
+
+private struct DartItemModalModifier<Item: Identifiable, Modal: View>: ViewModifier {
+    @Binding var item: Item?
+    let modal: (Item) -> Modal
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if let value = item {
+                DartModalChrome(isPresented: Binding(
+                    get: { item != nil },
+                    set: { if !$0 { item = nil } }
+                )) {
+                    modal(value)
+                }
+                .zIndex(100)
+            }
+        }
+        .animation(.spring(response: 0.38, dampingFraction: 0.88), value: item?.id)
+    }
+}
+
+private struct DartModalChrome<Content: View>: View {
+    @Binding var isPresented: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @GestureState private var dragY: CGFloat = 0
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(0.42)
+                    .ignoresSafeArea()
+                    .onTapGesture { isPresented = false }
+                    .transition(.opacity)
+                VStack(spacing: 0) {
+                    Capsule()
+                        .fill(DartTheme.line)
+                        .frame(width: 42, height: 5)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 12)
+                                .updating($dragY) { value, state, _ in state = max(0, value.translation.height) }
+                                .onEnded { value in if value.translation.height > 120 { isPresented = false } }
+                        )
+                        .accessibilityLabel("Dismiss")
+                        .accessibilityAddTraits(.isButton)
+                    content()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .environment(\.dartDismiss, DartDismissAction { isPresented = false })
+                }
+                .frame(maxWidth: 620)
+                .frame(height: max(360, proxy.size.height * 0.92))
+                .background(DartTheme.surface)
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30))
+                .overlay(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30).stroke(DartTheme.line))
+                .shadow(color: .black.opacity(0.24), radius: 36, y: -8)
+                .offset(y: max(0, dragY))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .accessibilityAddTraits(.isModal)
+    }
+}
+
+struct DartDismissAction {
+    let action: () -> Void
+    func callAsFunction() { action() }
+}
+
+private struct DartDismissActionKey: EnvironmentKey {
+    static let defaultValue = DartDismissAction(action: {})
+}
+
+extension EnvironmentValues {
+    var dartDismiss: DartDismissAction {
+        get { self[DartDismissActionKey.self] }
+        set { self[DartDismissActionKey.self] = newValue }
+    }
+}
+
+private struct DartDialogModifier<Dialog: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    let dialog: () -> Dialog
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if isPresented {
+                ZStack {
+                    Color.black.opacity(0.46).ignoresSafeArea()
+                    dialog()
+                        .frame(maxWidth: 440)
+                        .padding(20)
+                        .transition(.scale(scale: 0.92).combined(with: .opacity))
+                }
+                .zIndex(200)
+                .accessibilityAddTraits(.isModal)
+            }
+        }
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isPresented)
+    }
+}
+
+struct DartAlertCard: View {
+    let symbol: String
+    let title: String
+    let message: String
+    let primaryTitle: String
+    var primaryIsDestructive = false
+    let primaryAction: () -> Void
+    var secondaryTitle: String? = nil
+    var secondaryAction: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            DartIconTile(symbol: symbol, size: 58, highlighted: !primaryIsDestructive)
+            VStack(alignment: .leading, spacing: 7) {
+                Text(title).font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text(message).font(.subheadline).foregroundStyle(DartTheme.muted).fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(spacing: 10) {
+                Button(action: primaryAction) {
+                    Text(primaryTitle).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
+                        .foregroundStyle(primaryIsDestructive ? Color.white : DartTheme.limeInk)
+                        .background(primaryIsDestructive ? DartTheme.danger : DartTheme.lime,
+                                    in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                }
+                .buttonStyle(PressableStyle())
+                if let secondaryTitle {
+                    Button(secondaryTitle) { secondaryAction?() }
+                        .font(.headline)
+                        .foregroundStyle(DartTheme.text)
+                        .frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                        .buttonStyle(PressableStyle())
+                }
+            }
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
     }
 }

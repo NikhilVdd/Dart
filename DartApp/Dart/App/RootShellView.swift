@@ -20,7 +20,7 @@ struct RootShellView: View {
                 appShell
             }
         }
-        .sheet(isPresented: Binding(
+        .dartModal(isPresented: Binding(
             get: { store.requiresPasswordUpdate },
             set: { if !$0 { store.dismissPasswordUpdate() } }
         )) {
@@ -32,9 +32,12 @@ struct RootShellView: View {
         )) {
             OnboardingView()
         }
-        .alert("Something went wrong", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
-            Button("OK", role: .cancel) { store.lastError = nil }
-        } message: { Text(store.lastError ?? "") }
+        .dartDialog(isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
+            DartAlertCard(symbol: "exclamationmark.triangle.fill", title: "Something went wrong",
+                          message: store.lastError ?? "Please try again.", primaryTitle: "Got it") {
+                store.lastError = nil
+            }
+        }
     }
 
     private var appShell: some View {
@@ -53,7 +56,7 @@ struct RootShellView: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 8)
         }
-        .sheet(isPresented: $quickCreate) {
+        .dartModal(isPresented: $quickCreate) {
             QuickCreateSheet { destination in
                 quickCreate = false
                 Task { @MainActor in
@@ -62,8 +65,8 @@ struct RootShellView: View {
                 }
             }
         }
-        .sheet(item: $creating) { CreateSheet(destination: $0) }
-        .sheet(item: Binding(
+        .dartModal(item: $creating) { CreateSheet(destination: $0) }
+        .dartModal(item: Binding(
             get: { store.routedItem },
             set: { if $0 == nil { store.consumeRoutedItem() } }
         )) { ItemDetailView(item: $0) }
@@ -81,11 +84,7 @@ struct RootShellView: View {
 private extension View {
     @ViewBuilder
     func dartOnboardingCover<Content: View>(isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Content) -> some View {
-        #if os(iOS)
-        fullScreenCover(isPresented: isPresented, content: content)
-        #else
-        sheet(isPresented: isPresented, content: content)
-        #endif
+        dartModal(isPresented: isPresented, content: content)
     }
 }
 
@@ -190,7 +189,7 @@ private struct FloatingTabBar: View {
 }
 
 private struct QuickCreateSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     let choose: (CreateSheet.Destination) -> Void
 
     var body: some View {
@@ -218,8 +217,6 @@ private struct QuickCreateSheet: View {
         }
         .padding(24)
         .background(DartBackdrop())
-        .presentationDetents([.height(455)])
-        .presentationDragIndicator(.hidden)
         .macSheetSize(minHeight: 455)
     }
 

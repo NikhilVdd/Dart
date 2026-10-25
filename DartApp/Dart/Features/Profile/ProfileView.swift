@@ -37,8 +37,11 @@ struct ProfileView: View {
                         Button(role: .destructive) { confirmReset = true } label: {
                             Label("Reset demo", systemImage: "arrow.counterclockwise")
                                 .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 15)
+                                .foregroundStyle(DartTheme.danger)
+                                .background(DartTheme.danger.opacity(0.10), in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                                .overlay(RoundedRectangle(cornerRadius: DartTheme.controlRadius).stroke(DartTheme.danger.opacity(0.35)))
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PressableStyle())
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -48,30 +51,42 @@ struct ProfileView: View {
             }
             .background(DartBackdrop())
             .refreshable { await store.refresh() }
-            .sheet(isPresented: $showSignIn) { SignInView() }
-            .sheet(isPresented: $choosingHome) {
+            .dartModal(isPresented: $showSignIn) { SignInView() }
+            .dartModal(isPresented: $choosingHome) {
                 PlaceSearchView(title: "Where you live", selection: $homeID, filter: .destinations, allowsAnyStore: false)
             }
             .onChange(of: homeID) { _, id in
                 guard let id, id != store.profile?.homePlaceID else { return }
                 Task { _ = await store.setHome(id) }
             }
-            .alert("Display name", isPresented: $editingName) {
-                TextField("Name", text: $nameDraft)
-                Button("Save") { Task { await store.updateDisplayName(nameDraft.trimmingCharacters(in: .whitespaces)) } }
-                Button("Cancel", role: .cancel) { }
+            .dartDialog(isPresented: $editingName) {
+                DartTextPromptCard(symbol: "person.fill", title: "Display name", message: "This is how other students see you.",
+                                   placeholder: "Your name", text: $nameDraft, actionTitle: "Save") {
+                    let value = nameDraft.trimmingCharacters(in: .whitespaces)
+                    guard !value.isEmpty else { return }
+                    editingName = false
+                    Task { await store.updateDisplayName(value) }
+                } onCancel: {
+                    editingName = false
+                }
             }
-            .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete account", role: .destructive) { Task { _ = await store.deleteAccount() } }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This permanently deletes your profile, requests, runs and group memberships. Deliveries you’re making go back to open. This can’t be undone.")
+            .dartDialog(isPresented: $confirmDelete) {
+                DartAlertCard(symbol: "trash.fill", title: "Delete your account?",
+                              message: "This permanently deletes your profile, requests, runs, and group memberships. Deliveries you’re making return to open. This cannot be undone.",
+                              primaryTitle: "Delete account", primaryIsDestructive: true,
+                              primaryAction: {
+                                  confirmDelete = false
+                                  Task { _ = await store.deleteAccount() }
+                              }, secondaryTitle: "Keep my account", secondaryAction: { confirmDelete = false })
             }
-            .confirmationDialog("Reset all demo preferences?", isPresented: $confirmReset, titleVisibility: .visible) {
-                Button("Reset demo", role: .destructive) { state.resetDemo() }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This restores the original preview mode, activity segment, tab, and System appearance.")
+            .dartDialog(isPresented: $confirmReset) {
+                DartAlertCard(symbol: "arrow.counterclockwise", title: "Reset preview?",
+                              message: "This restores the original preview mode, activity segment, tab, and System appearance.",
+                              primaryTitle: "Reset preview", primaryIsDestructive: true,
+                              primaryAction: {
+                                  confirmReset = false
+                                  state.resetDemo()
+                              }, secondaryTitle: "Cancel", secondaryAction: { confirmReset = false })
             }
         }
     }
@@ -111,10 +126,7 @@ struct ProfileView: View {
     private var appearanceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeading(title: "Appearance", subtitle: "Changes immediately and persists")
-            Picker("Appearance", selection: $state.appearance) {
-                ForEach(AppearanceChoice.allCases) { choice in Text(choice.rawValue).tag(choice) }
-            }
-            .pickerStyle(.segmented)
+            SlidingSegmentedControl(selection: $state.appearance)
         }
         .padding(18)
         .dartSurface()
@@ -131,8 +143,13 @@ struct ProfileView: View {
                         HStack {
                             Text(row.blocked?.displayName ?? "Blocked account")
                             Spacer()
-                            Button("Unblock") { Task { _ = await store.unblockUser(row.blockedID) } }
-                                .buttonStyle(.bordered)
+                            Button { Task { _ = await store.unblockUser(row.blockedID) } } label: {
+                                Text("Unblock").font(.caption.weight(.bold))
+                                    .foregroundStyle(DartTheme.limeInk)
+                                    .padding(.horizontal, 14).frame(minHeight: 38)
+                                    .background(DartTheme.lime, in: Capsule())
+                            }
+                            .buttonStyle(PressableStyle())
                         }
                         .frame(minHeight: 44)
                     }
@@ -182,12 +199,18 @@ struct ProfileView: View {
             HStack(spacing: 12) {
                 Button { nameDraft = store.profile?.displayName ?? ""; editingName = true } label: {
                     Label("Edit name", systemImage: "pencil").frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .foregroundStyle(DartTheme.text)
+                        .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                        .overlay(RoundedRectangle(cornerRadius: DartTheme.controlRadius).stroke(DartTheme.line))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(PressableStyle())
                 Button(role: .destructive) { Task { await store.signOut() } } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right").frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .foregroundStyle(DartTheme.danger)
+                        .background(DartTheme.danger.opacity(0.10), in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                        .overlay(RoundedRectangle(cornerRadius: DartTheme.controlRadius).stroke(DartTheme.danger.opacity(0.30)))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(PressableStyle())
             }
             Button(role: .destructive) { confirmDelete = true } label: {
                 Text("Delete account").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity)
@@ -210,6 +233,37 @@ struct ProfileView: View {
         }
         .padding(18)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+struct DartTextPromptCard: View {
+    let symbol: String
+    let title: String
+    let message: String
+    let placeholder: String
+    @Binding var text: String
+    let actionTitle: String
+    let onAction: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            DartIconTile(symbol: symbol, size: 56, highlighted: true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text(message).font(.subheadline).foregroundStyle(DartTheme.muted)
+            }
+            DartField(label: title) { TextField(placeholder, text: $text).textFieldStyle(.plain) }
+            Button(action: onAction) { PrimaryButtonLabel(title: actionTitle, icon: "checkmark") }
+                .buttonStyle(PressableStyle())
+            Button("Cancel", action: onCancel)
+                .font(.headline).foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity).frame(minHeight: 44)
+        }
+        .padding(22)
+        .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28))
+        .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
+        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
     }
 }
 

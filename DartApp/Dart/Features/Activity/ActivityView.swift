@@ -37,7 +37,7 @@ struct ActivityView: View {
             }
             .background(DartBackdrop())
             .refreshable { await store.refresh() }
-            .sheet(item: $selectedRecord) { ActivityTimelineView(record: $0) }
+            .dartModal(item: $selectedRecord) { ActivityTimelineView(record: $0) }
         }
     }
 }
@@ -80,7 +80,7 @@ private struct ActivityCard: View {
 }
 
 private struct ActivityTimelineView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dartDismiss) private var dismiss
     @EnvironmentObject private var store: DartStore
     @State private var showDetail = false
     let record: ActivityRecord
@@ -134,10 +134,9 @@ private struct ActivityTimelineView: View {
             }
             .background(DartBackdrop())
             .navigationTitle("Timeline")
-            .sheet(isPresented: $showDetail) { ItemDetailView(item: record.item) }
+            .dartModal(isPresented: $showDetail) { ItemDetailView(item: record.item) }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
-        .presentationDragIndicator(.visible)
         .macSheetSize()
     }
 }
