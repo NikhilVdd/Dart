@@ -13,7 +13,7 @@ struct DartApp: App {
             RootShellView()
                 .environmentObject(state)
                 .environmentObject(store)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .onOpenURL { url in
                     store.handleDeepLink(url)
                     if url.scheme == "dart", url.host == "request" { state.selectedTab = 2 }

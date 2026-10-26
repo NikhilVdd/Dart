@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var nameDraft = ""
     @State private var choosingHome = false
     @State private var homeID: UUID?
+    @State private var showGroups = false
 
     var body: some View {
         NavigationStack {
@@ -17,12 +18,11 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     if !store.isLive { PreviewPill() }
                     profileHeader
-                    accountCard
                     infoCard
-                    blockedAccountsCard
-                    appearanceCard
                     earningsCard
-                    previewExplanation
+                    blockedAccountsCard
+                    accountCard
+                    if !store.isLive { previewExplanation }
                     if !store.isLive {
                         NavigationLink {
                             ComponentGalleryView()
@@ -52,6 +52,7 @@ struct ProfileView: View {
             .background(DartBackdrop())
             .refreshable { await store.refresh() }
             .dartModal(isPresented: $showSignIn) { SignInView() }
+            .dartModal(isPresented: $showGroups) { GroupsView().macSheetSize() }
             .dartModal(isPresented: $choosingHome) {
                 PlaceSearchView(title: "Where you live", selection: $homeID, filter: .destinations, allowsAnyStore: false)
             }
@@ -94,9 +95,9 @@ struct ProfileView: View {
     private var profileHeader: some View {
         HStack(spacing: 16) {
             Text(store.isLive ? (store.profile?.initials ?? "?") : "NV")
-                .font(.title.bold()).foregroundStyle(.white)
+                .font(.title.bold()).foregroundStyle(DartTheme.limeInk)
                 .frame(width: 72, height: 72)
-                .background(DartTheme.blue.gradient, in: Circle())
+                .background(DartTheme.lime.gradient, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(store.profile?.displayName ?? state.profileName).font(.largeTitle.bold())
                     .minimumScaleFactor(0.7).lineLimit(1)
@@ -118,41 +119,35 @@ struct ProfileView: View {
             } else {
                 ProfileRow(icon: "building.2.fill", title: "Building", value: state.building)
             }
+            Divider().padding(.leading, 48)
+            Button { showGroups = true } label: {
+                ProfileRow(icon: "person.2.fill", title: "Groups",
+                           value: store.groups.isEmpty ? "Friends & building" : "\(store.groups.count)", showsChevron: true)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .dartSurface()
     }
 
-    private var appearanceCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Appearance", subtitle: "Changes immediately and persists")
-            SlidingSegmentedControl(selection: $state.appearance)
-        }
-        .padding(18)
-        .dartSurface()
-    }
-
     @ViewBuilder private var blockedAccountsCard: some View {
-        if store.isLive {
+        if store.isLive && !store.blockedUsers.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeading(title: "Blocked accounts", subtitle: "Blocked students cannot discover or accept your requests")
-                if store.blockedUsers.isEmpty {
-                    Text("No blocked accounts").font(.subheadline).foregroundStyle(DartTheme.muted)
-                } else {
-                    ForEach(store.blockedUsers) { row in
-                        HStack {
-                            Text(row.blocked?.displayName ?? "Blocked account")
-                            Spacer()
-                            Button { Task { _ = await store.unblockUser(row.blockedID) } } label: {
-                                Text("Unblock").font(.caption.weight(.bold))
-                                    .foregroundStyle(DartTheme.limeInk)
-                                    .padding(.horizontal, 14).frame(minHeight: 38)
-                                    .background(DartTheme.lime, in: Capsule())
-                            }
-                            .buttonStyle(PressableStyle())
+                SectionHeading(title: "Blocked accounts", subtitle: "They can’t see or accept your orders")
+                ForEach(store.blockedUsers) { row in
+                    HStack {
+                        Text(row.blocked?.displayName ?? "Blocked account")
+                        Spacer()
+                        Button { Task { _ = await store.unblockUser(row.blockedID) } } label: {
+                            Text("Unblock").font(.caption.weight(.bold))
+                                .foregroundStyle(DartTheme.limeInk)
+                                .padding(.horizontal, 14).frame(minHeight: 38)
+                                .background(DartTheme.lime, in: Capsule())
                         }
-                        .frame(minHeight: 44)
+                        .buttonStyle(PressableStyle())
                     }
+                    .frame(minHeight: 44)
                 }
             }
             .padding(18)
@@ -163,7 +158,7 @@ struct ProfileView: View {
     private var earningsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(store.isLive ? "Earnings" : "Sample earnings", systemImage: "sparkles").font(.headline)
+                Text(store.isLive ? "Earned delivering" : "Sample earnings").font(.headline)
                 Spacer()
                 if !store.isLive { PreviewPill(text: "SAMPLE") }
             }
@@ -173,8 +168,8 @@ struct ProfileView: View {
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .padding(18)
-        .background(DartTheme.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: DartTheme.cardRadius))
-        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(DartTheme.gold.opacity(0.2)))
+        .background(DartTheme.limeWash, in: RoundedRectangle(cornerRadius: DartTheme.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(DartTheme.limeDeep.opacity(0.25)))
     }
 
     private var earningsCaption: String {

@@ -175,6 +175,17 @@ final class DartStore: ObservableObject {
         }
     }
 
+    /// The backend place for a pickup spot: the seeded row, else a same-named place, else one
+    /// created on the spot so requests always carry a real pickup point.
+    func place(for spot: PickupSpot) async -> PlaceRow? {
+        if let row = places.first(where: { $0.id == spot.placeID })
+            ?? places.first(where: { PickupSpot.matching($0.name) == spot }) {
+            return row
+        }
+        return await createPlace(NewPlace(name: spot.name, kind: "restaurant", lat: spot.location.lat,
+                                          lng: spot.location.lng, detail: spot.area, address: nil))
+    }
+
     private var runFeedMine: [DartItem] {
         myRuns.map { item(from: $0) }
     }
@@ -462,7 +473,7 @@ final class DartStore: ObservableObject {
             let old = before.requestStatuses[request.id]
             guard old != request.status else { continue }
             let mine = request.requesterID == userID
-            let helper = request.helper?.displayName.split(separator: " ").first.map(String.init) ?? "Your helper"
+            let helper = request.helper?.displayName.split(separator: " ").first.map(String.init) ?? "Your darter"
             let requester = request.requester?.displayName.split(separator: " ").first.map(String.init) ?? "The requester"
             let text: String? = switch (mine, request.status) {
             case (true, "accepted"): "\(helper) accepted “\(request.title)”."
@@ -814,6 +825,10 @@ final class DartStore: ObservableObject {
             ?? Person(id: request.requesterID, name: "A neighbor", initials: "?")
         let role: BackendRef.Role = request.requesterID == me ? .owner : (request.helperID == me ? .helper : .viewer)
         var detail = request.details
+        if detail.isEmpty, let spot = PickupSpot.matching(request.pickupLabel) {
+            let name = request.requesterID == me ? "your" : "\(requester.name.split(separator: " ").first.map(String.init) ?? requester.name)’s"
+            detail = "Pick up \(name) Grubhub order at \(spot.name) (\(spot.area)) and bring it to \(request.destinationLabel)."
+        }
         if let helper = request.helper, request.status != "open" {
             let who = request.helperID == me ? "you" : helper.displayName
             detail += (detail.isEmpty ? "" : "\n\n") + "Accepted by \(who)."
@@ -833,14 +848,14 @@ final class DartStore: ObservableObject {
             status: DartStatus(requestStatus: request.status),
             detail: detail.isEmpty ? "No extra details." : detail,
             backend: BackendRef(source: .request, id: request.id, groupID: request.groupID, role: role, rawStatus: request.status),
-            pickupLocation: location(of: request.pickupPlaceID),
+            pickupLocation: location(of: request.pickupPlaceID) ?? PickupSpot.matching(request.pickupLabel)?.location,
             destinationLocation: location(of: request.destinationPlaceID)
         )
     }
 
     private func record(from request: RequestRow, me: UUID) -> ActivityRecord {
         let isRequester = request.requesterID == me
-        let helperName = request.helperID == me ? "you" : (request.helper?.displayName.split(separator: " ").first.map(String.init) ?? "your helper")
+        let helperName = request.helperID == me ? "you" : (request.helper?.displayName.split(separator: " ").first.map(String.init) ?? "your darter")
         let status = DartStatus(requestStatus: request.status)
         let update: String = switch status {
         case .waiting: "Posted \(Self.relative(request.createdAt))"

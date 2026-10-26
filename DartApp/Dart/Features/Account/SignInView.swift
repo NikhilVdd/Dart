@@ -57,10 +57,9 @@ struct SignInView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack {
-                        DartIconTile(symbol: mode == .signIn ? "bolt.fill" : "person.badge.plus", size: 70, highlighted: true)
+                        DartMark(size: 64)
+                        Text("Dart").font(.title.weight(.heavy)).foregroundStyle(DartTheme.text)
                         Spacer()
-                        Text("DART").font(.caption.weight(.heavy)).tracking(2).foregroundStyle(DartTheme.limeInk)
-                            .padding(.horizontal, 13).frame(height: 36).background(DartTheme.lime, in: Capsule())
                     }
 
                     VStack(alignment: .leading, spacing: 7) {
@@ -113,10 +112,10 @@ struct SignInView: View {
                     Button { Task { await submit() } } label: {
                         if working {
                             ProgressView()
-                                .tint(.white)
+                                .tint(DartTheme.limeInk)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 56)
-                                .background(DartTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 18))
+                                .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 18))
                         } else {
                             PrimaryButtonLabel(
                                 title: mode == .signIn ? "Sign in" : "Create account",
@@ -130,7 +129,7 @@ struct SignInView: View {
                     if mode == .signIn {
                         Button("Forgot password?") { showPasswordReset = true }
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(DartTheme.limeSoft)
+                            .foregroundStyle(DartTheme.limeDeep)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 44)
                     }

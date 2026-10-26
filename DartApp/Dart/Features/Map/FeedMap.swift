@@ -16,53 +16,24 @@ extension DartItem {
         }
     }
 
-    var mapTint: Color { kind == .campusRequest ? DartTheme.gold : DartTheme.blue }
+    var mapTint: Color { kind == .campusRequest ? DartTheme.limeDeep : DartTheme.limeInk }
 }
 
-/// A compact map of the feed above the list. Tap a pin to open the item; expand for a full map.
-struct FeedMapCard: View {
+/// A full-height map of feed items. Tap a pin to open the item.
+struct FeedMapSheet: View {
     let items: [DartItem]
     let onSelect: (DartItem) -> Void
-
-    @State private var expanded = false
-
-    private var located: [DartItem] { items.filter { $0.mapLocation != nil } }
+    @Environment(\.dartDismiss) private var dismiss
 
     var body: some View {
-        if !located.isEmpty {
-            ZStack(alignment: .topTrailing) {
-                FeedMap(items: located, onSelect: onSelect)
-                    .frame(height: 210)
-                    .clipShape(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 0.8))
-
-                Button { expanded = true } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(width: 36, height: 36)
-                        .dartSurface(radius: 12)
+        NavigationStack {
+            FeedMap(items: items.filter { $0.mapLocation != nil }, onSelect: onSelect)
+                .ignoresSafeArea(edges: .bottom)
+                .macSheetSize(minWidth: 560, minHeight: 560)
+                .navigationTitle("Open orders")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
-                .buttonStyle(PressableStyle())
-                .padding(10)
-                .accessibilityLabel("Expand map")
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Map of \(located.count) nearby items. The same items are listed below.")
-            .dartModal(isPresented: $expanded) {
-                NavigationStack {
-                    FeedMap(items: located) { item in
-                        expanded = false
-                        onSelect(item)
-                    }
-                    .ignoresSafeArea(edges: .bottom)
-                    .macSheetSize(minWidth: 560, minHeight: 560)
-                    .navigationTitle("Nearby")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) { Button("Done") { expanded = false } }
-                    }
-                }
-            }
         }
     }
 }

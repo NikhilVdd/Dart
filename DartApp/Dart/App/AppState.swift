@@ -14,6 +14,10 @@ final class AppState: ObservableObject {
     @Published var activityMode: ActivityMode { didSet { save(activityMode.rawValue, key: Key.activityMode) } }
     @Published var selectedTab: Int { didSet { save(selectedTab, key: Key.selectedTab) } }
     @Published var resetConfirmation = false
+    /// The create sheet, presented by the root shell so it sits above the tab bar.
+    @Published var creating: CreateSheet.Destination?
+    /// The order or run whose details are open, presented by the root shell above the tab bar.
+    @Published var openItem: DartItem?
 
     /// Optional development-only override used to capture deterministic simulator screenshots.
     let screenshotScenario: String?

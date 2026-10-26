@@ -11,7 +11,7 @@ struct DartClipApp: App {
     var body: some Scene {
         WindowGroup {
             DartClipView(invocation: invocation)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     if let url = activity.webpageURL { invocation = ClipInvocation(url: url) }
                 }
@@ -99,9 +99,9 @@ private struct DartClipView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.03, green: 0.04, blue: 0.03).ignoresSafeArea()
+            Color(red: 0.961, green: 0.965, blue: 0.945).ignoresSafeArea()
             VStack(alignment: .leading, spacing: 22) {
-                Text("G").font(.title.bold()).foregroundStyle(.black).frame(width: 54, height: 54)
+                Text("D").font(.title.bold()).foregroundStyle(.black).frame(width: 54, height: 54)
                     .background(Color.dartLime, in: RoundedRectangle(cornerRadius: 16))
                 Text("Track your Dart").font(.largeTitle.bold())
                 Text(invocation.title).font(.title2.weight(.semibold))
@@ -118,7 +118,7 @@ private struct DartClipView: View {
                 .disabled(tracking)
                 if let message { Text(message).font(.footnote).foregroundStyle(.secondary) }
                 Link("Open the full Dart app", destination: URL(string: "dart://request/\(invocation.requestID)")!)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.dartLime)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.dartLimeDeep)
             }
             .padding(24)
         }
@@ -228,4 +228,5 @@ private enum DartClipPushRegistrar {
 
 private extension Color {
     static let dartLime = Color(red: 0.776, green: 1, blue: 0)
+    static let dartLimeDeep = Color(red: 0.345, green: 0.463, blue: 0)
 }

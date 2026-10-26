@@ -19,61 +19,53 @@ struct ItemDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     detailHero
 
                     if DartStatus.active.contains(item.status) || item.status == .completed {
                         LiveTrackingCard(item: item)
                     }
 
+                    // What you can do next comes first; reference details follow.
+                    if store.isLive, item.backend != nil {
+                        LiveItemActions(item: item) { dismiss() }
+                    } else {
+                        Button { showUpcoming = true } label: {
+                            PrimaryButtonLabel(title: futureActionTitle, icon: "arrow.right.circle.fill")
+                        }
+                        .buttonStyle(PressableStyle())
+                        Text("Preview only. Sign in to accept and deliver real orders.")
+                            .font(.footnote).foregroundStyle(DartTheme.muted)
+                            .frame(maxWidth: .infinity)
+                    }
+
                     VStack(spacing: 0) {
-                        DetailRow(icon: "person.fill", label: item.kind == .campusRequest ? "Requester" : "Shopper", value: item.person.name)
+                        DetailRow(icon: "person.fill", label: item.kind == .campusRequest ? "Requester" : "Darter", value: item.person.name)
                         Divider().padding(.leading, 50)
                         DetailRow(icon: "mappin.and.ellipse", label: "Pickup", value: item.pickup)
                         Divider().padding(.leading, 50)
-                        DetailRow(icon: "location.fill", label: "Destination", value: item.destination)
+                        DetailRow(icon: "location.fill", label: "Drop-off", value: item.destination)
                         Divider().padding(.leading, 50)
                         DetailRow(icon: "clock.fill", label: item.kind == .friendRun ? "Cutoff" : "Timing", value: item.timing)
                     }
                     .padding(.horizontal, 16)
                     .dartSurface()
 
-                    RouteMapCard(item: item)
-
-                    if item.reward != nil || item.merchandiseBudget != nil {
-                        HStack(spacing: 12) {
-                            if let reward = item.reward {
-                                MoneyCard(label: "Helper reward", amount: reward, emphasized: true)
-                            }
-                            if let budget = item.merchandiseBudget {
-                                MoneyCard(label: "Item budget", amount: budget, emphasized: false)
-                            }
-                        }
+                    if let budget = item.merchandiseBudget {
+                        MoneyCard(label: "Item budget", amount: budget, emphasized: false)
                     }
 
                     if store.isLive, item.backend != nil {
                         RequestChatCard(item: item)
-                        LiveItemActions(item: item) { dismiss() }
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Preview only").font(.headline)
-                            Text("Accepting, purchasing, list editing, and delivery completion need a signed-in account. No payment or delivery is happening here.")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                        .padding(18)
-                        .background(DartTheme.paleBlue.opacity(0.22), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                        Button { showUpcoming = true } label: {
-                            PrimaryButtonLabel(title: futureActionTitle, icon: "arrow.right.circle.fill")
-                        }
-                        .buttonStyle(PressableStyle())
                     }
+
+                    RouteMapCard(item: item)
                 }
                 .padding(DartTheme.pageInset)
                 .padding(.bottom, 20)
             }
             .background(DartBackdrop())
-            .navigationTitle("Dart details")
+            .navigationTitle(isSpotOrder ? "Order" : "Details")
             .toolbar {
                 if store.isLive, item.person.id != store.userID {
                     ToolbarItem(placement: .primaryAction) {
@@ -138,38 +130,49 @@ struct ItemDetailView: View {
         .macSheetSize()
     }
 
+    /// Orders use the eatery as the title; the generated "Pick up X's order…" sentence only repeats
+    /// the rows below, so it's shown only for runs and other free-form items.
+    private var isSpotOrder: Bool { item.kind == .campusRequest && item.pickupSpot != nil }
+
     private var detailHero: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                DartIconTile(symbol: itemSymbol, size: 66, highlighted: true)
-                    .scaleEffect(appeared ? 1 : 0.75)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(item.kindLabel.uppercased())
-                        .font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
-                    Text(item.title)
-                        .font(.system(size: 29, weight: .heavy, design: .rounded))
-                        .foregroundStyle(DartTheme.text)
-                        .minimumScaleFactor(0.8)
-                }
-                Spacer(minLength: 4)
-                if let reward = item.reward {
-                    VStack(spacing: 0) {
-                        Text("$\(reward)").font(.title2.weight(.heavy))
-                        Text("reward").font(.caption2.weight(.semibold))
-                    }
-                    .foregroundStyle(DartTheme.limeInk)
-                    .padding(10)
-                    .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 15))
+        HStack(alignment: .center, spacing: 14) {
+            Group {
+                if let spot = item.pickupSpot {
+                    SpotBadge(spot: spot, size: 56)
+                } else {
+                    DartIconTile(symbol: itemSymbol, size: 56, highlighted: true)
                 }
             }
-            Text(item.detail).font(.body).foregroundStyle(DartTheme.muted)
+            .scaleEffect(appeared ? 1 : 0.75)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.kindLabel.uppercased())
+                    .font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
+                Text(isSpotOrder ? item.pickupSpot!.name : item.title)
+                    .font(.title2.weight(.heavy))
+                    .foregroundStyle(DartTheme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !isSpotOrder {
+                    Text(item.detail).font(.subheadline).foregroundStyle(DartTheme.muted)
+                }
+            }
+            Spacer(minLength: 4)
+            if let reward = item.reward {
+                Text("$\(reward)")
+                    .font(.title3.weight(.heavy))
+                    .foregroundStyle(DartTheme.limeInk)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(DartTheme.lime, in: Capsule())
+                    .accessibilityLabel("$\(reward) reward")
+            }
         }
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 10)
     }
 
     private var itemSymbol: String {
-        switch item.kind {
+        if let spot = item.pickupSpot { return spot.symbol }
+        return switch item.kind {
         case .campusRequest: "bag.fill"
         case .friendRun: "person.2.fill"
         case .buildingRun: "building.2.fill"
@@ -194,7 +197,7 @@ private struct LiveTrackingCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("CURRENT STATUS").font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.limeInk)
+                    Text("STATUS").font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
                     Text(item.status.rawValue).font(.title3.weight(.heavy)).foregroundStyle(DartTheme.text)
                 }
                 Spacer()
@@ -202,7 +205,7 @@ private struct LiveTrackingCard: View {
                     .font(.title2.weight(.bold))
                     .foregroundStyle(DartTheme.limeInk)
                     .frame(width: 48, height: 48)
-                    .background(Color.white.opacity(0.50), in: Circle())
+                    .background(DartTheme.surface, in: Circle())
             }
             CompactStatusTrack(status: item.status)
             HStack(alignment: .top, spacing: 10) {
@@ -214,23 +217,21 @@ private struct LiveTrackingCard: View {
             }
         }
         .padding(18)
-        .background(
-            LinearGradient(colors: [DartTheme.lime.opacity(0.90), DartTheme.limeSoft.opacity(0.68)], startPoint: .topLeading, endPoint: .bottomTrailing),
-            in: RoundedRectangle(cornerRadius: 25, style: .continuous)
-        )
+        .background(DartTheme.limeWash, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DartTheme.limeDeep.opacity(0.22)))
         .accessibilityElement(children: .combine)
     }
 
     private var nextStep: String {
         switch item.status {
-        case .waiting: "Next: a nearby helper accepts your request."
-        case .accepted: "Next: the helper heads to the pickup."
-        case .pickingUp: "Next: the helper confirms they are on the way."
+        case .waiting: "Next: a nearby darter accepts your request."
+        case .accepted: "Next: the darter heads to the pickup."
+        case .pickingUp: "Next: the darter confirms they are on the way."
         case .onTheWay: "Next: meet at the destination shown below."
         case .delivered: "Next: the requester confirms receipt."
         case .completed: "This Dart is complete."
         case .cancelled: "No further action is needed."
-        case .expired: "Post a new Dart if you still need help."
+        case .expired: "Send a new request if your order is still waiting."
         }
     }
 }
@@ -348,8 +349,8 @@ private struct RunChoiceCard: View {
 private struct AskRunnerCard: View {
     let isFriendRun: Bool
     let reward: Int
+    let pickup: String
     @Binding var title: String
-    @Binding var budget: String
     let onSend: () -> Void
     let onCancel: () -> Void
 
@@ -357,24 +358,18 @@ private struct AskRunnerCard: View {
         VStack(alignment: .leading, spacing: 17) {
             DartIconTile(symbol: isFriendRun ? "cart.badge.plus" : "bag.badge.plus", size: 56, highlighted: true)
             VStack(alignment: .leading, spacing: 6) {
-                Text(isFriendRun ? "Add to the list" : "What should they grab?")
+                Text(isFriendRun ? "Add to the list" : "Ask them to grab your order?")
                     .font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
-                Text(isFriendRun ? "Friend runs are free. Settle up for the item itself directly."
-                     : "The $\(reward) run reward goes to the shopper; the item budget stays separate.")
+                Text(isFriendRun ? "Friend runs are free."
+                     : "They’ll pick up your Grubhub order at \(pickup) on the way back. The $\(reward) reward goes to them.")
                     .font(.subheadline).foregroundStyle(DartTheme.muted)
             }
-            DartField(label: "Item") { TextField("What do you need?", text: $title).textFieldStyle(.plain) }
-            if !isFriendRun {
-                DartField(label: "Item budget (optional)") {
-                    TextField("$0", text: $budget).textFieldStyle(.plain)
-                    #if os(iOS)
-                    .keyboardType(.numberPad)
-                    #endif
-                }
+            if isFriendRun {
+                DartField(label: "Item") { TextField("e.g. my Grubhub order", text: $title).textFieldStyle(.plain) }
             }
             Button(action: onSend) { PrimaryButtonLabel(title: "Send request", icon: "paperplane.fill") }
                 .buttonStyle(PressableStyle())
-                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(isFriendRun && title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", action: onCancel).font(.headline).foregroundStyle(DartTheme.muted)
                 .frame(maxWidth: .infinity).frame(minHeight: 44)
         }
@@ -430,7 +425,6 @@ private struct LiveItemActions: View {
     @State private var chooseRun = false
     @State private var askRunner = false
     @State private var askTitle = ""
-    @State private var askBudget = ""
     @State private var matches: [(RequestMatch, DartItem)] = []
 
     private var ref: BackendRef { item.backend! }
@@ -467,7 +461,7 @@ private struct LiveItemActions: View {
             case (.run, .owner):
                 runOwnerActions
             case (.run, _):
-                primary(item.kind == .friendRun ? "Add to the shopping list" : "Ask \(item.person.name.split(separator: " ").first ?? "them") to grab something",
+                primary(item.kind == .friendRun ? "Add to the shopping list" : "Ask \(item.person.name.split(separator: " ").first ?? "them") to grab my order",
                         icon: item.kind == .friendRun ? "cart.badge.plus" : "bag.badge.plus") {
                     askRunner = true
                 }
@@ -487,7 +481,7 @@ private struct LiveItemActions: View {
         }
         .dartDialog(isPresented: $askRunner) {
             AskRunnerCard(isFriendRun: item.kind == .friendRun, reward: item.reward ?? 0,
-                          title: $askTitle, budget: $askBudget) {
+                          pickup: item.pickupSpot?.name ?? item.pickup, title: $askTitle) {
                 askRunner = false
                 Task { await sendAsk() }
             } onCancel: {
@@ -564,7 +558,8 @@ private struct LiveItemActions: View {
     }
 
     private func sendAsk() async {
-        let title = askTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let typed = askTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = item.kind == .friendRun ? typed : (item.pickupSpot?.requestTitle ?? "Grubhub order from \(item.pickup)")
         guard !title.isEmpty else { return }
         working = true
         defer { working = false }
@@ -572,10 +567,9 @@ private struct LiveItemActions: View {
         if item.kind == .friendRun, let groupID = ref.groupID {
             ok = await store.addListItem(title, groupID: groupID, runID: ref.id)
         } else {
-            ok = await store.requestFromRun(item, title: title, budgetDollars: Int(askBudget.filter(\.isNumber)))
+            ok = await store.requestFromRun(item, title: title, budgetDollars: nil)
         }
         askTitle = ""
-        askBudget = ""
         await finish(ok)
     }
 }

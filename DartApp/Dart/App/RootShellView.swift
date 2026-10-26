@@ -4,8 +4,6 @@ struct RootShellView: View {
     @EnvironmentObject private var state: AppState
     @EnvironmentObject private var store: DartStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var quickCreate = false
-    @State private var creating: CreateSheet.Destination?
 
     var body: some View {
         Group {
@@ -44,28 +42,20 @@ struct RootShellView: View {
         ZStack(alignment: .bottom) {
             Group {
                 switch state.selectedTab {
-                case 1: ExploreView()
+                case 1: DeliverView()
                 case 2: ActivityView()
                 case 3: ProfileView()
-                default: HomeView()
+                default: RequestView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            FloatingTabBar(selection: $state.selectedTab) { quickCreate = true }
+            FloatingTabBar(selection: $state.selectedTab)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 8)
         }
-        .dartModal(isPresented: $quickCreate) {
-            QuickCreateSheet { destination in
-                quickCreate = false
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 220_000_000)
-                    creating = destination
-                }
-            }
-        }
-        .dartModal(item: $creating) { CreateSheet(destination: $0) }
+        .dartModal(item: $state.creating) { CreateSheet(destination: $0) }
+        .dartModal(item: $state.openItem) { ItemDetailView(item: $0) }
         .dartModal(item: Binding(
             get: { store.routedItem },
             set: { if $0 == nil { store.consumeRoutedItem() } }
@@ -93,11 +83,7 @@ private struct LaunchLoadingView: View {
         ZStack {
             DartBackdrop()
             VStack(spacing: 16) {
-                Text("D")
-                    .font(.title.bold())
-                    .foregroundStyle(DartTheme.limeInk)
-                    .frame(width: 58, height: 58)
-                    .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 18))
+                DartMark(size: 64)
                 ProgressView().tint(DartTheme.lime)
                 Text("Opening Dart").font(.headline).foregroundStyle(DartTheme.text)
             }
@@ -127,12 +113,11 @@ private struct ConfigurationRequiredView: View {
 
 private struct FloatingTabBar: View {
     @Binding var selection: Int
-    let onCreate: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var indicator
     private let tabs = [
-        ("Home", "house.fill"),
-        ("Explore", "safari.fill"),
+        ("Request", "bag.fill"),
+        ("Deliver", "figure.walk"),
         ("Activity", "clock.fill"),
         ("You", "person.crop.circle.fill")
     ]
@@ -141,20 +126,6 @@ private struct FloatingTabBar: View {
         HStack(spacing: 3) {
             tabButton(0)
             tabButton(1)
-            Button(action: onCreate) {
-                VStack(spacing: 3) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .heavy))
-                        .frame(width: 48, height: 42)
-                        .foregroundStyle(DartTheme.limeInk)
-                        .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: DartTheme.lime.opacity(0.30), radius: 12, y: 5)
-                    Text("Create").font(.caption2.weight(.bold)).foregroundStyle(DartTheme.text)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Create a Dart")
             tabButton(2)
             tabButton(3)
         }
@@ -185,57 +156,6 @@ private struct FloatingTabBar: View {
         .buttonStyle(PressableStyle())
         .accessibilityLabel(tabs[index].0)
         .accessibilityAddTraits(selection == index ? .isSelected : [])
-    }
-}
-
-private struct QuickCreateSheet: View {
-    @Environment(\.dartDismiss) private var dismiss
-    let choose: (CreateSheet.Destination) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Capsule().fill(DartTheme.line).frame(width: 38, height: 5).frame(maxWidth: .infinity)
-            Text("What’s happening?")
-                .font(.largeTitle.weight(.heavy))
-                .foregroundStyle(DartTheme.text)
-            Text("Post what you need or let campus know you’re already heading somewhere.")
-                .font(.subheadline)
-                .foregroundStyle(DartTheme.muted)
-
-            createCard(title: "Request something", subtitle: "Food, groceries, pickups, and campus errands", icon: "bag.fill") {
-                choose(.request)
-            }
-            createCard(title: "I’m heading out", subtitle: "Share a store run with friends, your building, or campus", icon: "figure.walk.motion") {
-                choose(.run)
-            }
-
-            Button("Not now") { dismiss() }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DartTheme.muted)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-        }
-        .padding(24)
-        .background(DartBackdrop())
-        .macSheetSize(minHeight: 455)
-    }
-
-    private func createCard(title: String, subtitle: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                DartIconTile(symbol: icon, size: 60, highlighted: true)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title).font(.title3.weight(.bold)).foregroundStyle(DartTheme.text)
-                    Text(subtitle).font(.subheadline).foregroundStyle(DartTheme.muted).multilineTextAlignment(.leading)
-                }
-                Spacer()
-                Image(systemName: "arrow.right").font(.headline.bold()).foregroundStyle(DartTheme.limeInk)
-            }
-            .padding(18)
-            .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(DartTheme.line))
-        }
-        .buttonStyle(PressableStyle())
     }
 }
 

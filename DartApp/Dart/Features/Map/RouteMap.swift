@@ -24,7 +24,7 @@ struct RouteMapCard: View {
                     }
                     if let destination {
                         Marker(item.destination, systemImage: "flag.checkered", coordinate: destination.coordinate)
-                            .tint(DartTheme.gold)
+                            .tint(DartTheme.limeInk)
                     }
                     if let route {
                         MapPolyline(route).stroke(DartTheme.blue, style: StrokeStyle(lineWidth: 5, lineCap: .round))

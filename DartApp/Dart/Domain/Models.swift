@@ -20,7 +20,7 @@ enum AppearanceChoice: String, CaseIterable, Codable, Identifiable {
 }
 
 enum DartStatus: String, Codable, CaseIterable {
-    case waiting = "Waiting for someone"
+    case waiting = "Finding a darter"
     case accepted = "Accepted"
     case pickingUp = "Picking up"
     case onTheWay = "On the way"
@@ -46,6 +46,102 @@ enum DartStatus: String, Codable, CaseIterable {
         case .cancelled: "xmark.circle"
         case .expired: "clock.badge.xmark"
         }
+    }
+}
+
+/// Where a v1 request can come from: four campus eateries where a Grubhub order waits for pickup.
+/// The place IDs match rows seeded in supabase/migrations (Golden Bear Cafe in the Berkeley places
+/// expansion, the other three in the Grubhub pickup spots migration).
+enum PickupSpot: String, CaseIterable, Codable, Identifiable {
+    case monsoonKitchens
+    case ladleAndLeaf
+    case goldenBearCafe
+    case gatewayCafe
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .monsoonKitchens: "Monsoon Kitchens"
+        case .ladleAndLeaf: "Ladle & Leaf"
+        case .goldenBearCafe: "Golden Bear Cafe"
+        case .gatewayCafe: "Gateway Cafe"
+        }
+    }
+
+    /// Short name for filters and chips.
+    var shortName: String {
+        switch self {
+        case .monsoonKitchens: "Monsoon"
+        case .ladleAndLeaf: "Ladle & Leaf"
+        case .goldenBearCafe: "Golden Bear"
+        case .gatewayCafe: "Gateway"
+        }
+    }
+
+    var area: String {
+        switch self {
+        case .monsoonKitchens, .ladleAndLeaf: "MLK Student Union"
+        case .goldenBearCafe: "Lower Sproul Plaza"
+        case .gatewayCafe: "Gateway · Hearst & Arch"
+        }
+    }
+
+    /// Official logo in the asset catalog (from Berkeley Dining), or nil when none is published.
+    var logoAsset: String? {
+        switch self {
+        case .monsoonKitchens: "logo-monsoon"
+        case .ladleAndLeaf: "logo-ladle-leaf"
+        case .goldenBearCafe: "logo-golden-bear"
+        case .gatewayCafe: nil
+        }
+    }
+
+    /// Square mark for small badges, cut from the official logo.
+    var badgeAsset: String? {
+        switch self {
+        case .monsoonKitchens: "badge-monsoon"
+        case .ladleAndLeaf: "badge-ladle-leaf"
+        case .goldenBearCafe: "logo-golden-bear"
+        case .gatewayCafe: nil
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .monsoonKitchens: "flame.fill"
+        case .ladleAndLeaf: "leaf.fill"
+        case .goldenBearCafe: "cup.and.saucer.fill"
+        case .gatewayCafe: "building.columns.fill"
+        }
+    }
+
+    var placeID: UUID {
+        switch self {
+        case .monsoonKitchens: UUID(uuidString: "a2000000-0000-0000-0000-000000000001")!
+        case .ladleAndLeaf: UUID(uuidString: "a2000000-0000-0000-0000-000000000002")!
+        case .goldenBearCafe: UUID(uuidString: "a1000000-0000-0000-0000-000000000101")!
+        case .gatewayCafe: UUID(uuidString: "a2000000-0000-0000-0000-000000000003")!
+        }
+    }
+
+    var location: GeoPoint {
+        switch self {
+        case .monsoonKitchens: GeoPoint(lat: 37.86882, lng: -122.25960)
+        case .ladleAndLeaf: GeoPoint(lat: 37.86885, lng: -122.25952)
+        case .goldenBearCafe: GeoPoint(lat: 37.86983, lng: -122.25970)
+        case .gatewayCafe: GeoPoint(lat: 37.87414, lng: -122.26348)
+        }
+    }
+
+    /// The label stored on a request, e.g. "Monsoon Kitchens · MLK Student Union".
+    var pickupLabel: String { "\(name) · \(area)" }
+
+    var requestTitle: String { "Grubhub order from \(name)" }
+
+    /// The spot a pickup label or place name refers to, if it is one of the four.
+    static func matching(_ label: String) -> PickupSpot? {
+        allCases.first { label.localizedCaseInsensitiveContains($0.name) }
     }
 }
 
@@ -107,9 +203,11 @@ struct DartItem: Identifiable, Hashable, Codable {
     /// Where to pin the item on a map: the pickup, else the drop-off.
     var mapLocation: GeoPoint? { pickupLocation ?? destinationLocation }
 
+    var pickupSpot: PickupSpot? { PickupSpot.matching(pickup) }
+
     var kindLabel: String {
         switch kind {
-        case .campusRequest: "Campus request"
+        case .campusRequest: pickupSpot == nil ? "Campus request" : "Grubhub pickup"
         case .friendRun: "Free friend run"
         case .buildingRun: "Paid building run"
         case .campusRun: "Campus store run"
@@ -171,46 +269,46 @@ enum PreviewData {
 
     static let charger = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
-        title: "Grab my charger from the library",
-        subtitle: "USB-C charger at Moffitt Library",
+        title: PickupSpot.monsoonKitchens.requestTitle,
+        subtitle: "Ready for pickup",
         person: jordan,
-        pickup: "Moffitt Library · Front desk",
+        pickup: PickupSpot.monsoonKitchens.pickupLabel,
         destination: "Unit 4 · Ida Sproul Hall",
         timing: "By 6:30 PM",
-        reward: 10,
+        reward: 3,
         merchandiseBudget: nil,
-        effort: "12–18 min",
+        effort: "8–12 min",
         kind: .campusRequest,
         status: .waiting,
-        detail: "Jordan left a labeled charger at the front desk. Show the preview request name when you arrive.",
-        pickupLocation: GeoPoint(lat: 37.87252, lng: -122.26077),
+        detail: "Pick up Jordan’s Grubhub order at Monsoon Kitchens in the MLK Student Union and bring it to Ida Sproul Hall.",
+        pickupLocation: PickupSpot.monsoonKitchens.location,
         destinationLocation: GeoPoint(lat: 37.86693, lng: -122.26093)
     )
 
     static let shampoo = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
-        title: "Pick up shampoo from Target",
-        subtitle: "Any unscented everyday shampoo",
+        title: PickupSpot.ladleAndLeaf.requestTitle,
+        subtitle: "Ready for pickup",
         person: devon,
-        pickup: "Target · Shattuck Avenue",
+        pickup: PickupSpot.ladleAndLeaf.pickupLabel,
         destination: "Blackwell Hall",
         timing: "Before 8:00 PM",
-        reward: 6,
-        merchandiseBudget: 14,
-        effort: "8–12 min added",
+        reward: 3,
+        merchandiseBudget: nil,
+        effort: "6–10 min",
         kind: .campusRequest,
         status: .accepted,
-        detail: "A flexible product request. The merchandise budget is separate from the helper reward.",
-        pickupLocation: GeoPoint(lat: 37.86962, lng: -122.26755),
+        detail: "Pick up Devon’s Grubhub order at Ladle & Leaf in the MLK Student Union and bring it to Blackwell Hall.",
+        pickupLocation: PickupSpot.ladleAndLeaf.location,
         destinationLocation: GeoPoint(lat: 37.86770, lng: -122.26109)
     )
 
     static let traderJoes = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
-        title: "Maya is at Trader Joe’s",
-        subtitle: "Add something before Maya checks out",
+        title: "Maya is at Golden Bear Cafe",
+        subtitle: "Ask Maya to grab your order on the way back",
         person: maya,
-        pickup: "Trader Joe’s · University Avenue",
+        pickup: PickupSpot.goldenBearCafe.pickupLabel,
         destination: "Friends: Sunday Dinner",
         timing: "List closes in 18 min",
         reward: nil,
@@ -218,38 +316,38 @@ enum PreviewData {
         effort: nil,
         kind: .friendRun,
         status: .pickingUp,
-        detail: "Maya shared this free run with friends. Items and reimbursements arrive in a later section.",
-        pickupLocation: GeoPoint(lat: 37.87200, lng: -122.27322),
+        detail: "Maya shared this free run with friends.",
+        pickupLocation: PickupSpot.goldenBearCafe.location,
         destinationLocation: GeoPoint(lat: 37.86766, lng: -122.25866)
     )
 
     static let buildingRun = DartItem(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000004")!,
-        title: "Target run back to your building",
-        subtitle: "One neighbor request still available",
+        title: "Gateway Cafe run back to your building",
+        subtitle: "One more order fits",
         person: maya,
-        pickup: "Target · Shattuck Avenue",
+        pickup: PickupSpot.gatewayCafe.pickupLabel,
         destination: "The Durant · Lobby",
         timing: "Requests close at 7:15 PM",
-        reward: 5,
-        merchandiseBudget: 22,
+        reward: 3,
+        merchandiseBudget: nil,
         effort: "10 min added",
         kind: .buildingRun,
         status: .onTheWay,
-        detail: "A paid building run approved by the shopper. Building broadcasts are never automatic in this preview.",
-        pickupLocation: GeoPoint(lat: 37.86962, lng: -122.26755),
+        detail: "A paid building run approved by the darter. Building broadcasts are never automatic in this preview.",
+        pickupLocation: PickupSpot.gatewayCafe.location,
         destinationLocation: GeoPoint(lat: 37.86766, lng: -122.25866)
     )
 
     static let friendMessages = [
-        Message(id: UUID(), sender: "Maya", body: "Heading to Trader Joe’s — add anything you need.", time: "5:42 PM", isCurrentUser: false),
-        Message(id: UUID(), sender: "You", body: "Perfect timing. I’ll add sparkling water later!", time: "5:44 PM", isCurrentUser: true)
+        Message(id: UUID(), sender: "Maya", body: "At Golden Bear Cafe — want me to grab your order?", time: "5:42 PM", isCurrentUser: false),
+        Message(id: UUID(), sender: "You", body: "Yes please, it’s under my name!", time: "5:44 PM", isCurrentUser: true)
     ]
 
     static let groups = [
-        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!, name: "Sunday Dinner", kind: .friends, memberCount: 6, memberInitials: ["MC", "NV", "JL"], latestMessage: "Maya started a Trader Joe’s run", conversation: friendMessages, run: traderJoes, shoppingList: ["Sparkling water", "Pasta", "Basil"].map(ShoppingItem.sample)),
+        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!, name: "Sunday Dinner", kind: .friends, memberCount: 6, memberInitials: ["MC", "NV", "JL"], latestMessage: "Maya is grabbing orders at Golden Bear Cafe", conversation: friendMessages, run: traderJoes, shoppingList: ["Sparkling water", "Pasta", "Basil"].map(ShoppingItem.sample)),
         DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!, name: "Design Studio", kind: .friends, memberCount: 9, memberInitials: ["DP", "AK", "NV"], latestMessage: "Anyone going near the art store?", conversation: [Message(id: UUID(), sender: "Devon", body: "Anyone going near the art store tonight?", time: "4:18 PM", isCurrentUser: false)], run: traderJoes, shoppingList: ["Tracing paper", "Black markers"].map(ShoppingItem.sample)),
-        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Target run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Target run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"].map(ShoppingItem.sample))
+        DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Gateway Cafe run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Gateway Cafe run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"].map(ShoppingItem.sample))
     ]
 
     static let activities = [

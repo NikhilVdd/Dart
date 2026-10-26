@@ -6,24 +6,27 @@ import AppKit
 #endif
 
 enum DartTheme {
-    // Dart stays lime-led and white-first while retaining a deliberate dark appearance. These
-    // semantic colors keep custom components legible without falling back to generic Form styling.
-    static let background = adaptive(light: (0.975, 0.982, 0.969), dark: (0.031, 0.039, 0.031))
+    // Dart's palette follows dartme.org: white paper, near-black ink, electric lime for actions,
+    // a pale lime wash for selection, and a deep olive for lime-toned text and icons on white.
+    // The app runs in light appearance; the dark values only keep system-forced contexts legible.
+    static let background = adaptive(light: (0.961, 0.965, 0.945), dark: (0.031, 0.039, 0.031))   // #F5F6F1 paper
     static let surface = adaptive(light: (1, 1, 1), dark: (0.067, 0.078, 0.067))
-    static let surfaceRaised = adaptive(light: (0.945, 0.958, 0.936), dark: (0.090, 0.106, 0.090))
-    static let line = adaptive(light: (0.845, 0.872, 0.824), dark: (0.165, 0.188, 0.165))
-    static let text = adaptive(light: (0.035, 0.047, 0.035), dark: (0.969, 0.976, 0.961))
-    static let muted = adaptive(light: (0.34, 0.39, 0.34), dark: (0.576, 0.608, 0.576))
+    static let surfaceRaised = adaptive(light: (0.949, 0.953, 0.922), dark: (0.090, 0.106, 0.090)) // #F2F3EB
+    static let line = adaptive(light: (0.875, 0.890, 0.843), dark: (0.165, 0.188, 0.165))          // #DFE3D7
+    static let text = adaptive(light: (0.031, 0.043, 0.035), dark: (0.969, 0.976, 0.961))          // #080B09 ink
+    static let muted = adaptive(light: (0.376, 0.404, 0.376), dark: (0.576, 0.608, 0.576))         // #606760
     static let lime = Color(red: 0.776, green: 1.0, blue: 0.0)           // #C6FF00
     static let limeSoft = Color(red: 0.659, green: 0.902, blue: 0.0)     // #A8E600
-    static let limeInk = Color(red: 0.08, green: 0.12, blue: 0.02)
-    static let warning = Color(red: 1.0, green: 0.64, blue: 0.12)
-    static let danger = Color(red: 0.92, green: 0.20, blue: 0.22)
+    static let limeWash = Color(red: 0.949, green: 1.0, blue: 0.816)     // #F2FFD0
+    static let limeDeep = Color(red: 0.345, green: 0.463, blue: 0.0)     // #587600
+    static let limeInk = Color(red: 0.031, green: 0.043, blue: 0.035)    // #080B09
+    static let warning = Color(red: 0.86, green: 0.50, blue: 0.02)
+    static let danger = Color(red: 0.651, green: 0.212, blue: 0.247)     // #A6363F
 
-    static let blue = lime
+    static let blue = limeDeep
     static let brightBlue = limeSoft
     static let paleBlue = lime
-    static let gold = warning
+    static let gold = limeDeep
     static let navy = background
     static let pearl = background
 
@@ -49,6 +52,55 @@ enum DartTheme {
     }
 }
 
+/// Dart's mark from dartme.org: a D with a forward arrow cut into its counter.
+struct DartMark: View {
+    var size: CGFloat = 58
+    /// Draw on an ink rounded square (app-icon style) instead of bare.
+    var tiled = true
+
+    var body: some View {
+        ZStack {
+            if tiled {
+                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous).fill(DartTheme.limeInk)
+            }
+            DartMarkShape(part: .outer).fill(DartTheme.lime)
+            DartMarkShape(part: .counter).fill(tiled ? DartTheme.limeInk : DartTheme.surface)
+            DartMarkShape(part: .arrow).fill(DartTheme.lime)
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel("Dart")
+    }
+}
+
+private struct DartMarkShape: Shape {
+    enum Part { case outer, counter, arrow }
+    let part: Part
+
+    func path(in rect: CGRect) -> Path {
+        // The mark spans 29×28 units of the original viewBox; scale it to ~60% of the frame.
+        let s = min(rect.width, rect.height) * 0.6 / 29
+        let ox = rect.midX - 21.5 * s, oy = rect.midY - 21 * s
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
+        var path = Path()
+        switch part {
+        case .outer:
+            path.move(to: p(7, 7)); path.addLine(to: p(18.2, 7))
+            path.addCurve(to: p(36, 21), control1: p(28.7, 7), control2: p(36, 12.2))
+            path.addCurve(to: p(18.2, 35), control1: p(36, 29.8), control2: p(28.7, 35))
+            path.addLine(to: p(7, 35))
+        case .counter:
+            path.move(to: p(13.5, 13.2)); path.addLine(to: p(18.4, 13.2))
+            path.addCurve(to: p(29.2, 21), control1: p(25.1, 13.2), control2: p(29.2, 15.8))
+            path.addCurve(to: p(18.4, 28.8), control1: p(29.2, 26.2), control2: p(25.1, 28.8))
+            path.addLine(to: p(13.5, 28.8))
+        case .arrow:
+            path.move(to: p(19.2, 16.5)); path.addLine(to: p(28.4, 21)); path.addLine(to: p(19.2, 25.5))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
 struct DartBackdrop: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shifted = false
@@ -57,12 +109,12 @@ struct DartBackdrop: View {
         ZStack {
             DartTheme.background
             Circle()
-                .fill(DartTheme.lime.opacity(0.12))
+                .fill(DartTheme.lime.opacity(0.16))
                 .frame(width: 380, height: 380)
                 .blur(radius: 90)
                 .offset(x: shifted ? 130 : -110, y: shifted ? -240 : -120)
             Circle()
-                .fill(DartTheme.limeSoft.opacity(0.035))
+                .fill(DartTheme.limeWash.opacity(0.9))
                 .frame(width: 320, height: 320)
                 .blur(radius: 70)
                 .offset(x: shifted ? -120 : 100, y: shifted ? 340 : 220)
@@ -76,20 +128,19 @@ struct DartBackdrop: View {
 }
 
 struct GlassSurface: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let radius: CGFloat
 
     func body(content: Content) -> some View {
         content
             .background {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(reduceTransparency ? DartTheme.surface : DartTheme.surface.opacity(0.94))
+                    .fill(DartTheme.surface)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(DartTheme.line, lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.10), radius: 24, y: 12)
+            .shadow(color: .black.opacity(0.05), radius: 20, y: 10)
     }
 }
 
@@ -121,7 +172,7 @@ struct PrimaryButtonLabel: View {
             .padding(.vertical, 17)
             .foregroundStyle(DartTheme.limeInk)
             .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius, style: .continuous))
-            .shadow(color: DartTheme.lime.opacity(0.16), radius: 18, y: 10)
+            .shadow(color: DartTheme.limeDeep.opacity(0.16), radius: 16, y: 8)
     }
 }
 
@@ -147,7 +198,7 @@ struct DartIconTile: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.31, style: .continuous)
-                .fill(highlighted ? DartTheme.lime : DartTheme.lime.opacity(0.15))
+                .fill(highlighted ? DartTheme.lime : DartTheme.limeWash)
             Circle()
                 .fill(Color.white.opacity(highlighted ? 0.32 : 0.72))
                 .frame(width: size * 0.44, height: size * 0.44)
@@ -291,7 +342,7 @@ struct SlidingSegmentedControl<Selection: Hashable & RawRepresentable & CaseIter
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .foregroundStyle(selection == item ? DartTheme.background : DartTheme.muted)
+                        .foregroundStyle(selection == item ? DartTheme.limeInk : DartTheme.muted)
                         .background {
                             if selection == item {
                                 RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -331,10 +382,10 @@ struct StatusChip: View {
     var body: some View {
         Label(status.rawValue, systemImage: status.icon)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(status == .completed ? DartTheme.warning : DartTheme.limeInk)
+            .foregroundStyle(status == .completed ? DartTheme.limeDeep : DartTheme.limeInk)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background((status == .completed ? DartTheme.warning : DartTheme.lime).opacity(0.18), in: Capsule())
+            .background(status == .completed ? DartTheme.limeWash : DartTheme.lime.opacity(0.35), in: Capsule())
     }
 }
 
@@ -509,7 +560,7 @@ private struct DartModalChrome<Content: View>: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .bottom) {
-                Color.black.opacity(0.42)
+                Color.black.opacity(0.28)
                     .ignoresSafeArea()
                     .onTapGesture { isPresented = false }
                     .transition(.opacity)
@@ -536,7 +587,7 @@ private struct DartModalChrome<Content: View>: View {
                 .background(DartTheme.surface)
                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30))
                 .overlay(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30).stroke(DartTheme.line))
-                .shadow(color: .black.opacity(0.24), radius: 36, y: -8)
+                .shadow(color: .black.opacity(0.12), radius: 30, y: -6)
                 .offset(y: max(0, dragY))
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
@@ -570,7 +621,7 @@ private struct DartDialogModifier<Dialog: View>: ViewModifier {
         content.overlay {
             if isPresented {
                 ZStack {
-                    Color.black.opacity(0.46).ignoresSafeArea()
+                    Color.black.opacity(0.30).ignoresSafeArea()
                     dialog()
                         .frame(maxWidth: 440)
                         .padding(20)
@@ -622,6 +673,6 @@ struct DartAlertCard: View {
         .padding(22)
         .background(DartTheme.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 28).stroke(DartTheme.line))
-        .shadow(color: .black.opacity(0.20), radius: 28, y: 14)
+        .shadow(color: .black.opacity(0.12), radius: 26, y: 12)
     }
 }

@@ -1,11 +1,19 @@
 import SwiftUI
 
-/// Requests are created from Request mode and store runs from Earn mode, each straight into its form.
+/// Opens straight into the request form (optionally with a pickup spot already chosen) or the run form.
 struct CreateSheet: View {
-    enum Destination: String, Identifiable {
-        case request
+    enum Destination: Identifiable, Hashable {
+        case request(PickupSpot?)
         case run
-        var id: String { rawValue }
+
+        var id: String {
+            switch self {
+            case .request(let spot): "request-\(spot?.rawValue ?? "none")"
+            case .run: "run"
+            }
+        }
+
+        var isRequest: Bool { if case .request = self { true } else { false } }
     }
 
     let destination: Destination
@@ -17,7 +25,7 @@ struct CreateSheet: View {
             Group {
                 if store.isLive {
                     switch destination {
-                    case .request: RequestFormView { dismiss() }
+                    case .request(let spot): RequestFormView(initialSpot: spot) { dismiss() }
                     case .run: RunFormView { dismiss() }
                     }
                 } else {
@@ -39,12 +47,12 @@ private struct CreateIntroView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Image(systemName: destination == .request ? "shippingbox.fill" : "storefront.fill")
+                Image(systemName: destination.isRequest ? "bag.fill" : "figure.walk")
                     .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(DartTheme.limeInk)
                     .frame(width: 72, height: 72)
-                    .background(DartTheme.blue.gradient, in: RoundedRectangle(cornerRadius: 23))
-                Text(destination == .request ? "Request something nearby" : "Share a store run")
+                    .background(DartTheme.lime.gradient, in: RoundedRectangle(cornerRadius: 23))
+                Text(destination.isRequest ? "Get your Grubhub order delivered" : "Heading to an eatery?")
                     .font(.largeTitle.bold())
                 Text(description).font(.title3).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 18) {
@@ -74,10 +82,10 @@ private struct CreateIntroView: View {
         }
     }
 
-    private var description: String { destination == .request ? "Describe the errand, set a clear destination and deadline, then offer a reward." : "Choose who can see the run, set a request cutoff, and stay in control of any building broadcast." }
-    private var stepOne: String { destination == .request ? "Describe exactly what you need." : "Choose the store and audience." }
-    private var stepTwo: String { destination == .request ? "Set destination, timing, and budget." : "Set a clear request cutoff." }
-    private var stepThree: String { destination == .request ? "Review before posting nearby." : "Approve before sharing with a building." }
+    private var description: String { destination.isRequest ? "Order on Grubhub like usual. A student already nearby picks it up and brings it to you." : "Carry a few orders back from the eatery you’re already going to, and earn on the way." }
+    private var stepOne: String { destination.isRequest ? "Pick the eatery your order is at." : "Choose the eatery you’re heading to." }
+    private var stepTwo: String { destination.isRequest ? "Confirm where to bring it." : "Say where you’re heading back to." }
+    private var stepThree: String { destination.isRequest ? "A darter grabs it and brings it over." : "Accept the orders that fit your trip." }
 }
 
 private struct IntroStep: View {
@@ -85,7 +93,7 @@ private struct IntroStep: View {
     let text: String
     var body: some View {
         HStack(spacing: 14) {
-            Text(number).font(.subheadline.bold()).foregroundStyle(.white).frame(width: 30, height: 30).background(DartTheme.blue, in: Circle())
+            Text(number).font(.subheadline.bold()).foregroundStyle(DartTheme.limeInk).frame(width: 30, height: 30).background(DartTheme.lime, in: Circle())
             Text(text).font(.body.weight(.medium))
         }
     }
