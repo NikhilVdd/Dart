@@ -18,8 +18,8 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     if !store.isLive { PreviewPill() }
                     profileHeader
+                    if let role = state.role { switchRoleCard(to: role.other) }
                     infoCard
-                    earningsCard
                     blockedAccountsCard
                     accountCard
                     if !store.isLive { previewExplanation }
@@ -112,7 +112,8 @@ struct ProfileView: View {
             Divider().padding(.leading, 48)
             if store.isLive {
                 Button { homeID = store.profile?.homePlaceID; choosingHome = true } label: {
-                    ProfileRow(icon: "building.2.fill", title: "Home", value: store.buildingName ?? "Choose where you live", showsChevron: true)
+                    ProfileRow(icon: "building.2.fill", title: state.role == .darter ? "Home" : "Default drop-off",
+                               value: store.buildingName ?? "Choose where you live", showsChevron: true)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -157,28 +158,29 @@ struct ProfileView: View {
         }
     }
 
-    private var earningsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(store.isLive ? "Earned delivering" : "Sample earnings").font(.headline)
+    /// One tap moves you to the other side of Dart. Same account, different app.
+    private func switchRoleCard(to role: AppRole) -> some View {
+        Button { state.role = role } label: {
+            HStack(spacing: 14) {
+                Image(systemName: role.symbol)
+                    .font(.headline)
+                    .foregroundStyle(DartTheme.limeInk)
+                    .frame(width: 44, height: 44)
+                    .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(role == .darter ? "Switch to delivering" : "Switch to ordering")
+                        .font(.headline).foregroundStyle(DartTheme.text)
+                    Text(role == .darter ? "Earn by bringing orders on your way" : "Get your own Grubhub order brought to you")
+                        .font(.caption).foregroundStyle(DartTheme.muted)
+                }
                 Spacer()
-                if !store.isLive { PreviewPill(text: "SAMPLE") }
+                Image(systemName: "arrow.left.arrow.right").font(.subheadline.bold()).foregroundStyle(DartTheme.muted)
             }
-            Text("$\(store.earnings.map { DartStore.dollars($0.earnedCents) } ?? 46)")
-                .font(.system(size: 36, weight: .bold, design: .rounded)).foregroundStyle(DartTheme.gold)
-            Text(earningsCaption)
-                .font(.footnote).foregroundStyle(.secondary)
+            .padding(14)
+            .dartSurface(radius: 20)
+            .contentShape(Rectangle())
         }
-        .padding(18)
-        .background(DartTheme.limeWash, in: RoundedRectangle(cornerRadius: DartTheme.cardRadius))
-        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius).stroke(DartTheme.limeDeep.opacity(0.25)))
-    }
-
-    private var earningsCaption: String {
-        guard store.isLive, let earnings = store.earnings else {
-            return "Illustrative local data only — not available funds or a payment balance."
-        }
-        return "\(earnings.completedCount) completed · \(earnings.activeCount) in progress. Rewards are tracked, not yet paid out — payments arrive in a later section."
+        .buttonStyle(PressableStyle())
     }
 
     private var aboutText: String {

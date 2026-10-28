@@ -1,5 +1,41 @@
 import Foundation
 
+/// Which side of Dart you're using. One account can do both; each role gets its own app shell.
+enum AppRole: String, CaseIterable, Codable, Identifiable {
+    case requester
+    case darter
+    var id: String { rawValue }
+
+    static let defaultsKey = "dart.role.v1"
+    static let onlineKey = "dart.darterOnline.v1"
+
+    /// The role saved on this device, read by the store to decide which alerts to post.
+    static var saved: AppRole? { AppRole(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") }
+
+    var title: String {
+        switch self {
+        case .requester: "Get my food"
+        case .darter: "Deliver & earn"
+        }
+    }
+
+    var pitch: String {
+        switch self {
+        case .requester: "A student already nearby brings your Grubhub order to you."
+        case .darter: "Grab orders from eateries you’re already passing and get paid."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .requester: "bag.fill"
+        case .darter: "figure.walk"
+        }
+    }
+
+    var other: AppRole { self == .requester ? .darter : .requester }
+}
+
 enum HomeMode: String, CaseIterable, Codable, Identifiable {
     case request = "Request"
     case earn = "Earn"
@@ -350,11 +386,84 @@ enum PreviewData {
         DartGroup(id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!, name: "The Durant", kind: .building, memberCount: 84, memberInitials: ["MC", "DP", "JL"], latestMessage: "Gateway Cafe run · requests close at 7:15 PM", conversation: [Message(id: UUID(), sender: "Maya", body: "I approved a Gateway Cafe run for the building.", time: "5:31 PM", isCurrentUser: false)], run: buildingRun, shoppingList: ["Laundry detergent", "Paper towels", "Shampoo"].map(ShoppingItem.sample))
     ]
 
+    // Darter-side samples: other students' orders, never the requester's own samples above.
+
+    static let openGateway = DartItem(
+        id: UUID(uuidString: "10000000-0000-0000-0000-000000000011")!,
+        title: PickupSpot.gatewayCafe.requestTitle,
+        subtitle: "Ready for pickup",
+        person: maya,
+        pickup: PickupSpot.gatewayCafe.pickupLabel,
+        destination: "Unit 2 · Cunningham Hall",
+        timing: "By 7:00 PM",
+        reward: 3,
+        merchandiseBudget: nil,
+        effort: "10–14 min",
+        kind: .campusRequest,
+        status: .waiting,
+        detail: "Pick up Maya’s Grubhub order at Gateway Cafe and bring it to Cunningham Hall.",
+        pickupLocation: PickupSpot.gatewayCafe.location,
+        destinationLocation: GeoPoint(lat: 37.86669, lng: -122.25486)
+    )
+
+    static let openMonsoon = DartItem(
+        id: UUID(uuidString: "10000000-0000-0000-0000-000000000012")!,
+        title: PickupSpot.monsoonKitchens.requestTitle,
+        subtitle: "Ready for pickup",
+        person: devon,
+        pickup: PickupSpot.monsoonKitchens.pickupLabel,
+        destination: "Foothill · Stern Hall",
+        timing: "By 7:15 PM",
+        reward: 5,
+        merchandiseBudget: nil,
+        effort: "15–20 min",
+        kind: .campusRequest,
+        status: .waiting,
+        detail: "Pick up Devon’s Grubhub order at Monsoon Kitchens and bring it to Stern Hall.",
+        pickupLocation: PickupSpot.monsoonKitchens.location,
+        destinationLocation: GeoPoint(lat: 37.87563, lng: -122.25570)
+    )
+
+    static let carryingGoldenBear = DartItem(
+        id: UUID(uuidString: "10000000-0000-0000-0000-000000000013")!,
+        title: PickupSpot.goldenBearCafe.requestTitle,
+        subtitle: "Ready for pickup",
+        person: jordan,
+        pickup: PickupSpot.goldenBearCafe.pickupLabel,
+        destination: "Unit 3 · Spens-Black Hall",
+        timing: "By 6:45 PM",
+        reward: 3,
+        merchandiseBudget: nil,
+        effort: "9–12 min",
+        kind: .campusRequest,
+        status: .accepted,
+        detail: "Pick up Jordan’s Grubhub order at Golden Bear Cafe and bring it to Spens-Black Hall.",
+        pickupLocation: PickupSpot.goldenBearCafe.location,
+        destinationLocation: GeoPoint(lat: 37.86743, lng: -122.25535)
+    )
+
+    static let deliveredLadle = DartItem(
+        id: UUID(uuidString: "10000000-0000-0000-0000-000000000014")!,
+        title: PickupSpot.ladleAndLeaf.requestTitle,
+        subtitle: "Delivered",
+        person: maya,
+        pickup: PickupSpot.ladleAndLeaf.pickupLabel,
+        destination: "Blackwell Hall",
+        timing: "Yesterday",
+        reward: 3,
+        merchandiseBudget: nil,
+        effort: nil,
+        kind: .campusRequest,
+        status: .completed,
+        detail: "Delivered Maya’s Grubhub order from Ladle & Leaf to Blackwell Hall.",
+        pickupLocation: PickupSpot.ladleAndLeaf.location,
+        destinationLocation: GeoPoint(lat: 37.86640, lng: -122.25930)
+    )
+
     static let activities = [
         ActivityRecord(id: UUID(), item: charger, mode: .requesting, currentStatus: .waiting, lastUpdate: "Posted 8 min ago"),
         ActivityRecord(id: UUID(), item: shampoo, mode: .requesting, currentStatus: .accepted, lastUpdate: "Accepted by Maya"),
-        ActivityRecord(id: UUID(), item: traderJoes, mode: .helping, currentStatus: .pickingUp, lastUpdate: "List closes in 18 min"),
-        ActivityRecord(id: UUID(), item: buildingRun, mode: .helping, currentStatus: .onTheWay, lastUpdate: "Returning to The Durant"),
-        ActivityRecord(id: UUID(), item: charger, mode: .helping, currentStatus: .completed, lastUpdate: "Preview record · yesterday")
+        ActivityRecord(id: UUID(), item: carryingGoldenBear, mode: .helping, currentStatus: .accepted, lastUpdate: "You accepted 4 min ago"),
+        ActivityRecord(id: UUID(), item: deliveredLadle, mode: .helping, currentStatus: .completed, lastUpdate: "Completed yesterday")
     ]
 }

@@ -22,10 +22,14 @@ struct ProfileRecord: Decodable, Hashable {
     let homePlaceID: UUID?
     let ageBand: String
     let safetyRulesAcceptedAt: Date?
+    let isRequester: Bool
+    let isDarter: Bool
     let campus: CampusRow?
     let homePlace: PlaceRow?
 
-    static let select = "id, display_name, initials, campus_id, home_place_id, age_band, safety_rules_accepted_at, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
+    static let select = "id, display_name, initials, campus_id, home_place_id, age_band, safety_rules_accepted_at, is_requester, is_darter, campus:campuses(id, name, lat, lng), home_place:places!home_place_id(*)"
+
+    func has(_ role: AppRole) -> Bool { role == .requester ? isRequester : isDarter }
 
     enum CodingKeys: String, CodingKey {
         case id, initials, campus
@@ -34,6 +38,8 @@ struct ProfileRecord: Decodable, Hashable {
         case homePlaceID = "home_place_id"
         case ageBand = "age_band"
         case safetyRulesAcceptedAt = "safety_rules_accepted_at"
+        case isRequester = "is_requester"
+        case isDarter = "is_darter"
         case homePlace = "home_place"
     }
 }

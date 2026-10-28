@@ -457,5 +457,73 @@ await as(null, `insert into campuses (id, slug, name, lat, lng) values ('c000000
 await as(null, `insert into places (campus_id, name, kind, lat, lng) values ('c0000000-0000-0000-0000-000000000099', 'Other Campus Store', 'store', 40, -75)`);
 check('cross-campus places are hidden', (await as('nikhil', `select 1 from places where name = 'Other Campus Store'`)).length === 0);
 
+// Account roles: signup picks requester or darter, and the server enforces each side.
+U.rae = '00000000-0000-0000-0000-0000000000b1';
+U.dex = '00000000-0000-0000-0000-0000000000b2';
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values
+  ('${U.rae}', 'rae@berkeley.edu', '{"display_name":"Rae Requester","role":"requester"}'),
+  ('${U.dex}', 'dex@berkeley.edu', '{"display_name":"Dex Darter","role":"darter"}')`);
+const roles = await as(null, `select id, is_requester, is_darter from profiles where id in ('${U.rae}', '${U.dex}', '${U.nikhil}')`);
+const roleOf = id => roles.find(r => r.id === id);
+check('signup role sets the profile flags',
+  roleOf(U.rae).is_requester && !roleOf(U.rae).is_darter && !roleOf(U.dex).is_requester && roleOf(U.dex).is_darter);
+check('accounts from before roles can do both', roleOf(U.nikhil).is_requester && roleOf(U.nikhil).is_darter);
+await rejects('users cannot grant themselves a role by editing their profile', 'rae',
+  `update profiles set is_darter = true where id = '${U.rae}'`);
+
+const raeOrder = await as('rae', `insert into requests (title, pickup_label, destination_label, deliver_by)
+  values ('Grubhub order from Gateway Cafe', 'Gateway Cafe', 'Unit 2', now() + interval '1 hour') returning id`);
+check('requesters can post requests', raeOrder.length === 1);
+await rejects('darter-only accounts cannot post requests', 'dex',
+  `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Grubhub order', 'Gateway Cafe', 'Unit 2', now() + interval '1 hour')`);
+await rejects('requester-only accounts cannot accept requests', 'rae', `select accept_request($1)`, [minorFree[0].id]);
+await rejects('requester-only accounts cannot share trips', 'rae',
+  `insert into runs (store_label, destination_label, closes_at) values ('Gateway Cafe', 'Unit 2', now() + interval '30 minutes')`);
+const dexTakes = await as('dex', `select status, helper_id from accept_request($1)`, [raeOrder[0].id]);
+check('darters can accept requests', dexTakes[0].status === 'accepted' && dexTakes[0].helper_id === U.dex);
+
+await as('rae', `select add_my_role('darter')`);
+check('add_my_role adds the other role', (await as(null, `select is_darter from profiles where id = '${U.rae}'`))[0].is_darter);
+await rejects('add_my_role rejects unknown roles', 'rae', `select add_my_role('admin')`);
+await as('rae', `select add_my_role('darter')`);
+check('add_my_role is safe to repeat', (await as(null, `select is_requester, is_darter from profiles where id = '${U.rae}'`))[0].is_requester);
+await rejects('anon cannot add roles', 'anon', `select add_my_role('darter')`);
+
+// Pressure: the role checks hold on every path into requests and runs, and run before other checks.
+const dexRun = await as('dex', `insert into runs (audience, store_label, destination_label, closes_at, fee_cents)
+  values ('campus', 'Gateway Cafe', 'Unit 2', now() + interval '30 minutes', 0) returning id`);
+check('darters can share trips', dexRun.length === 1);
+U.dot = '00000000-0000-0000-0000-0000000000b5';
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('${U.dot}', 'dot@berkeley.edu', '{"display_name":"Dot Darter","role":"darter"}')`);
+try {
+  await as('dot', `select request_from_run($1, 'My order')`, [dexRun[0].id]);
+  check('darter-only accounts cannot request onto another darter’s run', false, '(expected error)');
+} catch (e) {
+  check('darter-only accounts cannot request onto another darter’s run', /requester accounts/.test(e.message), `→ ${e.message}`);
+}
+const viaRun = await as('rae', `select id from request_from_run($1, 'Grubhub order from Gateway Cafe')`, [dexRun[0].id]);
+check('requesters can still ask a darter’s run', viaRun.length === 1);
+await as('dex', `select release_request($1)`, [raeOrder[0].id]);
+U.ivy = '00000000-0000-0000-0000-0000000000b3';
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('${U.ivy}', 'ivy@berkeley.edu', '{"display_name":"Ivy Requester","role":"requester"}')`);
+await rejects('a released order cannot be picked up by a requester-only account', 'ivy', `select accept_request($1)`, [raeOrder[0].id]);
+const retake = await as('dex', `select helper_id from accept_request($1)`, [raeOrder[0].id]);
+check('the darter can take a released order back', retake[0].helper_id === U.dex);
+await rejects('a second darter cannot take an accepted order', 'rae', `select accept_request($1)`, [raeOrder[0].id]);
+
+await as(null, `update payment_settings set required = true`);
+try {
+  await as('dex', `insert into requests (title, pickup_label, destination_label, deliver_by) values ('Grubhub order', 'Gateway Cafe', 'Unit 2', now() + interval '1 hour')`);
+  check('role check runs before the payment check', false, '(expected error)');
+} catch (e) {
+  check('role check runs before the payment check', /requester accounts/.test(e.message), `→ ${e.message}`);
+}
+await as(null, `update payment_settings set required = false`);
+
+const weird = '00000000-0000-0000-0000-0000000000b4';
+await as(null, `insert into auth.users (id, email, raw_user_meta_data) values ('${weird}', 'odd@berkeley.edu', '{"role":"admin"}')`);
+const weirdRoles = (await as(null, `select is_requester, is_darter from profiles where id = '${weird}'`))[0];
+check('an unknown signup role falls back to both roles (no escalation beyond add_my_role)', weirdRoles.is_requester && weirdRoles.is_darter);
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

@@ -7,11 +7,15 @@ final class DartBackend {
     let client: SupabaseClient
 
     init(config: SupabaseConfig) {
-        client = SupabaseClient(
-            supabaseURL: config.url,
-            supabaseKey: config.anonKey,
-            options: SupabaseClientOptions(auth: .init(emitLocalSessionAsInitialSession: true))
-        )
+        #if os(macOS)
+        // The macOS harness is ad-hoc signed, so its signature changes every build and the keychain
+        // asks for a password on each launch. Keep its dev session in a file instead.
+        let auth = SupabaseClientOptions.AuthOptions(storage: FileSessionStorage(), emitLocalSessionAsInitialSession: true)
+        #else
+        let auth = SupabaseClientOptions.AuthOptions(emitLocalSessionAsInitialSession: true)
+        #endif
+        client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey,
+                                options: SupabaseClientOptions(auth: auth))
     }
 
     var currentUserID: UUID? { client.auth.currentUser?.id }
@@ -24,13 +28,18 @@ final class DartBackend {
 
     /// Returns true when Supabase creates a session immediately. When hosted email confirmation is
     /// enabled, the account is created but the user must confirm it before the first sign-in.
-    func createAccount(email: String, password: String, displayName: String) async throws -> Bool {
+    /// The role goes in auth metadata; the signup trigger turns it into the profile's role flags.
+    func createAccount(email: String, password: String, displayName: String, role: AppRole) async throws -> Bool {
         let response = try await client.auth.signUp(
             email: email,
             password: password,
-            data: ["display_name": .string(displayName)]
+            data: ["display_name": .string(displayName), "role": .string(role.rawValue)]
         )
         return response.session != nil
+    }
+
+    func addMyRole(_ role: AppRole) async throws {
+        try await client.rpc("add_my_role", params: ["p_role": role.rawValue]).execute()
     }
 
     func requestPasswordReset(email: String) async throws {
@@ -402,3 +411,33 @@ private struct SafetyReportPayload: Encodable {
         case groupID = "group_id"
     }
 }
+
+#if os(macOS)
+/// Session storage for the macOS development harness: one file per key in Application Support.
+/// `DART_DEV_PROFILE` picks a separate login, so two windows can be two different accounts.
+private struct FileSessionStorage: AuthLocalStorage {
+    private var folder: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("DartDev/auth-\(ProcessInfo.processInfo.environment["DART_DEV_PROFILE"] ?? "default")",
+                                    isDirectory: true)
+    }
+
+    private func file(_ key: String) -> URL {
+        folder.appendingPathComponent(key.replacingOccurrences(of: "/", with: "_"))
+    }
+
+    func store(key: String, value: Data) throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        try value.write(to: file(key), options: .atomic)
+    }
+
+    func retrieve(key: String) throws -> Data? {
+        try? Data(contentsOf: file(key))
+    }
+
+    func remove(key: String) throws {
+        try? FileManager.default.removeItem(at: file(key))
+    }
+}
+#endif

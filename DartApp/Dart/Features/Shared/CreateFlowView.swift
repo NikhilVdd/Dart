@@ -19,11 +19,12 @@ struct CreateSheet: View {
     let destination: Destination
     @Environment(\.dartDismiss) private var dismiss
     @EnvironmentObject private var store: DartStore
+    @EnvironmentObject private var state: AppState
 
     var body: some View {
         NavigationStack {
             Group {
-                if store.isLive {
+                if store.isLive || state.screenshotScenario == "checkout" {
                     switch destination {
                     case .request(let spot): RequestFormView(initialSpot: spot) { dismiss() }
                     case .run: RunFormView { dismiss() }
@@ -66,7 +67,7 @@ private struct CreateIntroView: View {
                     PrimaryButtonLabel(title: "Continue preview", icon: "arrow.right")
                 }
                 .buttonStyle(PressableStyle())
-                Text("Preview mode: no request or broadcast will be created. Sign in from Profile to post.")
+                Text("Preview mode: no request or broadcast will be created. Sign in from Account to post.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
             .padding(DartTheme.pageInset)

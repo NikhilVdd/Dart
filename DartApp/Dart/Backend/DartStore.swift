@@ -90,10 +90,9 @@ final class DartStore: ObservableObject {
     func feed(for mode: HomeMode) -> [DartItem] {
         guard isLive else {
             guard canUsePreviewData else { return [] }
-            let items = mode == .request
+            return mode == .request
                 ? [PreviewData.traderJoes, PreviewData.buildingRun, PreviewData.shampoo]
-                : [PreviewData.charger, PreviewData.shampoo, PreviewData.buildingRun]
-            return DartFeatures.groups ? items : items.filter { $0.kind != .buildingRun && $0.kind != .friendRun }
+                : [PreviewData.openGateway, PreviewData.openMonsoon]
         }
         switch mode {
         case .request: return runFeed + myRequestItems.filter { DartStatus.active.contains($0.status) }
@@ -202,13 +201,14 @@ final class DartStore: ObservableObject {
         await perform { try await $0.signIn(email: email, password: password) }
     }
 
-    func createAccount(email: String, password: String, displayName: String) async -> AccountCreationResult? {
+    func createAccount(email: String, password: String, displayName: String, role: AppRole) async -> AccountCreationResult? {
         guard let backend else { return nil }
         do {
             let signedIn = try await backend.createAccount(
                 email: email,
                 password: password,
-                displayName: displayName
+                displayName: displayName,
+                role: role
             )
             return signedIn ? .signedIn : .confirmationRequired
         } catch {
@@ -269,6 +269,11 @@ final class DartStore: ObservableObject {
 
     func setAgeBand(_ value: String) async -> Bool {
         await mutate { try await $0.setAgeBand(value) }
+    }
+
+    /// Adds the other side to your account, e.g. a requester who also wants to deliver.
+    func addRole(_ role: AppRole) async -> Bool {
+        await mutate { try await $0.addMyRole(role) }
     }
 
     func acceptSafetyRules() async -> Bool {
@@ -492,7 +497,9 @@ final class DartStore: ObservableObject {
             }
         }
 
-        for request in nearby where !before.nearbyIDs.contains(request.id) && request.requesterID != userID {
+        // New-order alerts are for darters who are online; requesters only hear about their own orders.
+        let darterOnline = AppRole.saved == .darter && UserDefaults.standard.bool(forKey: AppRole.onlineKey)
+        for request in nearby where darterOnline && !before.nearbyIDs.contains(request.id) && request.requesterID != userID {
             notifier.post("New request nearby", "\(request.title) · $\(Self.dollars(request.rewardCents)) reward",
                           id: "nearby-\(request.id)", route: "dart://requests/\(request.id)")
         }
@@ -747,7 +754,8 @@ final class DartStore: ObservableObject {
         myRuns = runs.filter { $0.runnerID == userID }
         runFeed = runs.filter { $0.runnerID != userID }.map { item(from: $0) }
         myRequestItems = requests.filter { $0.requesterID == userID }.map { item(from: $0, me: userID) }
-        earnItems = nearby.map { item(from: $0, me: userID) }
+        // The darter feed never includes your own requests: those belong to the requester side.
+        earnItems = nearby.filter { $0.requesterID != userID }.map { item(from: $0, me: userID) }
         liveActivities = requests.map { record(from: $0, me: userID) }
 
         let membersByGroup = Dictionary(grouping: members, by: \.groupID)

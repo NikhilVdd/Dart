@@ -10,14 +10,19 @@ struct RootShellView: View {
             switch store.phase {
             case .launching:
                 LaunchLoadingView()
-            case .signedOut:
-                SignInView(allowsDismiss: false)
             case .unconfigured:
                 ConfigurationRequiredView()
+            case _ where state.role == nil:
+                RoleChooserView()
+            case .signedOut:
+                SignInView(allowsDismiss: false)
+            case .live where state.role.map { store.profile?.has($0) == false } ?? false:
+                RoleGateView(role: state.role!)
             case .preview, .live:
                 appShell
             }
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: state.role)
         .dartModal(isPresented: Binding(
             get: { store.requiresPasswordUpdate },
             set: { if !$0 { store.dismissPasswordUpdate() } }
@@ -41,16 +46,17 @@ struct RootShellView: View {
     private var appShell: some View {
         ZStack(alignment: .bottom) {
             Group {
-                switch state.selectedTab {
-                case 1: DeliverView()
-                case 2: ActivityView()
-                case 3: ProfileView()
-                default: RequestView()
+                switch (state.role ?? .requester, state.selectedTab) {
+                case (.requester, 1): OrdersView()
+                case (.darter, 1): EarningsView()
+                case (_, 2): ProfileView()
+                case (.requester, _): RequestView()
+                case (.darter, _): DeliverView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            FloatingTabBar(selection: $state.selectedTab)
+            FloatingTabBar(selection: $state.selectedTab, tabs: tabs)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 8)
         }
@@ -60,6 +66,15 @@ struct RootShellView: View {
             get: { store.routedItem },
             set: { if $0 == nil { store.consumeRoutedItem() } }
         )) { ItemDetailView(item: $0) }
+        .onChange(of: store.routedItem?.id) { _, _ in
+            // A notification opens its order on the side it belongs to: your own order in the
+            // requester app, one you're delivering in the darter app.
+            switch store.routedItem?.backend?.role {
+            case .owner: state.role = .requester
+            case .helper: state.role = .darter
+            default: break
+            }
+        }
         .overlay {
             if state.resetConfirmation {
                 ResetSuccessView()
@@ -68,6 +83,13 @@ struct RootShellView: View {
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.85), value: state.resetConfirmation)
+    }
+
+    private var tabs: [(String, String)] {
+        switch state.role ?? .requester {
+        case .requester: [("Home", "house.fill"), ("Orders", "bag.fill"), ("Account", "person.crop.circle.fill")]
+        case .darter: [("Deliver", "figure.walk"), ("Earnings", "dollarsign.circle.fill"), ("Account", "person.crop.circle.fill")]
+        }
     }
 }
 
@@ -113,21 +135,14 @@ private struct ConfigurationRequiredView: View {
 
 private struct FloatingTabBar: View {
     @Binding var selection: Int
+    /// Title and SF Symbol for each tab.
+    let tabs: [(String, String)]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var indicator
-    private let tabs = [
-        ("Request", "bag.fill"),
-        ("Deliver", "figure.walk"),
-        ("Activity", "clock.fill"),
-        ("You", "person.crop.circle.fill")
-    ]
 
     var body: some View {
         HStack(spacing: 3) {
-            tabButton(0)
-            tabButton(1)
-            tabButton(2)
-            tabButton(3)
+            ForEach(tabs.indices, id: \.self) { tabButton($0) }
         }
         .padding(5)
         .dartSurface(radius: 22)

@@ -25,6 +25,159 @@ struct SignInBanner: View {
     }
 }
 
+/// The first screen: pick a side. Everything after it, including sign-in, is shaped by this choice.
+struct RoleChooserView: View {
+    @EnvironmentObject private var state: AppState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    DartMark(size: 44)
+                    Text("Dart").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                }
+                Text("How do you want to use Dart?")
+                    .font(.largeTitle.weight(.heavy))
+                    .foregroundStyle(DartTheme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 56)
+                Text("Grubhub orders from campus eateries, carried by students already on their way.")
+                    .font(.subheadline)
+                    .foregroundStyle(DartTheme.muted)
+                    .padding(.top, 8)
+                VStack(spacing: 12) {
+                    ForEach(AppRole.allCases) { role in
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) { state.role = role }
+                        } label: {
+                            RoleCard(role: role)
+                        }
+                        .buttonStyle(PressableStyle())
+                    }
+                }
+                .padding(.top, 28)
+                Text("One account works for both. You can switch anytime in Account.")
+                    .font(.footnote)
+                    .foregroundStyle(DartTheme.muted)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 24)
+            }
+            .padding(DartTheme.pageInset)
+            .padding(.top, 12)
+        }
+        .background(DartBackdrop())
+        .sensoryFeedback(.selection, trigger: state.role)
+    }
+}
+
+private struct RoleCard: View {
+    let role: AppRole
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: role.symbol)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(DartTheme.limeInk)
+                .frame(width: 64, height: 64)
+                .background(role == .requester ? DartTheme.lime : DartTheme.limeWash,
+                            in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(role.title).font(.title3.weight(.heavy)).foregroundStyle(DartTheme.text)
+                Text(role.pitch)
+                    .font(.subheadline)
+                    .foregroundStyle(DartTheme.muted)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right").font(.subheadline.bold()).foregroundStyle(DartTheme.muted)
+        }
+        .padding(18)
+        .dartSurface()
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Continues as \(role == .requester ? "a requester" : "a darter")")
+    }
+}
+
+/// Shown when you open a side your account doesn't have yet, e.g. a requester tapping
+/// "Switch to delivering". Adding the role is one tap; the server records it on your profile.
+struct RoleGateView: View {
+    @EnvironmentObject private var state: AppState
+    @EnvironmentObject private var store: DartStore
+    let role: AppRole
+    @State private var working = false
+
+    private var hasOther: Bool { store.profile?.has(role.other) == true }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                DartIconTile(symbol: role.symbol, size: 64, highlighted: true)
+                    .padding(.top, 56)
+                Text(role == .darter ? "Deliver with this account?" : "Order with this account?")
+                    .font(.largeTitle.weight(.heavy))
+                    .foregroundStyle(DartTheme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(role == .darter
+                     ? "You registered as a requester. Add delivering to pick up orders and earn. You keep the same login."
+                     : "You registered as a darter. Add ordering to get your own Grubhub orders brought to you. You keep the same login.")
+                    .font(.subheadline)
+                    .foregroundStyle(DartTheme.muted)
+                Button {
+                    Task { working = true; _ = await store.addRole(role); working = false }
+                } label: {
+                    PrimaryButtonLabel(title: role == .darter ? "Add delivering" : "Add ordering", icon: "plus")
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(working)
+                .padding(.top, 8)
+                if hasOther {
+                    Button { state.role = role.other } label: {
+                        SecondaryButtonLabel(title: role.other == .darter ? "Back to delivering" : "Back to ordering",
+                                             icon: role.other.symbol)
+                    }
+                    .buttonStyle(PressableStyle())
+                }
+                Button("Sign out") { Task { await store.signOut() } }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DartTheme.muted)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+            }
+            .padding(DartTheme.pageInset)
+        }
+        .background(DartBackdrop())
+    }
+}
+
+/// One half of the "Register as" choice on the create-account form.
+private struct RegisterRoleOption: View {
+    let role: AppRole
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: role.symbol).font(.headline)
+                Text(role == .requester ? "Requester" : "Darter").font(.headline)
+                Text(role == .requester ? "Get food delivered" : "Deliver and earn")
+                    .font(.caption).foregroundStyle(selected ? DartTheme.limeInk.opacity(0.7) : DartTheme.muted)
+            }
+            .foregroundStyle(selected ? DartTheme.limeInk : DartTheme.text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(selected ? DartTheme.lime : DartTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(selected ? Color.clear : DartTheme.line))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 /// Standard Supabase email/password authentication. Campus assignment happens in the backend,
 /// so account creation accepts any valid email address.
 struct SignInView: View {
@@ -36,6 +189,7 @@ struct SignInView: View {
     }
 
     @EnvironmentObject private var store: DartStore
+    @EnvironmentObject private var state: AppState
     @Environment(\.dartDismiss) private var dismiss
     let allowsDismiss: Bool
     @State private var mode: Mode = .signIn
@@ -57,18 +211,29 @@ struct SignInView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack {
-                        DartMark(size: 64)
-                        Text("Dart").font(.title.weight(.heavy)).foregroundStyle(DartTheme.text)
+                        DartMark(size: 44)
+                        Text("Dart").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
                         Spacer()
+                        if let role = state.role, !allowsDismiss {
+                            Button { state.role = nil } label: {
+                                Label(role == .requester ? "Getting food" : "Delivering", systemImage: role.symbol)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(DartTheme.text)
+                                    .padding(.horizontal, 12)
+                                    .frame(minHeight: 36)
+                                    .background(DartTheme.surface, in: Capsule())
+                                    .overlay(Capsule().stroke(DartTheme.line))
+                            }
+                            .buttonStyle(PressableStyle())
+                            .accessibilityLabel("Change how you use Dart")
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 7) {
-                        Text(mode == .signIn ? "Welcome back" : "Create your Dart account")
+                        Text(heading)
                             .font(.largeTitle.weight(.heavy))
                             .foregroundStyle(DartTheme.text)
-                        Text(mode == .signIn
-                             ? "Sign in to use live requests, runs, and chat."
-                             : "No school email is required. Use any email address and choose a password.")
+                        Text(subheading)
                             .foregroundStyle(DartTheme.muted)
                     }
 
@@ -76,6 +241,14 @@ struct SignInView: View {
 
                     VStack(spacing: 14) {
                         if mode == .createAccount {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("REGISTER AS").font(.caption2.weight(.bold)).tracking(0.9).foregroundStyle(DartTheme.muted)
+                                HStack(spacing: 10) {
+                                    ForEach(AppRole.allCases) { role in
+                                        RegisterRoleOption(role: role, selected: signupRole == role) { state.role = role }
+                                    }
+                                }
+                            }
                             DartField(label: "Your name") {
                                 TextField("First and last name", text: $displayName)
                                     .textContentType(.name).autocorrectionDisabled().textFieldStyle(.plain)
@@ -171,6 +344,25 @@ struct SignInView: View {
         }
     }
 
+    /// What a new account registers as: the side picked on the first screen, changeable here.
+    private var signupRole: AppRole { state.role ?? .requester }
+
+    private var heading: String {
+        switch (mode, state.role) {
+        case (.signIn, _): "Welcome back"
+        case (.createAccount, .darter): "Start delivering"
+        case (.createAccount, _): "Create your account"
+        }
+    }
+
+    private var subheading: String {
+        switch (mode, state.role) {
+        case (.signIn, .darter): "Sign in to see orders near you."
+        case (.signIn, _): "Sign in to get your Grubhub order brought to you."
+        case (.createAccount, _): "Use any email address and choose a password."
+        }
+    }
+
     private var normalizedEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
@@ -201,7 +393,7 @@ struct SignInView: View {
                 return
             }
             let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            switch await store.createAccount(email: normalizedEmail, password: password, displayName: name) {
+            switch await store.createAccount(email: normalizedEmail, password: password, displayName: name, role: signupRole) {
             case .signedIn:
                 break
             case .confirmationRequired:
@@ -353,6 +545,7 @@ struct PasswordUpdateView: View {
 
 struct OnboardingView: View {
     @EnvironmentObject private var store: DartStore
+    @EnvironmentObject private var state: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step = 0
     @State private var name = ""
@@ -424,7 +617,8 @@ struct OnboardingView: View {
     private var identityStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Welcome to Dart").font(.largeTitle.bold())
-            Text("Built for useful handoffs between students—not anonymous delivery.")
+            Text(state.role == .darter ? "Requesters see your first name when you accept their order."
+                                       : "Your darter sees your first name when they pick up your order.")
                 .foregroundStyle(DartTheme.muted)
             TextField("Display name", text: $name)
                 .textContentType(.name).padding(16).dartSurface(radius: 16)
@@ -447,8 +641,9 @@ struct OnboardingView: View {
 
     private var homeStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Where do you live?").font(.largeTitle.bold())
-            Text("Your home building helps Dart suggest safer, lower-detour handoffs. Other users never receive your precise live location.")
+            Text(state.role == .darter ? "Where do you live?" : "Where should we bring it?").font(.largeTitle.bold())
+            Text(state.role == .darter ? "Orders heading your way show up first. Nobody sees your exact location."
+                                       : "This is your default drop-off. You can change it on any order.")
                 .foregroundStyle(DartTheme.muted)
             Button { choosingHome = true } label: {
                 HStack {
@@ -466,9 +661,11 @@ struct OnboardingView: View {
     private var notificationStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Stay in sync").font(.largeTitle.bold())
-            Text("Notifications and Live Activities can show request status without exposing another student’s exact location.")
+            Text(state.role == .darter ? "Get a heads-up when a new order is waiting near you."
+                                       : "Know the moment a darter accepts, picks up, and drops off your order.")
                 .foregroundStyle(DartTheme.muted)
-            Label("Accepted, pickup, on-the-way, and delivered updates", systemImage: "bell.badge.fill")
+            Label(state.role == .darter ? "New orders and requester messages" : "Accepted, picked up, on the way, delivered",
+                  systemImage: "bell.badge.fill")
                 .padding(18).dartSurface()
             Button { store.requestNotificationPermission() } label: {
                 PrimaryButtonLabel(title: "Allow notifications", icon: "bell.badge.fill")

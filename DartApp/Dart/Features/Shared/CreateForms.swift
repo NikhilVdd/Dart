@@ -22,12 +22,15 @@ struct RequestFormView: View {
     @State private var working = false
     @State private var result: [(RunMatch, DartItem)]?
     @State private var showErrors = false
+    /// Shows the eatery grid instead of the chosen eatery.
+    @State private var choosingSpot: Bool
 
     private static let minuteChoices = [30, 60, 120]
     private static let rewardChoices = [2, 3, 5, 8]
 
     init(initialSpot: PickupSpot? = nil, onFinish: @escaping () -> Void) {
         _spot = State(initialValue: initialSpot)
+        _choosingSpot = State(initialValue: initialSpot == nil)
         self.onFinish = onFinish
     }
 
@@ -49,23 +52,38 @@ struct RequestFormView: View {
                 form
             }
         }
-        .navigationTitle("Get my order")
+        .navigationTitle("Checkout")
     }
 
     private var form: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Where’s your order?").font(.largeTitle.weight(.heavy)).foregroundStyle(DartTheme.text)
-                    Text("Pick the eatery your Grubhub order is at. A darter brings it to you.")
-                        .font(.subheadline).foregroundStyle(DartTheme.muted)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    PickupSpotGrid(selection: spot) { spot = $0 }
-                    if showErrors && spot == nil {
-                        Label("Choose where your order is", systemImage: "exclamationmark.circle.fill")
-                            .font(.caption).foregroundStyle(DartTheme.danger)
+            VStack(alignment: .leading, spacing: 26) {
+                if let spot, !choosingSpot {
+                    HStack(spacing: 14) {
+                        SpotBadge(spot: spot, size: 56)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Pick up from").font(.caption.weight(.semibold)).foregroundStyle(DartTheme.muted)
+                            Text(spot.name).font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                            Text(spot.area).font(.subheadline).foregroundStyle(DartTheme.muted)
+                        }
+                        Spacer()
+                        Button("Change") { withAnimation { choosingSpot = true } }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(DartTheme.limeDeep)
+                            .frame(minHeight: 44)
+                            .buttonStyle(PressableStyle())
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Where’s your order?").font(.title2.weight(.heavy)).foregroundStyle(DartTheme.text)
+                        PickupSpotGrid(selection: spot) { chosen in
+                            spot = chosen
+                            choosingSpot = false
+                        }
+                        if showErrors && spot == nil {
+                            Label("Choose where your order is", systemImage: "exclamationmark.circle.fill")
+                                .font(.caption).foregroundStyle(DartTheme.danger)
+                        }
                     }
                 }
 
@@ -73,45 +91,59 @@ struct RequestFormView: View {
                     PlaceField(title: "Drop-off", selection: $destinationID, filter: .destinations)
                 }
 
-                ChoiceRow(title: "When do you need it?", values: Self.minuteChoices, selection: $minutes) {
+                ChoiceRow(title: "Need it within", values: Self.minuteChoices, selection: $minutes) {
                     $0 < 60 ? "\($0) min" : "\($0 / 60) hr"
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    ChoiceRow(title: "Darter reward", values: Self.rewardChoices, selection: $reward) { "$\($0)" }
-                    Text("Your food is already paid for on Grubhub. The reward goes to your darter.")
+                    ChoiceRow(title: "Tip your darter", values: Self.rewardChoices, selection: $reward) { "$\($0)" }
+                    Text("Your food is already paid for on Grubhub. The whole tip goes to your darter.")
                         .font(.caption).foregroundStyle(DartTheme.muted)
                 }
-
-                Button {
-                    guard spot != nil, destinationID != nil else { showErrors = true; return }
-                    showErrors = false
-                    Task { await submit() }
-                } label: {
-                    if working {
-                        HStack(spacing: 10) {
-                            ProgressView().tint(DartTheme.limeInk)
-                            Text("Sending…").font(.headline)
-                        }
-                        .frame(maxWidth: .infinity).padding(.vertical, 17)
-                        .foregroundStyle(DartTheme.limeInk)
-                        .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
-                    } else {
-                        PrimaryButtonLabel(title: spot.map { "Request pickup from \($0.shortName)" } ?? "Request pickup",
-                                           icon: "paperplane.fill")
-                    }
-                }
-                .buttonStyle(PressableStyle())
-                .disabled(working)
             }
             .padding(DartTheme.pageInset)
         }
         .background(DartBackdrop())
+        .safeAreaInset(edge: .bottom) { checkoutBar }
         .onAppear {
             destinationID = destinationID ?? store.profile?.homePlaceID
             if !Self.minuteChoices.contains(minutes) { minutes = 30 }
             if !Self.rewardChoices.contains(reward) { reward = 3 }
         }
+    }
+
+    /// Pinned to the bottom so the one action is always in reach.
+    private var checkoutBar: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Darter tip").font(.subheadline).foregroundStyle(DartTheme.muted)
+                Spacer()
+                Text("$\(reward)").font(.subheadline.weight(.bold)).foregroundStyle(DartTheme.text)
+            }
+            Button {
+                guard spot != nil, destinationID != nil else { showErrors = true; return }
+                showErrors = false
+                Task { await submit() }
+            } label: {
+                if working {
+                    HStack(spacing: 10) {
+                        ProgressView().tint(DartTheme.limeInk)
+                        Text("Sending…").font(.headline)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 17)
+                    .foregroundStyle(DartTheme.limeInk)
+                    .background(DartTheme.lime, in: RoundedRectangle(cornerRadius: DartTheme.controlRadius))
+                } else {
+                    PrimaryButtonLabel(title: "Request delivery · $\(reward)", icon: "paperplane.fill")
+                }
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(working)
+        }
+        .padding(.horizontal, DartTheme.pageInset)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .background(DartTheme.surface.shadow(.drop(color: .black.opacity(0.06), radius: 12, y: -4)), ignoresSafeAreaEdges: .bottom)
     }
 
     private func submit() async {

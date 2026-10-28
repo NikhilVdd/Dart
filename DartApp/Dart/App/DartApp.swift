@@ -16,7 +16,7 @@ struct DartApp: App {
                 .preferredColorScheme(.light)
                 .onOpenURL { url in
                     store.handleDeepLink(url)
-                    if url.scheme == "dart", url.host == "request" { state.selectedTab = 2 }
+                    if url.scheme == "dart", url.host == "request" { state.selectedTab = state.ordersTab }
                 }
         }
         #if os(macOS)

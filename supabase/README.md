@@ -7,7 +7,7 @@ Postgres + Auth + Realtime on Supabase. Everything is SQL in `migrations/`: no s
 | Table | What it is |
 | --- | --- |
 | `campuses`, `places` | Where things happen. Places have lat/lng and a kind (`store`, `residence`, `library`, …). Users add places from Apple Maps search via `create_place()`. |
-| `profiles` | One per auth user: display name, initials, assigned campus, home building. |
+| `profiles` | One per auth user: display name, initials, assigned campus, home building, and roles (`is_requester`, `is_darter`). Signup sets the role from auth metadata; `add_my_role()` adds the other one. Only requesters post requests; only darters accept requests or share trips. |
 | `groups`, `group_members` | Free **friend groups** and paid **building communities**. Join by invite code; campus buildings are discoverable. |
 | `runs` | **Supply:** a trip that is already happening ("Devon is in Target, heading back to Unit 2"). Has an audience (friends / building / campus), a per-request fee, a max detour and a capacity. |
 | `requests` | **Demand:** a person asking for a physical outcome. Pickup may be a specific place or *any store*. Reward and item budget are separate. |

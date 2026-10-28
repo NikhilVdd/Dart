@@ -40,8 +40,10 @@ struct ItemDetailView: View {
                     }
 
                     VStack(spacing: 0) {
-                        DetailRow(icon: "person.fill", label: item.kind == .campusRequest ? "Requester" : "Darter", value: item.person.name)
-                        Divider().padding(.leading, 50)
+                        if item.backend?.role != .owner {
+                            DetailRow(icon: "person.fill", label: item.kind == .campusRequest ? "Requester" : "Darter", value: item.person.name)
+                            Divider().padding(.leading, 50)
+                        }
                         DetailRow(icon: "mappin.and.ellipse", label: "Pickup", value: item.pickup)
                         Divider().padding(.leading, 50)
                         DetailRow(icon: "location.fill", label: "Drop-off", value: item.destination)
@@ -120,7 +122,7 @@ struct ItemDetailView: View {
             .dartDialog(isPresented: $showUpcoming) {
                 DartAlertCard(symbol: "person.crop.circle.badge.plus", title: "Sign in to continue",
                               message: store.isConfigured
-                                ? "Sign in from Profile to accept requests, join runs, and track deliveries."
+                                ? "Sign in from Account to accept orders and track deliveries."
                                 : "This build has no backend configured, so actions are shown for preview only.",
                               primaryTitle: "Got it") {
                     showUpcoming = false
@@ -191,6 +193,7 @@ struct ItemDetailView: View {
 }
 
 private struct LiveTrackingCard: View {
+    @EnvironmentObject private var state: AppState
     let item: DartItem
 
     var body: some View {
@@ -223,15 +226,18 @@ private struct LiveTrackingCard: View {
     }
 
     private var nextStep: String {
-        switch item.status {
-        case .waiting: "Next: a nearby darter accepts your request."
-        case .accepted: "Next: the darter heads to the pickup."
-        case .pickingUp: "Next: the darter confirms they are on the way."
-        case .onTheWay: "Next: meet at the destination shown below."
-        case .delivered: "Next: the requester confirms receipt."
-        case .completed: "This Dart is complete."
-        case .cancelled: "No further action is needed."
-        case .expired: "Send a new request if your order is still waiting."
+        // Preview items have no backend row, so fall back to the side of the app you're on.
+        let isRequester = item.backend.map { $0.role == .owner } ?? (state.role != .darter)
+        guard !isRequester else { return item.status.requesterNextStep }
+        return switch item.status {
+        case .waiting: "Accept it and pick it up at \(item.pickupSpot?.name ?? item.pickup)."
+        case .accepted: "Head to \(item.pickupSpot?.name ?? item.pickup) for pickup."
+        case .pickingUp: "Grab the order, then tap “I have the order”."
+        case .onTheWay: "Bring it to \(item.destination)."
+        case .delivered: "Waiting for the requester to confirm. It completes on its own after 24 hours."
+        case .completed: "Delivered. Nice work."
+        case .cancelled: "This order was cancelled."
+        case .expired: "This order expired."
         }
     }
 }
@@ -434,22 +440,18 @@ private struct LiveItemActions: View {
             switch (ref.source, ref.role) {
             case (.request, .viewer):
                 if item.status == .waiting {
-                    primary("Accept request", icon: "hand.raised.fill") {
+                    primary(item.reward.map { "Accept · earn $\($0)" } ?? "Accept order", icon: "hand.raised.fill") {
                         if store.myActiveRuns.isEmpty { _ = await store.accept(item) } else { chooseRun = true }
                     }
                 }
             case (.request, .helper):
                 if let next = item.status.nextHelperStep {
-                    primary("Mark \(next.rawValue.lowercased())", icon: next.icon) {
+                    primary(next.helperActionTitle, icon: next.icon) {
                         _ = await store.advance(item, to: next)
                     }
                 }
                 if [.accepted, .pickingUp].contains(item.status) {
                     secondary("Release to someone else", role: .destructive) { await finish(store.release(item)) }
-                }
-                if item.status == .delivered {
-                    Text("Waiting for \(item.person.name.split(separator: " ").first ?? "the requester") to confirm. It completes automatically after 24 hours.")
-                        .font(.subheadline).foregroundStyle(.secondary)
                 }
             case (.request, .owner):
                 if [.onTheWay, .delivered].contains(item.status) {

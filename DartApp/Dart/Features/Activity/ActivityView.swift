@@ -1,33 +1,17 @@
 import SwiftUI
 
-struct ActivityView: View {
+/// Requester's Orders tab: what's in progress, then past orders.
+struct OrdersView: View {
     @EnvironmentObject private var state: AppState
     @EnvironmentObject private var store: DartStore
-
-    private var records: [ActivityRecord] { store.activities(for: state.activityMode) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    PageHeader(title: "Activity", subtitle: "Every order you’ve requested or delivered.")
-                        .padding(.bottom, 10)
-                    SlidingSegmentedControl(selection: $state.activityMode)
-                        .padding(.bottom, 8)
-                    if records.isEmpty {
-                        Text(state.activityMode == .requesting ? "Orders you request will show up here."
-                                                               : "Orders you deliver will show up here.")
-                            .font(.subheadline)
-                            .foregroundStyle(DartTheme.muted)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 28)
-                    }
-                    ForEach(records) { record in
-                        Button { state.openItem = record.item } label: {
-                            ActivityRow(record: record)
-                        }
-                        .buttonStyle(PressableStyle())
-                    }
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Orders").font(.largeTitle.weight(.heavy)).foregroundStyle(DartTheme.text)
+                    RecordSections(records: store.activities(for: .requesting),
+                                   emptyMessage: "Orders you request show up here.") { state.openItem = $0 }
                 }
                 .padding(.horizontal, DartTheme.pageInset)
                 .padding(.top, 18)
@@ -35,6 +19,94 @@ struct ActivityView: View {
             }
             .background(DartBackdrop())
             .refreshable { await store.refresh() }
+        }
+    }
+}
+
+/// Darter's Earnings tab: the running total up top, then every delivery.
+struct EarningsView: View {
+    @EnvironmentObject private var state: AppState
+    @EnvironmentObject private var store: DartStore
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text("Earnings").font(.largeTitle.weight(.heavy)).foregroundStyle(DartTheme.text)
+                    totalCard
+                    RecordSections(records: store.activities(for: .helping),
+                                   emptyMessage: "Deliveries you make show up here.") { state.openItem = $0 }
+                }
+                .padding(.horizontal, DartTheme.pageInset)
+                .padding(.top, 18)
+                .padding(.bottom, 116)
+            }
+            .background(DartBackdrop())
+            .refreshable { await store.refresh() }
+        }
+    }
+
+    private var totalCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(store.isLive ? "Total earned" : "Sample earnings").font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DartTheme.muted)
+                Spacer()
+                if !store.isLive { PreviewPill(text: "SAMPLE") }
+            }
+            Text("$\(store.earnings.map { DartStore.dollars($0.earnedCents) } ?? 46)")
+                .font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(DartTheme.text)
+            HStack(spacing: 18) {
+                stat("\(store.earnings?.completedCount ?? 9)", "delivered")
+                stat("\(store.earnings?.activeCount ?? 1)", "in progress")
+            }
+            Text("Payouts aren’t live yet. Earnings are tracked here until they are.")
+                .font(.caption).foregroundStyle(DartTheme.muted)
+                .padding(.top, 4)
+        }
+        .padding(18)
+        .background(DartTheme.limeWash, in: RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DartTheme.cardRadius, style: .continuous).stroke(DartTheme.limeDeep.opacity(0.25)))
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        HStack(spacing: 5) {
+            Text(value).font(.headline).foregroundStyle(DartTheme.text)
+            Text(label).font(.subheadline).foregroundStyle(DartTheme.muted)
+        }
+    }
+}
+
+/// "In progress" and "Past" lists of activity rows.
+private struct RecordSections: View {
+    let records: [ActivityRecord]
+    let emptyMessage: String
+    let open: (DartItem) -> Void
+
+    private var active: [ActivityRecord] { records.filter { DartStatus.active.contains($0.currentStatus) } }
+    private var past: [ActivityRecord] { records.filter { !DartStatus.active.contains($0.currentStatus) } }
+
+    var body: some View {
+        if records.isEmpty {
+            Text(emptyMessage)
+                .font(.subheadline)
+                .foregroundStyle(DartTheme.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+        }
+        section("In progress", active)
+        section("Past", past)
+    }
+
+    @ViewBuilder private func section(_ title: String, _ rows: [ActivityRecord]) -> some View {
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(title)
+                ForEach(rows) { record in
+                    Button { open(record.item) } label: { ActivityRow(record: record) }
+                        .buttonStyle(PressableStyle())
+                }
+            }
         }
     }
 }
