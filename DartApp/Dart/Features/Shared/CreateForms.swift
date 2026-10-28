@@ -250,11 +250,13 @@ struct RunFormView: View {
                 .overlay(RoundedRectangle(cornerRadius: 24).stroke(DartTheme.line))
 
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("WHO CAN ASK?").font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
-                    AudiencePicker(audience: $audience, groups: store.groups)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 52)
-                        .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+                    if DartFeatures.groups {
+                        Text("WHO CAN ASK?").font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
+                        AudiencePicker(audience: $audience, groups: store.groups)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 52)
+                            .background(DartTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+                    }
                     Text("REQUEST WINDOW").font(.caption2.weight(.heavy)).tracking(1).foregroundStyle(DartTheme.muted)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {

@@ -67,7 +67,7 @@ struct SignInView: View {
                             .font(.largeTitle.weight(.heavy))
                             .foregroundStyle(DartTheme.text)
                         Text(mode == .signIn
-                             ? "Sign in to use live requests, runs, groups, and chat."
+                             ? "Sign in to use live requests, runs, and chat."
                              : "No school email is required. Use any email address and choose a password.")
                             .foregroundStyle(DartTheme.muted)
                     }

@@ -90,9 +90,10 @@ final class DartStore: ObservableObject {
     func feed(for mode: HomeMode) -> [DartItem] {
         guard isLive else {
             guard canUsePreviewData else { return [] }
-            return mode == .request
+            let items = mode == .request
                 ? [PreviewData.traderJoes, PreviewData.buildingRun, PreviewData.shampoo]
                 : [PreviewData.charger, PreviewData.shampoo, PreviewData.buildingRun]
+            return DartFeatures.groups ? items : items.filter { $0.kind != .buildingRun && $0.kind != .friendRun }
         }
         switch mode {
         case .request: return runFeed + myRequestItems.filter { DartStatus.active.contains($0.status) }

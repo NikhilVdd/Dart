@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Features cut from v1. Their code stays so they can be turned back on.
+enum DartFeatures {
+    static let groups = false
+}
+
 @MainActor
 final class AppState: ObservableObject {
     private enum Key {

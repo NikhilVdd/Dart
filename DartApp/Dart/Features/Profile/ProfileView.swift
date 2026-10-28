@@ -119,13 +119,15 @@ struct ProfileView: View {
             } else {
                 ProfileRow(icon: "building.2.fill", title: "Building", value: state.building)
             }
-            Divider().padding(.leading, 48)
-            Button { showGroups = true } label: {
-                ProfileRow(icon: "person.2.fill", title: "Groups",
-                           value: store.groups.isEmpty ? "Friends & building" : "\(store.groups.count)", showsChevron: true)
-                    .contentShape(Rectangle())
+            if DartFeatures.groups {
+                Divider().padding(.leading, 48)
+                Button { showGroups = true } label: {
+                    ProfileRow(icon: "person.2.fill", title: "Groups",
+                               value: store.groups.isEmpty ? "Friends & building" : "\(store.groups.count)", showsChevron: true)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .dartSurface()
@@ -183,7 +185,7 @@ struct ProfileView: View {
         switch store.phase {
         case .launching: "Connecting securely to Dart."
         case .live: "Connected to the Dart backend. Requests, runs, chat, shopping lists, push notifications, and Live Activity status tracking are enabled. Card payments are not part of this build."
-        case .signedOut: "Connected to the Dart backend. Sign in or create an account with any email address to load live requests, runs, groups, and chat."
+        case .signedOut: "Connected to the Dart backend. Sign in or create an account with any email address to load live requests, runs, and chat."
         case .preview: "This is a development-only product preview. Sample tasks, people, messages, rewards, notifications, and earnings are not real. Add Supabase settings to connect a backend."
         case .unconfigured: "This release is missing its backend environment configuration."
         }
